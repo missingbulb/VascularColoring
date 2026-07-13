@@ -82,16 +82,12 @@ def annotate(fn):
     cls_full = classmap[tuple(idx)]
     cls_full[~mask] = 0
 
-    # translucent detection mask over the ORIGINAL image (full brightness)
-    base = rgb.astype(float)
-    col = np.zeros_like(base)
-    col[cls_full == 1] = CAP_COL
-    col[cls_full == 2] = ART_COL
-    m = cls_full > 0
-    A = 0.45
-    base[m] = (1 - A) * base[m] + A * col[m]
-    base = base.astype(np.uint8)
-    base[ndi.binary_dilation(junc, iterations=1)] = JUN_COL      # branch points
+    # thin category-colored OUTLINE around each detected region — original pixels untouched
+    base = rgb.copy()
+    for c, color in ((1, CAP_COL), (2, ART_COL)):
+        reg = cls_full == c
+        bnd = reg & ~ndi.binary_erosion(reg)         # 1-px contour hugging the detected vessel
+        base[bnd] = color
     img = Image.fromarray(base).resize((base.shape[1] * SC, base.shape[0] * SC), Image.NEAREST)
     IW, IH = img.size
 
@@ -126,6 +122,10 @@ def annotate(fn):
         d.multiline_text((lx, ly), lab, font=F_LAB, fill=col, spacing=3)
         arrow(d, ax, ly + 12, tx, ty, col, 3)
         d.ellipse([tx - 5, ty - 5, tx + 5, ty + 5], outline=col, width=3)
+
+    for y, x in zip(*np.where(junc)):            # branch points as small hollow rings
+        cx, cy = to_c(x, y)
+        d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], outline=JUN_COL, width=1)
 
     barpx = SCALEBAR_PX[fig] * SC
     bx1, by = ML + IW - 20, MT + IH - 22
