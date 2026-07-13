@@ -1,3 +1,13 @@
 /.claudinite/*
 !/.claudinite/sync-claudinite.sh
 /.claudinite.new/
+
+# generated annotation overlays (regenerate with: python3 analysis/measure_vessels.py --overlays)
+/analysis/overlays/
+# presentation-style annotated overlays (regenerate with: python3 analysis/annotate_overlays.py)
+/analysis/annotated/
+__pycache__/
+
+# python bytecode cache
+__pycache__/
+*.pyc
