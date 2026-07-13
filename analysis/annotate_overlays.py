@@ -82,13 +82,18 @@ def annotate(fn):
     cls_full = classmap[tuple(idx)]
     cls_full[~mask] = 0
 
-    # thin category-colored OUTLINE around each detected region — original pixels untouched
-    base = rgb.copy()
+    # Upscale first, THEN outline, so the contour is 1 px at display resolution (not SC px).
+    # Blend it semi-transparently so the original signal reads through the line.
+    big = np.asarray(Image.fromarray(rgb).resize(
+        (rgb.shape[1] * SC, rgb.shape[0] * SC), Image.NEAREST)).astype(float)
+    cls_big = np.asarray(Image.fromarray(cls_full).resize(
+        (cls_full.shape[1] * SC, cls_full.shape[0] * SC), Image.NEAREST))
+    CONTOUR_A = 0.5
     for c, color in ((1, CAP_COL), (2, ART_COL)):
-        reg = cls_full == c
-        bnd = reg & ~ndi.binary_erosion(reg)         # 1-px contour hugging the detected vessel
-        base[bnd] = color
-    img = Image.fromarray(base).resize((base.shape[1] * SC, base.shape[0] * SC), Image.NEAREST)
+        reg = cls_big == c
+        bnd = reg & ~ndi.binary_erosion(reg)
+        big[bnd] = (1 - CONTOUR_A) * big[bnd] + CONTOUR_A * np.array(color)
+    img = Image.fromarray(big.astype(np.uint8))
     IW, IH = img.size
 
     ML, MR, MT, MB = 210, 210, 60, 132
@@ -107,6 +112,10 @@ def annotate(fn):
     if thick and thick not in picks:
         picks.append(thick)
 
+    # thin, semi-transparent arrows + junction rings on an RGBA overlay
+    ov = Image.new('RGBA', cv.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    ARROW_A, RING_A = 170, 110
     left = [MT + 60, MT + 190, MT + 320, MT + 450, MT + 560]
     right = list(left)
     for b in picks:
@@ -115,17 +124,19 @@ def annotate(fn):
         lab = (f"artery  Ø {b['diam']*umpp:.0f} um\nlen {b['um']:.0f} um"
                if is_art else f"vessel {b['um']:.0f} um")
         col = ART_COL if is_art else (255, 235, 60)
-        if b['px'] < base.shape[1] / 2:
+        if b['px'] < cls_full.shape[1] / 2:
             ly, lx, ax = left.pop(0), 16, ML - 6
         else:
             ly, lx, ax = right.pop(0), ML + IW + 16, ML + IW + 6
-        d.multiline_text((lx, ly), lab, font=F_LAB, fill=col, spacing=3)
-        arrow(d, ax, ly + 12, tx, ty, col, 3)
-        d.ellipse([tx - 5, ty - 5, tx + 5, ty + 5], outline=col, width=3)
+        d.multiline_text((lx, ly), lab, font=F_LAB, fill=col, spacing=3)   # label stays opaque/readable
+        arrow(od, ax, ly + 12, tx, ty, col + (ARROW_A,), 1)
+        od.ellipse([tx - 4, ty - 4, tx + 4, ty + 4], outline=col + (ARROW_A,), width=1)
 
     for y, x in zip(*np.where(junc)):            # branch points as small hollow rings
         cx, cy = to_c(x, y)
-        d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], outline=JUN_COL, width=1)
+        od.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], outline=JUN_COL + (RING_A,), width=1)
+    cv = Image.alpha_composite(cv.convert('RGBA'), ov).convert('RGB')
+    d = ImageDraw.Draw(cv)
 
     barpx = SCALEBAR_PX[fig] * SC
     bx1, by = ML + IW - 20, MT + IH - 22
