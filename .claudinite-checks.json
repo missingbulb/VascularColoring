@@ -1,0 +1,13 @@
+{
+  "packs": [
+    "basics",
+    "research-project",
+    "grow_with_claudinite",
+    "tidy-repo"
+  ],
+  "rules": {},
+  "accept": [],
+  "maintenance": {
+    "delivery": "push"
+  }
+}
