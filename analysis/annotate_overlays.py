@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Presentation-style annotated overlays for the gP-CD31 vessel panels.
+
+Per panel: category-colored skeleton (cyan capillary / red artery / magenta
+junction), yellow arrows labelling the longest measured vessels (um), a red
+arrow labelling an example artery's diameter, a drawn 50 um scale bar, and a
+totals banner (segment count, length + density, junctions, area%).
+
+Reuses the extraction in measure_vessels.py.
+Run:  python3 analysis/annotate_overlays.py [name-substring ...]
+      (no args = all 16). Writes PNGs to analysis/annotated/ (gitignored).
+"""
+import warnings, os, sys, glob, math
+warnings.filterwarnings('ignore')
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from scipy import ndimage as ndi
+from skimage.morphology import skeletonize
+from measure_vessels import (segment, prune, nbrs, S8, umpp_for,
+                             ARTERY_DIAM_PX, SCALEBAR_PX, SRC)
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, 'annotated')
+SC = 3
+CAP_COL, ART_COL, JUN_COL = (0, 200, 255), (255, 70, 40), (255, 0, 255)
+
+
+def font(sz, bold=True):
+    name = 'DejaVuSans-Bold.ttf' if bold else 'DejaVuSans.ttf'
+    try:
+        return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/' + name, sz)
+    except OSError:
+        return ImageFont.load_default()
+
+
+F_TITLE, F_LAB, F_BAN = font(26), font(20), font(19)
+
+
+def branch_table(rgb, umpp):
+    mask = segment(rgb)
+    skel = prune(skeletonize(mask))
+    nb = nbrs(skel)
+    junc = skel & (nb >= 3)
+    branch_lbl, n = ndi.label(skel & ~junc, structure=S8)
+    diam = 2 * ndi.distance_transform_edt(mask)
+    brs = []
+    for lab in range(1, n + 1):
+        ys, xs = np.where(branch_lbl == lab)
+        dm = float(diam[ys, xs].mean())
+        cy, cx = ys.mean(), xs.mean()
+        k = np.argmin((ys - cy) ** 2 + (xs - cx) ** 2)
+        brs.append(dict(lab=lab, L=len(xs), um=len(xs) * umpp, diam=dm,
+                        cls=2 if dm >= ARTERY_DIAM_PX else 1, py=int(ys[k]), px=int(xs[k])))
+    h, w = mask.shape
+    tot = dict(length_um=skel.sum() * umpp, seg=n,
+               cap=sum(b['cls'] == 1 for b in brs), art=sum(b['cls'] == 2 for b in brs),
+               junc=int(ndi.label(junc, S8)[1]), area=100 * mask.mean(),
+               dens=(skel.sum() * umpp / 1000.0) / ((h * umpp / 1000) * (w * umpp / 1000)))
+    return skel, junc, branch_lbl, brs, tot
+
+
+def arrow(d, x0, y0, x1, y1, col, wd=3):
+    d.line([x0, y0, x1, y1], fill=col, width=wd)
+    a = math.atan2(y1 - y0, x1 - x0)
+    for s in (0.5, -0.5):
+        d.line([x1, y1, x1 - 16 * math.cos(a - s), y1 - 16 * math.sin(a - s)], fill=col, width=wd)
+
+
+def annotate(fn):
+    rgb = np.asarray(Image.open(fn).convert('RGB'))
+    name = os.path.basename(fn).replace('VESSEL_', '').replace('_gP-CD31_red.png', '')
+    fig = next(f for f in SCALEBAR_PX if name.startswith(f))
+    umpp = umpp_for(name)
+    skel, junc, branch_lbl, brs, tot = branch_table(rgb, umpp)
+
+    base = (rgb * 0.30).astype(np.uint8)
+    sk = ndi.binary_dilation(skel, iterations=1)
+    cmap = np.zeros(skel.shape, np.uint8)
+    for b in brs:
+        cmap[branch_lbl == b['lab']] = b['cls']
+    cmap = ndi.grey_dilation(cmap, footprint=np.ones((3, 3)))
+    base[sk & (cmap == 1)] = CAP_COL
+    base[sk & (cmap == 2)] = ART_COL
+    base[ndi.binary_dilation(junc, iterations=1)] = JUN_COL
+    img = Image.fromarray(base).resize((base.shape[1] * SC, base.shape[0] * SC), Image.NEAREST)
+    IW, IH = img.size
+
+    ML, MR, MT, MB = 210, 210, 60, 132
+    W, H = IW + ML + MR, IH + MT + MB
+    cv = Image.new('RGB', (W, H), (16, 16, 18))
+    cv.paste(img, (ML, MT))
+    d = ImageDraw.Draw(cv)
+    to_c = lambda px, py: (ML + px * SC, MT + py * SC)
+    d.text((ML, 18), name, font=F_TITLE, fill=(255, 255, 255))
+    d.text((ML + 260, 26), f"scale {umpp:.3f} um/px", font=F_LAB, fill=(150, 150, 150))
+
+    order = sorted(brs, key=lambda b: -b['L'])
+    picks = [b for b in order if b['L'] >= 15][:3]
+    arts = [b for b in order if b['cls'] == 2 and b['L'] >= 10]
+    thick = max(arts, key=lambda b: b['diam']) if arts else None
+    if thick and thick not in picks:
+        picks.append(thick)
+
+    left = [MT + 60, MT + 190, MT + 320, MT + 450, MT + 560]
+    right = list(left)
+    for b in picks:
+        tx, ty = to_c(b['px'], b['py'])
+        is_art = (b is thick)
+        lab = (f"artery  Ø {b['diam']*umpp:.0f} um\nlen {b['um']:.0f} um"
+               if is_art else f"vessel {b['um']:.0f} um")
+        col = ART_COL if is_art else (255, 235, 60)
+        if b['px'] < base.shape[1] / 2:
+            ly, lx, ax = left.pop(0), 16, ML - 6
+        else:
+            ly, lx, ax = right.pop(0), ML + IW + 16, ML + IW + 6
+        d.multiline_text((lx, ly), lab, font=F_LAB, fill=col, spacing=3)
+        arrow(d, ax, ly + 12, tx, ty, col, 3)
+        d.ellipse([tx - 5, ty - 5, tx + 5, ty + 5], outline=col, width=3)
+
+    barpx = SCALEBAR_PX[fig] * SC
+    bx1, by = ML + IW - 20, MT + IH - 22
+    d.rectangle([bx1 - barpx, by, bx1, by + 7], fill=(255, 255, 255))
+    d.text((bx1 - barpx, by - 26), "50 um", font=F_LAB, fill=(255, 255, 255))
+
+    d.text((ML, MT + IH + 10), "● capillary", font=F_LAB, fill=CAP_COL)
+    d.text((ML + 150, MT + IH + 10), "● artery", font=F_LAB, fill=ART_COL)
+    d.text((ML + 280, MT + IH + 10), "● junction", font=F_LAB, fill=JUN_COL)
+    ban = (f"TOTAL   {tot['seg']} segments ({tot['cap']} cap + {tot['art']} art)   |   "
+           f"length {tot['length_um']:.0f} um ({tot['dens']:.1f} mm/mm²)   |   "
+           f"{tot['junc']} junctions   |   area {tot['area']:.1f}%")
+    d.rectangle([0, H - 44, W, H], fill=(30, 30, 34))
+    d.text((16, H - 36), ban, font=F_BAN, fill=(220, 235, 220))
+
+    os.makedirs(OUT, exist_ok=True)
+    cv.save(os.path.join(OUT, name + '.png'))
+    return name
+
+
+def main():
+    targets = sys.argv[1:] or ['*']
+    files = set()
+    for t in targets:
+        pat = 'VESSEL_*.png' if t == '*' else f'VESSEL_*{t}*_gP-CD31_red.png'
+        files.update(glob.glob(os.path.join(SRC, pat)))
+    for fn in sorted(files):
+        print('annotated', annotate(fn))
+    print('->', OUT)
+
+
+if __name__ == '__main__':
+    main()

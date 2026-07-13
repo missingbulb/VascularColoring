@@ -4,3 +4,5 @@
 
 # generated annotation overlays (regenerate with: python3 analysis/measure_vessels.py --overlays)
 /analysis/overlays/
+# presentation-style annotated overlays (regenerate with: python3 analysis/annotate_overlays.py)
+/analysis/annotated/
