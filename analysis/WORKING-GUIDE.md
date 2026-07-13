@@ -83,4 +83,4 @@ The owner iterated to this exact style — keep it:
 | `analysis/results-first-pass.md` | Measured results, calibration, limitations. |
 | `analysis/STATUS.md` | Current state and agreed next step. |
 
-Dependencies: `numpy`, `scipy`, `scikit-image`, `Pillow`.
+Setup: `pip install -r requirements.txt` (numpy, scipy, scikit-image, Pillow).
