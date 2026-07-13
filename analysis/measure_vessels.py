@@ -34,7 +34,19 @@ SRC = os.path.normpath(os.path.join(HERE, '..', 'references', 'figures', 'panels
 OUT = os.path.join(HERE, 'overlays')
 
 ARTERY_DIAM_PX = 9.0    # branch mean diameter >= this -> penetrating artery/arteriole
-FOV_UM = 310.0          # 40x confocal field of view (digest 5); provisional
+
+# Real calibration: measured from the 50 um scale bar printed on each figure's merge/montage
+# panel (same resolution as its VESSEL panel). Bar widths: fig1=61px, fig3=47px, fig4/5/6=76px.
+UM_PER_BAR = 50.0
+SCALEBAR_PX = {'fig1': 61, 'fig3': 47, 'fig4': 76, 'fig5': 76, 'fig6': 76}
+
+
+def umpp_for(name):
+    for fig, px in SCALEBAR_PX.items():
+        if name.startswith(fig):
+            return UM_PER_BAR / px
+    return None            # unknown figure -> report px only
+
 S8 = np.ones((3, 3), int)
 REGIONS = ['ischemic', 'penumbra', 'contralateral', 'normal', 'healthy']
 
@@ -90,9 +102,7 @@ def prune(skel, min_len=8):
     return rm_small(skel, 3)
 
 
-def analyze(rgb):
-    h, w = rgb.shape[:2]
-    umpp = FOV_UM / ((h + w) / 2.0)
+def analyze(rgb, umpp):
     mask = segment(rgb)
     skel = prune(skeletonize(mask))
     nb = nbrs(skel)
@@ -109,8 +119,14 @@ def analyze(rgb):
             n_art += cls == 2
             n_cap += cls == 1
     widths = diam[skel]
+    h, w = mask.shape
+    field_mm2 = (h * umpp / 1000.0) * (w * umpp / 1000.0) if umpp else None
+    length_um = skel.sum() * umpp if umpp else None
     m = dict(area=100 * mask.mean(), length_px=int(skel.sum()),
-             length_um=round(skel.sum() * umpp, 0),
+             length_um=round(length_um) if umpp else None, umpp=umpp,
+             # scale-invariant, comparable across figures:
+             length_density=round((length_um / 1000.0) / field_mm2, 1) if umpp else None,  # mm vessel / mm2
+             count_density=round(nbr / field_mm2) if umpp else None,                       # segments / mm2
              segments=nbr, capillary=int(n_cap), artery=int(n_art),
              junctions=int(ndi.label(junc, S8)[1]), vessels=int(ndi.label(mask, S8)[1]),
              wp90=round(float(np.percentile(widths, 90)) if widths.size else 0.0, 1))
@@ -147,7 +163,8 @@ def save_overlay(name, rgb, m, aux):
         canvas.paste(im, (pad + i * (W + pad), cap))
     d = ImageDraw.Draw(canvas)
     d.text((pad, 8), name, font=FB, fill=(255, 255, 255))
-    d.text((pad, 30), f"length {m['length_px']}px (~{m['length_um']:.0f}um)   segments {m['segments']} "
+    um = f"~{m['length_um']:.0f}um" if m['length_um'] is not None else "um n/a"
+    d.text((pad, 30), f"length {m['length_px']}px ({um})   segments {m['segments']} "
                       f"(cap {m['capillary']} / artery {m['artery']})   junctions {m['junctions']}   "
                       f"area {m['area']:.1f}%", font=FS, fill=(170, 225, 170))
     for i, t in enumerate(["original",
@@ -163,15 +180,16 @@ def main():
     ap.add_argument('--overlays', action='store_true', help='also write annotated PNGs to analysis/overlays/')
     args = ap.parse_args()
     rows = []
-    hdr = ('panel', 'len_px', 'len_um', 'seg', 'cap', 'art', 'junc', 'area%', 'wp90')
-    print(f'{hdr[0]:28s}' + ''.join(f'{h:>7s}' for h in hdr[1:]))
+    hdr = ('panel', 'len_um', 'len_dens', 'cnt_dens', 'seg', 'cap', 'art', 'area%', 'wp90')
+    print(f'{hdr[0]:28s}' + ''.join(f'{h:>9s}' for h in hdr[1:]))
+    print(f'{"":28s}{"um":>9s}{"mm/mm2":>9s}{"seg/mm2":>9s}')
     for fn in sorted(glob.glob(os.path.join(SRC, 'VESSEL_*.png'))):
         rgb = np.asarray(Image.open(fn).convert('RGB'))
-        m, aux = analyze(rgb)
         name = os.path.basename(fn).replace('VESSEL_', '').replace('_gP-CD31_red.png', '')
+        m, aux = analyze(rgb, umpp_for(name))
         rows.append((name, m))
-        print(f'{name:28s}{m["length_px"]:7d}{m["length_um"]:7.0f}{m["segments"]:7d}{m["capillary"]:7d}'
-              f'{m["artery"]:7d}{m["junctions"]:7d}{m["area"]:7.1f}{m["wp90"]:7.1f}')
+        print(f'{name:28s}{m["length_um"]:9.0f}{m["length_density"]:9.1f}{m["count_density"]:9.0f}'
+              f'{m["segments"]:9d}{m["capillary"]:9d}{m["artery"]:9d}{m["area"]:9.1f}{m["wp90"]:9.1f}')
         if args.overlays:
             save_overlay(name, rgb, m, aux)
 
@@ -180,17 +198,17 @@ def main():
     for name, m in rows:
         for r in REGIONS:
             if r in name:
-                for k in ('length_px', 'segments', 'capillary', 'artery', 'area'):
+                for k in ('length_density', 'count_density', 'area'):
                     agg[r][k].append(m[k])
                 break
-    print('\nregion means:')
-    print(f'{"region":15s}{"len_px":>8s}{"seg":>6s}{"cap":>6s}{"art":>6s}{"area%":>7s}  n')
+    print('\nregion means (scale-invariant, comparable across figures):')
+    print(f'{"region":15s}{"len_dens":>9s}{"cnt_dens":>9s}{"area%":>7s}  n')
+    print(f'{"":15s}{"mm/mm2":>9s}{"seg/mm2":>9s}')
     for r in REGIONS:
-        if agg[r]['length_px']:
+        if agg[r]['length_density']:
             g = agg[r]
-            print(f'{r:15s}{np.mean(g["length_px"]):8.0f}{np.mean(g["segments"]):6.0f}'
-                  f'{np.mean(g["capillary"]):6.0f}{np.mean(g["artery"]):6.1f}{np.mean(g["area"]):7.1f}'
-                  f'  {len(g["length_px"])}')
+            print(f'{r:15s}{np.mean(g["length_density"]):9.1f}{np.mean(g["count_density"]):9.0f}'
+                  f'{np.mean(g["area"]):7.1f}  {len(g["length_density"])}')
     if args.overlays:
         print('\noverlays ->', OUT)
 
