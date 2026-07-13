@@ -22,7 +22,8 @@ from measure_vessels import (segment, prune, nbrs, S8, umpp_for,
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'annotated')
 SC = 3
-CAP_COL, ART_COL, JUN_COL = (0, 200, 255), (255, 70, 40), (255, 0, 255)
+# mask overlay colors chosen to contrast with the red original: cyan + green + magenta
+CAP_COL, ART_COL, JUN_COL = (0, 200, 255), (40, 235, 90), (255, 0, 255)
 
 
 def font(sz, bold=True):
@@ -56,7 +57,7 @@ def branch_table(rgb, umpp):
                cap=sum(b['cls'] == 1 for b in brs), art=sum(b['cls'] == 2 for b in brs),
                junc=int(ndi.label(junc, S8)[1]), area=100 * mask.mean(),
                dens=(skel.sum() * umpp / 1000.0) / ((h * umpp / 1000) * (w * umpp / 1000)))
-    return skel, junc, branch_lbl, brs, tot
+    return mask, skel, junc, branch_lbl, brs, tot
 
 
 def arrow(d, x0, y0, x1, y1, col, wd=3):
@@ -71,17 +72,26 @@ def annotate(fn):
     name = os.path.basename(fn).replace('VESSEL_', '').replace('_gP-CD31_red.png', '')
     fig = next(f for f in SCALEBAR_PX if name.startswith(f))
     umpp = umpp_for(name)
-    skel, junc, branch_lbl, brs, tot = branch_table(rgb, umpp)
+    mask, skel, junc, branch_lbl, brs, tot = branch_table(rgb, umpp)
 
-    base = (rgb * 0.30).astype(np.uint8)
-    sk = ndi.binary_dilation(skel, iterations=1)
-    cmap = np.zeros(skel.shape, np.uint8)
+    # class per skeleton pixel, propagated to the whole mask (nearest centerline)
+    classmap = np.zeros(skel.shape, np.uint8)
     for b in brs:
-        cmap[branch_lbl == b['lab']] = b['cls']
-    cmap = ndi.grey_dilation(cmap, footprint=np.ones((3, 3)))
-    base[sk & (cmap == 1)] = CAP_COL
-    base[sk & (cmap == 2)] = ART_COL
-    base[ndi.binary_dilation(junc, iterations=1)] = JUN_COL
+        classmap[branch_lbl == b['lab']] = b['cls']
+    idx = ndi.distance_transform_edt(classmap == 0, return_indices=True)[1]
+    cls_full = classmap[tuple(idx)]
+    cls_full[~mask] = 0
+
+    # translucent detection mask over the ORIGINAL image (full brightness)
+    base = rgb.astype(float)
+    col = np.zeros_like(base)
+    col[cls_full == 1] = CAP_COL
+    col[cls_full == 2] = ART_COL
+    m = cls_full > 0
+    A = 0.45
+    base[m] = (1 - A) * base[m] + A * col[m]
+    base = base.astype(np.uint8)
+    base[ndi.binary_dilation(junc, iterations=1)] = JUN_COL      # branch points
     img = Image.fromarray(base).resize((base.shape[1] * SC, base.shape[0] * SC), Image.NEAREST)
     IW, IH = img.size
 
