@@ -50,4 +50,4 @@ python3 analysis/measure_vessels.py --overlays   # 3-panel debug overlays -> ana
 python3 analysis/annotate_overlays.py            # presentation overlays -> analysis/annotated/
 ```
 
-Dependencies: `numpy`, `scipy`, `scikit-image`, `Pillow`. (Rendered PNG dirs are gitignored — regenerate.)
+Setup: `pip install -r requirements.txt` (numpy, scipy, scikit-image, Pillow). Rendered PNG dirs are gitignored — regenerate.
