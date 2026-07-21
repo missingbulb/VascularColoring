@@ -1,6 +1,4 @@
-/.claudinite/*
 !/.claudinite/shared/
-!/.claudinite/local_packs/
 /.claudinite-hooks.log.tmp
 /.claudinite-hooks.log
 
