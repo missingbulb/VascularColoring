@@ -1,0 +1,53 @@
+---
+name: vessel-overlay-review
+description: Show a vessel-extraction result as an annotated overlay on the original panel and state explicit visual assertions about it. Use whenever proposing, revising, or reporting on the segmentation/measurement pipeline in this repo — before quoting any new numbers.
+---
+
+# Reviewing a vessel extraction on the overlay
+
+The owner reacts to **pictures with claims attached**, not to metric tables. Any change to
+`analysis/measure_vessels.py` (segmentation, pruning, branch graph, caliber threshold) is presented
+this way before its numbers are quoted.
+
+## 1. Regenerate
+
+```
+python3 analysis/measure_vessels.py                  # per-image + region metrics table
+python3 analysis/annotate_overlays.py [name-substr]  # presentation overlays -> analysis/annotated/
+```
+
+Both output directories are gitignored and regenerated — never commit their PNGs
+(`rendered-overlays-untracked` enforces this). Setup: `pip install -r requirements.txt`.
+
+## 2. Keep the agreed overlay style
+
+`analysis/annotate_overlays.py` is the source of truth for it, and it is the style the owner
+iterated to — change it only on request:
+
+- overlay on the **original at full brightness**; the debug 3-panel view in `measure_vessels.py`
+  (`--overlays`) may dim, the presentation overlay may not;
+- a highlight is a **slim outline that circles the thing — never a colour fill**; contours drawn at
+  display resolution, 1 px, alpha-blended so the signal reads through;
+- colours contrast with the red channel — cyan capillary, green artery, magenta junction, yellow
+  labels. **No red overlay marks** (`overlay-color-contrast` enforces this);
+- arrows label representative vessels with their length in µm, one artery with its diameter; a drawn
+  50 µm bar and a totals banner (segments cap/artery, length + density, junctions, area %).
+
+## 3. State the assertions
+
+Alongside the overlay, write the claims a reader can check against it, in both directions:
+
+- **what the method caught** — "each cyan outline is one segment I counted";
+- **what it missed or broke** — "the red vessel at lower-left carries no outline: under-detection in
+  this dim field"; "this vessel is split into three segments by a stain dropout, so COUNT is
+  inflated here".
+
+A review that only shows the good fields is not a review. Compare against the visual expectations in
+`references/figures/panels/expected-results.md` — never against the pipeline's own previous output.
+
+## 4. Then the numbers
+
+Quote metrics after the picture, and use **length density / area %** for anything cross-figure (the
+figures are at different zoom). Record the accepted change and its metric delta in
+`analysis/results-first-pass.md`, and refresh `analysis/STATUS.md`'s "trustworthy vs not" and next
+step so the next session resumes from it.
