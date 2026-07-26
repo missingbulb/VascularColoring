@@ -14,8 +14,13 @@
   "maintenance": {
     "delivery": "auto-merge"
   },
+  "taskScheduler": {
+    "dailyHour": 4,
+    "weeklyDay": "Sun",
+    "monthlyDay": 1
+  },
   "claudinite": {
-    "updated": "2026-07-21T22:51:48.675Z",
-    "ref": "d6bca9351cd0396cf068ea1199c6475993623a5d"
+    "updated": "2026-07-26T21:14:52.417Z",
+    "ref": "de0d3847980fb233a20b470d828a1ca533da1d63"
   }
 }
