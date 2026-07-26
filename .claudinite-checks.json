@@ -9,7 +9,8 @@
     },
     "research-project",
     "grow_with_claudinite",
-    "tidy-repo"
+    "tidy-repo",
+    "local/vascular-coloring"
   ],
   "maintenance": {
     "delivery": "auto-merge"

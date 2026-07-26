@@ -1,0 +1,44 @@
+# vascular-coloring — this repo's own pack
+
+The **vessel-image quantification** domain this project works in: gP-CD31 (red) confocal panels
+measured for categorize / count / measure. A local pack — declared by hand as
+`local/vascular-coloring` in `.claudinite-checks.json`, never fingerprinted.
+
+It carries only what the canon doesn't: `research-project` already owns the class (run an algorithm
+over similarly-formatted inputs, score against ground truth, iterate visibly), so the loop, the
+ground-truth discipline and the anti-overfitting stance are **not** repeated here. What is here is
+imaging-specific and concrete — the palette the red signal forces, the render-vs-data commit line,
+and the calibration without which a micrometre is not a micrometre.
+
+## Checks (`rules`)
+
+| Check | Enforces (≤5 words) | Severity |
+|---|---|---|
+| `overlay-color-contrast` | no red marks on red signal | blocking |
+| `rendered-overlays-untracked` | rendered overlays stay uncommitted | blocking |
+| `panel-scale-calibration` | every working figure stays calibrated | blocking |
+
+Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
+on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
+
+## Prose (`RULES.md`)
+
+| Rule (≤5 words) | How enforced |
+|---|---|
+| Never validate pipeline against itself | prose |
+| Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
+| Metric definitions are locked | prose |
+| Raw length not cross-comparable | prose (+ `panel-scale-calibration`) |
+| Say which numbers are trustworthy | prose |
+
+## Skills
+
+| Skill | Trigger |
+|---|---|
+| [vessel-overlay-review](skills/vessel-overlay-review/SKILL.md) | proposing, revising or reporting on the extraction pipeline |
+
+Distilled from this repo's real usage: [`analysis/WORKING-GUIDE.md`](../../../../analysis/WORKING-GUIDE.md),
+[`analysis/annotate_overlays.py`](../../../../analysis/annotate_overlays.py),
+[`analysis/measure_vessels.py`](../../../../analysis/measure_vessels.py), the `.gitignore` render
+exclusions, and the 16 `VESSEL_*` panels under
+[`references/figures/panels`](../../../../references/figures/panels).
