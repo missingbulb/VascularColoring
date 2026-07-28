@@ -17,6 +17,7 @@ and the calibration without which a micrometre is not a micrometre.
 | `overlay-color-contrast` | no red marks on red signal | blocking |
 | `rendered-overlays-untracked` | rendered overlays stay uncommitted | blocking |
 | `panel-scale-calibration` | every working figure stays calibrated | blocking |
+| `scale-numbers-match-calibration` | quoted µm/px matches its source | blocking |
 
 Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
 on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
@@ -28,7 +29,7 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 | Never validate pipeline against itself | prose |
 | Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
 | Metric definitions are locked | prose |
-| Raw length not cross-comparable | prose (+ `panel-scale-calibration`) |
+| Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`) |
 | Say which numbers are trustworthy | prose |
 
 ## Skills

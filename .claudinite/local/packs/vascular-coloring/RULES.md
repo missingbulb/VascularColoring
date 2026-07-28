@@ -2,7 +2,7 @@
 
 This project measures fluorescently-labelled cerebral vessels in the **gP-CD31 (red) confocal
 panels**: categorize / count / measure. What follows is only the judgment a check cannot carry.
-The three enforced rules live in this pack's checks; the full working detail (overlay style knobs,
+The enforced rules live in this pack's checks; the full working detail (overlay style knobs,
 file map, calibration numbers) stays in [`analysis/WORKING-GUIDE.md`](../../../../analysis/WORKING-GUIDE.md),
 and current state in [`analysis/STATUS.md`](../../../../analysis/STATUS.md).
 
@@ -32,10 +32,11 @@ Changing what a metric *means* changes every recorded number, so these are fixed
 
 ## Raw length is not comparable across figures
 
-Each figure is at a different zoom and carries its own 50 µm bar (fig1 = 0.820, fig3 = 1.064,
-fig4/5/6 = 0.658 µm/px). Any cross-region or cross-figure comparison uses **length density
-(mm/mm²) or area %** — never raw µm. This is why every working figure must stay calibrated
-(`panel-scale-calibration`).
+Each figure is at a different zoom and carries its own printed 50 µm bar, so px→µm differs per
+figure. Any cross-region or cross-figure comparison uses **length density (mm/mm²) or area %** —
+never raw µm. This is why every working figure must stay calibrated (`panel-scale-calibration`).
+The measured bar widths live in exactly one place, `SCALEBAR_PX` in `analysis/measure_vessels.py`
+(`scale-numbers-match-calibration` holds every µm/px number quoted in the docs to it).
 
 ## Say which numbers are trustworthy
 
