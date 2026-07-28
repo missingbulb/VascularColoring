@@ -8,7 +8,8 @@ It carries only what the canon doesn't: `research-project` already owns the clas
 over similarly-formatted inputs, score against ground truth, iterate visibly), so the loop, the
 ground-truth discipline and the anti-overfitting stance are **not** repeated here. What is here is
 imaging-specific and concrete — the palette the red signal forces, the render-vs-data commit line,
-and the calibration without which a micrometre is not a micrometre.
+the calibration without which a micrometre is not a micrometre, and the locked metric fields that
+keep every recorded number meaning the same thing.
 
 ## Checks (`rules`)
 
@@ -17,6 +18,8 @@ and the calibration without which a micrometre is not a micrometre.
 | `overlay-color-contrast` | no red marks on red signal | blocking |
 | `rendered-overlays-untracked` | rendered overlays stay uncommitted | blocking |
 | `panel-scale-calibration` | every working figure stays calibrated | blocking |
+| `scale-numbers-match-calibration` | quoted µm/px matches its source | blocking |
+| `locked-metric-fields` | locked metrics stay reported | blocking |
 
 Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
 on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
@@ -27,8 +30,8 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 |---|---|
 | Never validate pipeline against itself | prose |
 | Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
-| Metric definitions are locked | prose |
-| Raw length not cross-comparable | prose (+ `panel-scale-calibration`) |
+| Metric definitions are locked | prose (+ `locked-metric-fields`) |
+| Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`) |
 | Say which numbers are trustworthy | prose |
 
 ## Skills
