@@ -2,7 +2,7 @@
 
 This project measures fluorescently-labelled cerebral vessels in the **gP-CD31 (red) confocal
 panels**: categorize / count / measure. What follows is only the judgment a check cannot carry.
-The three enforced rules live in this pack's checks; the full working detail (overlay style knobs,
+The enforced rules live in this pack's checks; the full working detail (overlay style knobs,
 file map, calibration numbers) stays in [`analysis/WORKING-GUIDE.md`](../../../../analysis/WORKING-GUIDE.md),
 and current state in [`analysis/STATUS.md`](../../../../analysis/STATUS.md).
 
@@ -23,19 +23,20 @@ The procedure is in [vessel-overlay-review](skills/vessel-overlay-review/SKILL.m
 
 ## The metric definitions are locked
 
-Changing what a metric *means* changes every recorded number, so these are fixed:
-
-- **COUNT** = branch **segments** (junction-to-junction / junction-to-tip). Junctions and connected
-  components are reported too, but the segment is the count unit.
-- **CATEGORIZE** = **caliber**: capillary vs penetrating artery, by centerline diameter.
-- **MEASURE** = **total centerline length**, reported as raw µm *and* as density.
+COUNT = branch **segments** (junction-to-junction / junction-to-tip — *not* connected components,
+which are reported alongside), CATEGORIZE = **caliber**, MEASURE = **total centerline length**.
+That the script keeps reporting all three is enforced (`locked-metric-fields`); the judgment is that
+re-defining one is an owner call, because it changes every recorded number silently — the column
+keeps its name while the quantity under it moves, so the old numbers must be re-measured, never
+re-labelled.
 
 ## Raw length is not comparable across figures
 
-Each figure is at a different zoom and carries its own 50 µm bar (fig1 = 0.820, fig3 = 1.064,
-fig4/5/6 = 0.658 µm/px). Any cross-region or cross-figure comparison uses **length density
-(mm/mm²) or area %** — never raw µm. This is why every working figure must stay calibrated
-(`panel-scale-calibration`).
+Each figure is at a different zoom and carries its own printed 50 µm bar, so px→µm differs per
+figure. Any cross-region or cross-figure comparison uses **length density (mm/mm²) or area %** —
+never raw µm. This is why every working figure must stay calibrated (`panel-scale-calibration`).
+The measured bar widths live in exactly one place, `SCALEBAR_PX` in `analysis/measure_vessels.py`
+(`scale-numbers-match-calibration` holds every µm/px number quoted in the docs to it).
 
 ## Say which numbers are trustworthy
 
