@@ -47,7 +47,7 @@ A review that only shows the good fields is not a review. Compare against the vi
 
 ## 4. Then the numbers
 
-Quote metrics after the picture, and use **length density / area %** for anything cross-figure (the
+Use **length density / area %** for anything cross-figure (the
 figures are at different zoom). Record the accepted change and its metric delta in
 `analysis/results-first-pass.md`, and refresh `analysis/STATUS.md`'s "trustworthy vs not" and next
 step so the next session resumes from it.
