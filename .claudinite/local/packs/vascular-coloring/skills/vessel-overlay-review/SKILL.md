@@ -16,8 +16,10 @@ python3 analysis/measure_vessels.py                  # per-image + region metric
 python3 analysis/annotate_overlays.py [name-substr]  # presentation overlays -> analysis/annotated/
 ```
 
-Both output directories are gitignored and regenerated — never commit their PNGs
-(`rendered-overlays-untracked` enforces this). Setup: `pip install -r requirements.txt`.
+Both output directories hold renders, not data: regenerate them, never commit their PNGs
+(`render-outputs-gitignored` keeps every render directory ignored by git,
+`rendered-overlays-untracked` catches a PNG that got committed anyway). Setup:
+`pip install -r requirements.txt`.
 
 ## 2. Keep the agreed overlay style
 

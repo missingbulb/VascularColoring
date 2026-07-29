@@ -35,8 +35,10 @@ re-labelled.
 Each figure is at a different zoom and carries its own printed 50 µm bar, so px→µm differs per
 figure. Any cross-region or cross-figure comparison uses **length density (mm/mm²) or area %** —
 never raw µm. This is why every working figure must stay calibrated (`panel-scale-calibration`).
-The measured bar widths live in exactly one place, `SCALEBAR_PX` in `analysis/measure_vessels.py`
-(`scale-numbers-match-calibration` holds every µm/px number quoted in the docs to it).
+The bar widths are a measurement, not a constant, so they live in exactly one place — `SCALEBAR_PX`
+in `analysis/measure_vessels.py`; a second copy is a second calibration, and whichever copy a script
+or a document happens to read wins silently (`calibration-single-source` for code,
+`scale-numbers-match-calibration` for the numbers quoted in the docs).
 
 ## Say which numbers are trustworthy
 
