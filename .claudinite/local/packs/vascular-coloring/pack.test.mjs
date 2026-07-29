@@ -8,6 +8,8 @@ import renderedOverlaysUntracked from './rendered-overlays-untracked.mjs';
 import panelScaleCalibration from './panel-scale-calibration.mjs';
 import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs';
 import lockedMetricFields from './locked-metric-fields.mjs';
+import calibrationSingleSource from './calibration-single-source.mjs';
+import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -218,6 +220,136 @@ test('scale-numbers-match-calibration is quiet when every quoted number agrees',
       ].join('\n'),
     },
     tracked: [MEASURE, DOC, RESULTS],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- calibration-single-source ----------------------------------------------
+
+const ANNOTATE = 'analysis/annotate_overlays.py';
+const CALIB_SRC = [
+  '"""Vessel quantification.',
+  '',
+  "Calibration lives here: SCALEBAR_PX = {'fig1': 61} — a docstring quoting the",
+  'table documents it, it does not define it.',
+  '"""',
+  'import os',
+  'UM_PER_BAR = 50.0',
+  "SCALEBAR_PX = {'fig1': 61, 'fig3': 47}",
+].join('\n');
+
+test('calibration-single-source fires on a second calibration table in another script', () => {
+  const findings = calibrationSingleSource.run(ctx({
+    files: {
+      [MEASURE]: CALIB_SRC,
+      // The importing script grows its own copy — the drift the rule is about.
+      [ANNOTATE]: [
+        'from measure_vessels import (segment, prune, umpp_for,',
+        '                             ARTERY_DIAM_PX, SRC)',
+        '',
+        "SCALEBAR_PX = {'fig1': 61, 'fig3': 47, 'fig4': 76}",
+      ].join('\n'),
+    },
+    tracked: [MEASURE, ANNOTATE],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, ANNOTATE);
+  assert.equal(findings[0].line, 4);
+  assert.match(findings[0].what, /defines its own SCALEBAR_PX/);
+});
+
+test('calibration-single-source fires when the source assigns one name twice', () => {
+  const findings = calibrationSingleSource.run(ctx({
+    files: { [MEASURE]: `${CALIB_SRC}\n\n# re-measured fig3, old table left above\nSCALEBAR_PX = {'fig1': 61, 'fig3': 44}\n` },
+    tracked: [MEASURE],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /SCALEBAR_PX is assigned 2 times/);
+  assert.equal(findings[0].line, 11);
+});
+
+test('calibration-single-source is quiet when the table is defined once and imported', () => {
+  const findings = calibrationSingleSource.run(ctx({
+    files: {
+      [MEASURE]: CALIB_SRC,
+      // An import of the name, a continuation line carrying it, and a keyword
+      // argument spelled like an assignment — none of them a definition.
+      [ANNOTATE]: [
+        'from measure_vessels import (segment, prune, umpp_for,',
+        '                             ARTERY_DIAM_PX, SCALEBAR_PX, SRC)',
+        '',
+        'bar = draw_bar(img,',
+        '               UM_PER_BAR=50.0)',
+        "# SCALEBAR_PX = {'fig1': 61}   <- kept as a comment while debugging",
+      ].join('\n'),
+    },
+    tracked: [MEASURE, ANNOTATE, 'analysis/WORKING-GUIDE.md'],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- render-outputs-gitignored ----------------------------------------------
+
+const script = (dir) => [
+  '#!/usr/bin/env python3',
+  '"""Writes PNGs to analysis/reports/ (gitignored)."""',
+  'import os',
+  'HERE = os.path.dirname(os.path.abspath(__file__))',
+  `OUT = os.path.join(HERE, '${dir}')`,
+  "SRC = os.path.normpath(os.path.join(HERE, '..', 'references'))",
+  '',
+  'def main():',
+  '    os.makedirs(OUT, exist_ok=True)',
+  "    canvas.save(os.path.join(OUT, name + '.png'))",
+].join('\n');
+
+const GITIGNORE = ['# generated overlays', '/analysis/overlays/', '/analysis/annotated/', '__pycache__/'].join('\n');
+
+test('render-outputs-gitignored fires on a new output directory nobody ignored', () => {
+  const findings = renderOutputsGitignored.run(ctx({
+    files: { [ANNOTATE]: script('reports'), '.gitignore': GITIGNORE },
+    tracked: [ANNOTATE, '.gitignore'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, ANNOTATE);
+  assert.equal(findings[0].line, 9);
+  assert.match(findings[0].what, /analysis\/reports\/, which no .gitignore entry covers/);
+});
+
+test('render-outputs-gitignored fires when an entry is un-ignored by a later negation', () => {
+  const findings = renderOutputsGitignored.run(ctx({
+    files: {
+      [ANNOTATE]: script('annotated'),
+      '.gitignore': `${GITIGNORE}\n!/analysis/annotated/\n`,
+    },
+    tracked: [ANNOTATE, '.gitignore'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /analysis\/annotated\//);
+});
+
+test('render-outputs-gitignored is quiet when every render directory is ignored', () => {
+  const findings = renderOutputsGitignored.run(ctx({
+    files: {
+      [ANNOTATE]: script('annotated'),
+      [MEASURE]: script('overlays'),
+      '.gitignore': GITIGNORE,
+      // A source tree the scripts only read from is not an output directory.
+      'references/figures/panels/expected-results.md': '# expectations\n',
+    },
+    tracked: [ANNOTATE, MEASURE, '.gitignore', 'references/figures/panels/expected-results.md'],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('render-outputs-gitignored honours a .gitignore beside the scripts', () => {
+  const findings = renderOutputsGitignored.run(ctx({
+    files: {
+      [ANNOTATE]: script('annotated'),
+      '.gitignore': '__pycache__/\n',
+      'analysis/.gitignore': 'annotated/\n',
+    },
+    tracked: [ANNOTATE, '.gitignore', 'analysis/.gitignore'],
   }));
   assert.deepEqual(findings, []);
 });

@@ -20,6 +20,8 @@ keep every recorded number meaning the same thing.
 | `panel-scale-calibration` | every working figure stays calibrated | blocking |
 | `scale-numbers-match-calibration` | quoted µm/px matches its source | blocking |
 | `locked-metric-fields` | locked metrics stay reported | blocking |
+| `calibration-single-source` | one calibration table, imported | blocking |
+| `render-outputs-gitignored` | render directories stay ignored | blocking |
 
 Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
 on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
@@ -31,7 +33,7 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 | Never validate pipeline against itself | prose |
 | Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
 | Metric definitions are locked | prose (+ `locked-metric-fields`) |
-| Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`) |
+| Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`, `calibration-single-source`) |
 | Say which numbers are trustworthy | prose |
 
 ## Skills

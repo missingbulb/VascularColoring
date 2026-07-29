@@ -3,6 +3,8 @@ import renderedOverlaysUntracked from './rendered-overlays-untracked.mjs';
 import panelScaleCalibration from './panel-scale-calibration.mjs';
 import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs';
 import lockedMetricFields from './locked-metric-fields.mjs';
+import calibrationSingleSource from './calibration-single-source.mjs';
+import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
 // in — fluorescence (gP-CD31 red channel) confocal panels measured for
@@ -20,7 +22,10 @@ import lockedMetricFields from './locked-metric-fields.mjs';
 // carry, and the visual-assertion procedure rides the pack's own skill —
 // except that the locked metric definitions do leave one static signature: the
 // extraction script must keep reporting all three asks' fields, so that is a
-// check too (`locked-metric-fields`).
+// check too (`locked-metric-fields`). The single-source lines are checks for the
+// same reason: the calibration must stay defined in exactly one file
+// (`calibration-single-source`), and every directory a script renders into must
+// stay ignored by git (`render-outputs-gitignored`).
 //
 // Check modules here stay dependency-free (plain finding objects, no engine
 // import) so the pack loads without the gitignored shared mount.
@@ -35,5 +40,7 @@ export default {
     panelScaleCalibration,
     scaleNumbersMatchCalibration,
     lockedMetricFields,
+    calibrationSingleSource,
+    renderOutputsGitignored,
   ],
 };
