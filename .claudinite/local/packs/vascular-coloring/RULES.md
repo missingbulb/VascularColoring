@@ -11,7 +11,7 @@ and current state in [`analysis/STATUS.md`](../../../../analysis/STATUS.md).
 Expectations come from **looking at the images** — they live in
 [`expected-results.md`](../../../../references/figures/panels/expected-results.md) and are what the
 automated pipeline is judged *against*. Running the pipeline and presenting its own output as the
-expected result is circular and does not count as evidence. Numbers are never invented.
+expected result is circular and does not count as evidence.
 
 ## Progress is a visual assertion, not a table
 
