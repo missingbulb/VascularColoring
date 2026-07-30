@@ -31,10 +31,14 @@ import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 // import) so the pack loads without the gitignored shared mount.
 export default {
   id: 'vascular-coloring',
+  ruleRoutingGuidance: {
+    belongs: 'vessel-image quantification — overlay appearance, render outputs, and the calibration that makes a number micrometres',
+    excludes: 'the research-project class and the working lifecycle — those are canon packs',
+  },
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  rules: [
+  worldRules: [
     overlayColorContrast,
     renderedOverlaysUntracked,
     panelScaleCalibration,
@@ -43,4 +47,5 @@ export default {
     calibrationSingleSource,
     renderOutputsGitignored,
   ],
+  skills: ['vessel-overlay-review'],
 };
