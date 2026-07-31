@@ -5,7 +5,8 @@
 > holds the *decisions*. Current pipeline: [`analysis/measure_vessels.py`](../analysis/measure_vessels.py).
 
 **Papers folded in:** all six — wang-2022, rust-2020, freitas-andrade-2022, stefanitsch-2015,
-hill-2020, bizou-2026.
+hill-2020, bizou-2026. **Rust's supplementary toolbox is in the repo**, which closed the last
+open parameter gaps and made a direct method-vs-method comparison possible (§3.1).
 
 ---
 
@@ -16,7 +17,7 @@ Our three locked asks against what the literature reports:
 | Our ask | Our field | What the literature does | Status |
 |---|---|---|---|
 | **MEASURE** — total centerline length | `length_um`, `length_density` (mm/mm²) | **Rust:** vessel segment length, mean + max per branch, and mm/mm². **Freitas-Andrade:** vessel density = Σ segment arc-length ÷ area, **mm/mm²** — definitionally identical to ours. | **Adopted.** mm/mm² is the shared unit; we report the total rather than mean/max. |
-| **COUNT** — branch segments | `segments`, `count_density` (per mm²) | **Rust:** branches per mm². **Freitas-Andrade:** *bifurcation points* per mm² (nodes of degree ≥3) — **our `junctions`, not our `segments`**. **Hill:** vessel cross-sections per mm² (a third, different quantity). | **Adopted**, but see §3 — three papers agree our absolute counts are ~5–8× high, and the three "counts" are not the same quantity. |
+| **COUNT** — branch segments | `segments`, `count_density` (per mm²) | **Rust:** branches per mm² (`Analyze Skeleton`, `prune=none`). **Freitas-Andrade:** *bifurcation points* per mm² (nodes of degree ≥3) — **our `junctions`, not our `segments`**. **Hill:** vessel cross-sections per mm² (a third, different quantity). | **Adopted.** See §3.1: against the authors' *own macro on their own image* we are within 16%. The apparent 5–8× gap is against their published *summary table*, and it reproduces with their own code — so it is not our defect. |
 | **CATEGORIZE** — capillary vs artery by caliber | `capillary`, `artery` | **Rust:** explicitly declined. **Wang:** phalloidin / α-SMA mark artery walls, no caliber bins. **Stefanitsch: the only quantitative reference** — CD31⁺ mouse cortex binned **< 5 / 5–10 / > 10 µm** (54% / 36% / 10%), and ASMA⁺ (true smooth-muscle-covered) vessels averaging **22.9 µm**. | **Ours, but now externally anchored.** And the anchor says our threshold is wrong — see §4.2. |
 | *(density)* | `area` (%) | **Rust** and **Wang**: vascular area fraction. **Bizou:** µm²/mm²×10³ — the same construct, rescaled. | **Adopted.** The one metric every paper shares — the best cross-paper anchor. |
 | *(not implemented)* | — | **Rust:** nearest-neighbour distance between closest non-zero pixels, µm. | **Candidate — recommended.** See §4.1. |
@@ -28,15 +29,15 @@ Our three locked asks against what the literature reports:
 
 | Step | Rust 2020 (Fiji) | Freitas-Andrade 2022 (Pyvane) | Ours | Verdict |
 |---|---|---|---|---|
-| Denoise | **median filter** (radius unstated) | **Gaussian, σ ≈ 1 µm** | Gaussian, σ = 1.0 **px** | ours is the only one whose smoothing scale is *not physical* |
-| Binarize | unstated | **adaptive local mean + C**, C ≈ 2–3 | global Otsu (floor 0.13) OR Frangi vesselness | theirs adapts to uneven illumination, ours to ridge shape; **our 0.13 floor is unjustified anywhere** |
-| Small objects | not stated | **< 50 µm²** | < 20 px | again px vs µm |
+| Denoise | **median filter, radius 1** | **Gaussian, σ ≈ 1 µm** | Gaussian, σ = 1.0 **px** | ours is the only one whose smoothing scale is *not physical* |
+| Binarize | **manual `setThreshold(66,255)`** on 8-bit — auto-threshold present but commented out, marked "adapt to your image!!" | **adaptive local mean + C**, C ≈ 2–3 | global Otsu (floor 0.13) OR Frangi vesselness | Rust's is *not automated* at the decisive step; Pyvane's adapts to illumination, ours to ridge shape. **Ours is defensibly better than Rust's here**, though the 0.13 floor is still unjustified. |
+| Small objects | **< 20 µm²** (Analyze Particles, calibrated) | **< 50 µm²** | < 20 **px** (≈ 7 µm² at 0.61 µm/px) | ours is ~3× more permissive than Rust's and ~7× than Pyvane's — and again the only one in pixels |
 | Holes | not stated | **≤ 10 µm²** in 2-D (all holes only in 3-D) | `binary_fill_holes` — *all* holes | ours applies the 3-D rule in 2-D and **may close genuine background** |
 | Skeleton | Fiji *Skeletonize* | Palágyi–Kuba (3-D) / standard (2-D) | `skimage.skeletonize` | equivalent in 2-D |
-| Pruning | not described | **iterative, remove globally smallest first, threshold S ≈ vessel diameter** | fixed `min_len = 8 px`, 40 passes | theirs is principled and scale-linked; **ours is a magic number** |
+| Pruning | **none** (`prune=none`) | **iterative, remove globally smallest first, threshold S ≈ vessel diameter** | fixed `min_len = 8 px`, 40 passes | Rust does not prune at all; Pyvane's is principled and scale-linked; **ours is a magic number** |
 | Gap bridging | not mentioned | not mentioned | binary closing (disk 2) + fill holes | **ours alone** — a response to figure-crop dropout that neither paper needs |
 | Batch | in the script | processor pipeline | glob over `references/*/figures/panels/VESSEL_*.png` | equivalent |
-| Visualization | **grid heatmap** of per-square area fraction | per-pixel tortuosity maps | outline-over-original overlays | complementary; see §4.4 |
+| Visualization | **grid heatmap**, **15 × 15** squares, own LUT supplied | per-pixel tortuosity maps | outline-over-original overlays | complementary; see §4.4 — the exact recipe is now in the repo |
 
 **Structural agreement is the reassuring part:** three independent groups all do
 *binarize → skeletonize → graph → count and sum*. Our architecture is not idiosyncratic.
@@ -76,18 +77,45 @@ Freitas-Andrade's three ground-truth panels add: 22.60 / 16.72 / 8.84 mm/mm² an
   published density ordering exactly, and the implied field areas agree to **±9%** across a 5×
   density range. **Ranking, which is what the ischemic-vs-contralateral question actually needs,
   is the best-supported thing we do.**
-- ❌ **Absolute branch count is wrong by roughly 5–8×, and three independent papers say so.**
-  Rust reports ~311 branches/mm² for adult mouse cortex where we report ~2000–2500 on comparable
-  panels. Hill reports 458 vessel profiles/mm² in young mouse cortex. Freitas-Andrade's Fig 9,
-  taken with a realistic ×20 field size, implies the same 5–8× factor. This is the fragmentation
-  problem, stated in three independent sets of units.
-  **Target: a few hundred per mm² on healthy adult cortex.**
-- ⚠️ **Part of the gap is definitional, not defect.** "Branches" (Rust), "bifurcation points"
-  (Freitas-Andrade), "vessel profiles" (Hill) and our "branch segments" are four different
-  quantities. In a connected mesh, segments outnumber bifurcations by a small factor. That
-  accounts for some of the 5–8× — but nowhere near all of it.
+- ⚠️ **The earlier "our branch counts are 5–8× too high" conclusion does not survive §3.1.**
+  It was inferred by comparing our figure-crop output against published *summary tables*. Running
+  the authors' own code on the authors' own image shows the same gap appearing in *their* output,
+  so it is not evidence of a defect in ours. Corrected below.
 - ⚠️ **Our worst case is the sparse, dim field**, now measured rather than eyeballed:
-  Freitas-Andrade panel (b) is the outlier in both our consistency checks.
+  Freitas-Andrade panel (b) is the outlier in both consistency checks, and on Rust's native image
+  we find 16% *less* area than their threshold does. **We under-detect; we do not over-detect.**
+
+### 3.1 The decisive test — same method, same image ⭐
+
+Rust's supplementary material supplies both their **exact macro** and a **µm-calibrated,
+native-resolution vessel image** (`references/rust-2020-fiji-vascular-analysis/supplementary/`).
+Reimplementing their recipe step-for-step and running both on that one image is the only true
+apples-to-apples comparison in the whole corpus:
+
+| Metric | **Their recipe, their image** | **Our pipeline, same image** | Δ | Their *published* adult-cortex value |
+|---|---|---|---|---|
+| Area fraction | 9.6% | 8.1% | **−16%** | 10.6% |
+| Length density | 15.3 mm/mm² | 14.5 mm/mm² | **−5%** | 25.5 mm/mm² |
+| Branch count | **1091 /mm²** | 920 /mm² | **−16%** | **311 /mm²** |
+| Junctions | 447 /mm² | — | — | — |
+
+**Two findings, one of which corrects this document's previous conclusion:**
+
+1. ✅ **Our implementation faithfully reproduces the published method — within 5–16% on every
+   shared metric.** That is the strongest validation the project has. Our architecture is not
+   just structurally similar to the literature's, it produces the literature's numbers.
+2. ⚠️ **The 5–8× count gap is not ours.** The authors' own macro on the authors' own
+   representative image yields **1091 branches/mm² — 3.5× their own published 311/mm²**.
+   Whatever explains that (the representative image being denser than their p120 cortex average;
+   "number of branches" in the summary meaning something narrower than the raw `Analyze Skeleton`
+   output), it reproduces without any of our code involved.
+
+**What this means for the fragmentation question.** Fragmentation is still real — it is visible
+on the overlays, and it is the reason our figure-crop counts (~2000/mm²) run above our
+native-image count (920/mm²). But **the bulk of the apparent discrepancy was figure-resolution
+downsampling plus an incomparable published number, not our segmentation splitting vessels.**
+**Do not use 311/mm² as an acceptance target.** The honest target is the one in §3.1: match a
+reimplementation of a published method on a shared image, which we already do.
 
 ## 4. Open recommendations
 
@@ -109,32 +137,47 @@ capillaries as arteries. Stefanitsch's published bins (**< 5 / 5–10 / > 10 µm
 distribution* rather than a binary split would match the literature and be more informative.
 Validate against Wang's phalloidin / α-SMA panels, which independently mark artery walls.
 
-### 4.3 Add nearest-neighbour distance
+**Now measurable, and it confirms the problem.** On Rust's calibrated native image (0.6058 µm/px,
+so the 9 px threshold means **5.45 µm** there) our pipeline classifies **101 of 354 segments —
+29% — as artery**. Stefanitsch measures only **10%** of CD31⁺ cortical vessels above 10 µm. We
+are over-calling arteries by roughly 3×, exactly as the unit analysis predicts.
+
+### 4.3 Re-examine the pruning and small-object thresholds before blaming segmentation
+Rust prunes **not at all** (`prune=none`) and drops objects below **20 µm²**; Pyvane prunes
+iteratively with a threshold tied to vessel diameter and drops below **50 µm²**. Ours prunes
+spurs shorter than 8 px and drops below 20 px (≈ 7 µm²) — the most permissive of the three at
+both steps. Since we now know we *under*-detect area rather than over-detect, the count
+difference is more likely in these two knobs than in the thresholding.
+
+### 4.4 Add nearest-neighbour distance
 Cheap (a distance transform on the existing mask), directly comparable to Rust's published
 numbers, and — crucially — **fragmentation-immune**: unlike branch count, it does not care
 whether a vessel is split into pieces. That makes it a trustworthy metric to lean on *while*
 count is untrustworthy.
 
-### 4.4 Add a grid heatmap of per-square area fraction
+### 4.5 Add a grid heatmap of per-square area fraction
 **Rust and Bizou independently converge on this construct.** Not a replacement for the outline
 overlays (which stay the agreed QA style), but it answers a different and very on-topic question:
 *where* is the tissue under-vascularized. That is the ischemic-core/penumbra question directly.
-Neither paper states a square size; make it a parameter and say what was used.
+**Rust's exact macro is now in the repo** (`supplementary/Heatmap.ijm`, 15 × 15 squares, with
+their `hm_stroke.lut`) — there is a concrete recipe to copy rather than invent.
 
-### 4.5 Try the published segmentation choices
+### 4.6 Try the published segmentation choices
 - **Adaptive local threshold** (`I > local_mean + C`, C ≈ 2–3) instead of global Otsu with an
   unexplained 0.13 floor — it is the choice made by the pipeline closest to ours, and it handles
-  the uneven illumination that makes our dim fields fail.
+  the uneven illumination that makes our dim fields fail. Note Rust's alternative is a *manual*
+  `setThreshold(66, 255)` flagged "adapt to your image!!" — not something to copy, and a reminder
+  that our automation is a real advantage over the published toolbox.
 - **Median instead of Gaussian** smoothing — better edge preservation on thin structures.
 - **Iterative smallest-first pruning** with threshold ≈ vessel diameter, replacing `min_len=8`.
 - **Limit hole filling** to small holes (Pyvane: ≤ 10 µm²) rather than filling all of them.
 
-### 4.6 Use the reference segmentations as a visual answer key
+### 4.7 Use the reference segmentations as a visual answer key
 Freitas-Andrade Figs 3, 8 and 13 give original/mask/skeleton/graph sets. Run our segmentation on
 the originals and compare in the overlay style. This is external ground truth — exactly what the
 "never validate the pipeline against itself" rule asks for, and it costs nothing to do.
 
-### 4.7 Consider reading the open implementations
+### 4.8 Consider reading the open implementations
 **Pyvane** (<https://github.com/chcomin/pyvane>) and the **LIOM Toolkit**
 (<https://github.com/LIOMLab/liom-toolkit>) are both Python + scikit-image, the same stack we
 use. Neither has been read yet.

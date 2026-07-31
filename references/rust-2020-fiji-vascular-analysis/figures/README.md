@@ -4,6 +4,8 @@ Native-resolution figure images extracted from
 [`../rust-2020-fiji-vascular-analysis.pdf`](../rust-2020-fiji-vascular-analysis.pdf) with
 `references/_tools/extract_pdf_assets.py`. Paper digest: [`../digest.md`](../digest.md).
 Cropped sub-panels and the working-dataset inventory: [`panels/README.md`](panels/README.md).
+The authors' supplementary toolbox and their calibrated representative image are in
+[`../supplementary/`](../supplementary/) — see [`../digest.md`](../digest.md) §7.
 
 The PDF embeds each figure as a single JPEG; there are only three (the paper's other exhibits
 are supplementary and not in the file). Re-crop the panels with

@@ -85,8 +85,22 @@ UNCALIBRATED = {
 }
 
 
+# Panels whose um/px is known DIRECTLY, from the source image's own metadata, with no scale bar
+# involved. Better evidence than a measured bar, not worse — the number is the acquisition's, not
+# a ruler read off a printed figure. Record where it came from.
+UMPP_DIRECT = {
+    # rust-2020 supplementary Representative_Image.tif: ImageJ TIFF, unit=um, XResolution=1.650568
+    # pixels per um -> 0.6058 um/px over a 1024 px field = 620 um. Cross-check: capillaries measure
+    # 8-12 px across, i.e. 5-7 um, against Stefanitsch's measured 6.03 um mean CD31+ diameter.
+    'rust20suppl_representative': 1.0 / 1.650568,
+}
+
+
 def umpp_for(name):
     """um per pixel for a panel, by longest matching prefix. None -> report px only."""
+    direct = [k for k in UMPP_DIRECT if name.startswith(k)]
+    if direct:
+        return UMPP_DIRECT[max(direct, key=len)]
     hits = [k for k in SCALEBAR_PX if name.startswith(k)]
     if not hits:
         return None

@@ -16,20 +16,28 @@
 
 ## Trustworthy vs. not (be honest about this)
 
-- **Trustworthy:** area %, length density (ranking + rough magnitude), the µm calibration, and the
-  capillary/artery split as a first cut.
-- **Not yet trustworthy:** per-segment **COUNT** — fragmentation inflates it, and count density does
-  *not* yet rank cleanly (dim `normal` fields come out spuriously high). Also: absolute length (these
-  are downsampled figure crops, not raw confocal) and the exact artery threshold.
+- **Trustworthy:** area %, length density (ranking *and* magnitude), and the µm calibration. All
+  three now stand against external references — see the literature section below.
+- **Partly trustworthy:** per-segment **COUNT**. It matches a reimplementation of Rust's published
+  macro to within 16% on native data, so the *method* is sound; but on figure crops it runs ~2×
+  higher, and count density still does not rank cleanly (dim `normal` fields come out spuriously
+  high).
+- **Not trustworthy:** the **capillary/artery split**. Measured against Stefanitsch's caliber data
+  we over-call arteries by ~3×; `ARTERY_DIAM_PX` is a *pixel* constant, so it means a different
+  physical diameter on every panel.
+- **Also:** absolute length on the figure crops (downsampled, not raw confocal). The one exception
+  is `VESSEL_rust20suppl_representative.png` — native resolution with the authors' own calibration.
 
 ## Known limitations
 
 1. **Under-detection of faint vessels** in dim fields — visible on the overlays as red vessels with no
    outline (clearest in `fig4_normal` / `contralateral`).
 2. **Fragmentation** — stain dropouts split one vessel into several segments, inflating segment/endpoint
-   counts and slightly shortening length.
+   counts and slightly shortening length. Real, but smaller than previously believed (see below).
 3. **Caliber split is a single diameter threshold** (`ARTERY_DIAM_PX = 9 px`); borderline vessels flip.
+   Worse, the threshold is in **pixels**, so it is a different physical size on every panel.
 4. **Figure-resolution crops** — recompute absolute length on raw `.oib` data for publication numbers.
+5. **Every scale-dependent constant is in pixels**, not µm, across panels spanning 0.24–1.35 µm/px.
 
 ## Literature review done — six papers digested
 
@@ -38,20 +46,30 @@ cropped panels for **six** source papers, plus a cross-paper
 [`METHODS-SYNTHESIS.md`](../references/METHODS-SYNTHESIS.md). Intake is repeatable via the
 `paper-intake` skill. What it changed:
 
-- **The working dataset grew from 16 to 42 panels** (wang-2022 ×16, rust-2020 ×20,
+- **The working dataset grew from 16 to 43 panels** (wang-2022 ×16, rust-2020 ×21,
   freitas-andrade-2022 ×6). Three of the six papers contribute no panels — multi-channel merges
   or a different modality — and each digest says so explicitly rather than forcing them in.
 - **We now have external ground truth.** Freitas-Andrade Fig 9 prints the authors' own density,
   branching and tortuosity on three images. Our pipeline reproduces their **ranking exactly** and
   agrees on relative counts to **±9%**; the sparse dim panel is our clear worst case. Figures 3,
   8 and 13 add reference masks and skeletons — an answer key that is not our own output.
-- **The COUNT problem is now quantified, by three independent papers.** Rust (~311 branches/mm²
-  adult mouse cortex), Hill (458 vessel profiles/mm²) and Freitas-Andrade all put our absolute
-  counts **~5–8× too high**. Target: a few hundred per mm² on healthy adult cortex.
+- **We now match a published method on its own data.** Rust's supplementary material (supplied
+  by the owner) contains the exact Fiji macro *and* a µm-calibrated, native-resolution vessel
+  image. Reimplementing their recipe and running both on that image:
+  **area 9.6% vs our 8.1%, length 15.3 vs 14.5 mm/mm², branches 1091 vs 920 per mm² — agreement
+  within 5–16%.** This is the strongest validation the project has.
+- **The earlier "our counts are 5–8× too high" conclusion was wrong, and is retracted.** It came
+  from comparing figure-crop output against published *summary tables*. The authors' own macro on
+  their own image gives **1091 branches/mm², 3.5× their own published 311/mm²** — so the gap
+  reproduces without any of our code. Fragmentation is still real (our figure-crop counts run
+  ~2× our native-image count), but it is a smaller effect than claimed, and **311/mm² must not be
+  used as an acceptance target.**
 - **CATEGORIZE now has an external anchor, and it says our threshold is wrong.** Stefanitsch
   measures mean CD31⁺ vessel diameter at 6.03 µm and mean ASMA⁺ artery diameter at 22.9 µm. Our
   `ARTERY_DIAM_PX = 9` works out to **5.9 µm** on the fig4/5/6 panels — at the mean of *all*
-  vessels, so ordinary capillaries are being called arteries.
+  vessels, so ordinary capillaries are being called arteries. Measured on Rust's calibrated
+  native image, we call **29% of segments arteries** where Stefanitsch finds only **10%** of
+  vessels above 10 µm — over-calling by ~3×.
 
 ## Next step (recommended, supersedes the earlier plan)
 
@@ -63,12 +81,22 @@ and is still the main event. The review adds a cheaper prerequisite and sharper 
    so each means something different per figure. `umpp_for()` already exists. Small change; it is
    what makes every comparison below meaningful.
 2. **Then the segmentation work**, judged by three tests instead of one: (a) the un-outlined
-   vessels get captured on the overlay view; (b) **count density falls toward a few hundred per
-   mm²** on healthy adult cortex; (c) our mask and skeleton on the Freitas-Andrade originals look
-   like their published mask and skeleton.
+   vessels get captured on the overlay view; (b) **we stay within ~15% of the reimplemented Rust
+   macro on `VESSEL_rust20suppl_representative.png`** — the honest acceptance target, replacing
+   the retracted "few hundred per mm²"; (c) our mask and skeleton on the Freitas-Andrade
+   originals look like their published mask and skeleton.
+
+   Note the direction of the residual: on native data we find **16% less** area than their
+   threshold does. **We under-detect, we do not over-detect** — so sensitivity, not
+   over-segmentation, is the thing to push on.
 3. **Fix the caliber threshold** using Stefanitsch's published bins (<5 / 5–10 / >10 µm), and
    consider reporting the three-bin distribution rather than a binary split. Still worth the
    external check against Wang's phalloidin / α-SMA panels.
+
+Rust's supplementary toolbox — the macro, the heatmap script (15 × 15 squares) and their LUT —
+is in [`references/rust-2020-fiji-vascular-analysis/supplementary/`](../references/rust-2020-fiji-vascular-analysis/supplementary/),
+so the published parameters (median radius 1, `setThreshold(66,255)`, particles ≥ 20 µm²,
+`prune=none`) no longer have to be guessed at.
 
 Further candidates, with rationale, in [`METHODS-SYNTHESIS.md`](../references/METHODS-SYNTHESIS.md) §4:
 nearest-neighbour distance (fragmentation-immune, so trustworthy while count is not), a grid

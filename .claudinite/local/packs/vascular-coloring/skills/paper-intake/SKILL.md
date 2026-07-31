@@ -28,13 +28,24 @@ python3 references/_tools/extract_pdf_assets.py references/<slug>/<slug>.pdf /tm
 Writes `fulltext.txt`, `raw/` and `manifest.tsv`. **Work from the scratchpad**, not the repo —
 only named, described figures get committed.
 
-### 3. Read the whole paper
+### 3. Chase the supplementary material — it is often where the method actually lives
+
+**Ask for it if it is not to hand.** Rust 2020's main text leaves the binarization method, the
+filter radius, the particle-size floor and the heatmap grid all unstated; its supplementary Data
+Sheet supplied every one of them, plus the verbatim macro and a **µm-calibrated native-resolution
+vessel image** that became the best input in the repo and the basis of the strongest validation
+the project has. That material was one download away and the digest was materially wrong without it.
+
+Commit supplementary code, scripts, LUTs and data images under
+`references/<slug>/supplementary/`. Transcribe supplementary *tables* into the digest.
+
+### 4. Read the whole paper
 
 Read `fulltext.txt` end to end. Then **look at every extracted image** — do not skip this. Papers
 put their method in figures: Rust 2020's entire pipeline specification exists only as pixels in
 Figure 1C. Anything that is only in an image and matters must be **transcribed into the digest**.
 
-### 4. Name and commit the figures
+### 5. Name and commit the figures
 
 `git mv` each real figure to `references/<slug>/figures/figN_<short-name>.png` (convert to PNG).
 Drop logos, glyphs and icons. Write `figures/README.md`: every figure **shown inline**
@@ -42,7 +53,7 @@ Drop logos, glyphs and icons. Write `figures/README.md`: every figure **shown in
 **what you actually see in it** — including anything that will trip the pipeline up (surface
 vessels, drawn annotation lines, cross-sections rather than networks).
 
-### 5. Crop the panels
+### 6. Crop the panels
 
 Locate the grid programmatically where possible (photomicrograph panels are dark, the page is
 white — find the dark bands), then **freeze the coordinates** into
@@ -51,21 +62,26 @@ vessel-channel panels `VESSEL_` and nothing else. Tag every panel name with the 
 (`rust20fig1_…`) so calibration prefixes stay unique. Write `figures/panels/README.md`: the
 inventory, the µm/px per row, and the caveats that come with folding these into the dataset.
 
-### 6. Calibrate — measure, never assume
+### 7. Calibrate — measure, never assume
 
 **Measure the drawn scale bar in pixels off the panel itself** and add the prefix to
 `SCALEBAR_PX` in `analysis/measure_vessels.py` (plus `SCALEBAR_UM` if the bar is not 50 µm).
 Never derive µm/px from a stated field-of-view, and never carry a number over from a
 neighbouring row.
 
+If the source image **states its own µm/px** (an ImageJ TIFF carries `unit=` and `XResolution`),
+use that instead and record it in `UMPP_DIRECT` with its provenance — acquisition metadata is
+better evidence than a bar measured off a printed page. **Cross-check it against biology** before
+trusting it: capillaries should come out at roughly 4–8 µm across.
+
 If a figure draws **no** bar, put the prefix in `UNCALIBRATED` **with the reason**. That panel
-then reports area % and pixels only. Both tables are checked by `panel-scale-calibration`.
+then reports area % and pixels only. All three tables are checked by `panel-scale-calibration`.
 
 Cross-check when the figure lets you: a close-up's ROI box in its overview gives an independent
 magnification estimate. **Record the agreement, and record it when it is poor** — that is a real
 uncertainty in every length the panel produces.
 
-### 7. Write the digest
+### 8. Write the digest
 
 `references/<slug>/digest.md`. It must stand alone. Always include:
 
@@ -75,13 +91,13 @@ uncertainty in every length the panel produces.
 - **The method, in full.** Every parameter the paper states. Every parameter it *fails* to state,
   listed as a gap, so nobody re-hunts.
 - **The reported numbers**, in tables, with the stats.
-- **Calibration facts** for the extracted panels, with the caveats from step 6.
+- **Calibration facts** for the extracted panels, with the caveats from step 7.
 - **Discussion arguments worth keeping**, and the authors' own stated limitations.
 - **§ What is not in this PDF** — supplementary material, scripts, anything you tried to fetch and
   could not (record the URL and what happened).
 - **§ Extracted images** — the figure table, linked.
 
-### 8. Fold into the synthesis
+### 9. Fold into the synthesis
 
 Update [`references/METHODS-SYNTHESIS.md`](../../../../../../references/METHODS-SYNTHESIS.md): add
 the paper to the folded-in list, extend the metric and processing tables, add reference
@@ -91,7 +107,7 @@ problem than any overlay.
 
 Add the paper's row to [`references/README.md`](../../../../../../references/README.md).
 
-### 9. Verify
+### 10. Verify
 
 ```
 python3 analysis/measure_vessels.py                                   # new panels appear, µm sane
@@ -110,3 +126,8 @@ node .claudinite/local/packs/vascular-coloring/pack.test.mjs          # checks s
   are read later by someone deciding what to believe.
 - **Different papers are never averaged together.** Species, model, marker and magnification all
   differ; the rollup is grouped per paper for that reason.
+- **Prefer a same-image comparison to a table comparison.** If the paper ships code *and* an
+  image, reimplement the method and run both on that image. Comparing our figure-crop output to a
+  published summary table produced a confident, wrong conclusion about our branch counts; running
+  the authors' own macro on their own image corrected it. A number from a summary table may not
+  be the raw output of the method it describes.

@@ -71,8 +71,9 @@ test('rendered-overlays-untracked is quiet on scripts plus source images', () =>
 // --- panel-scale-calibration -------------------------------------------------
 
 const MEASURE = 'analysis/measure_vessels.py';
-const withTable = (keys, uncal = []) =>
+const withTable = (keys, uncal = [], direct = []) =>
   `UM_PER_BAR = 50.0\nSCALEBAR_PX = {${keys.map((k) => `'${k}': 61`).join(', ')}}\n` +
+  `UMPP_DIRECT = {\n${direct.map((k) => `    '${k}': 0.606,`).join('\n')}\n}\n` +
   `UNCALIBRATED = {\n${uncal.map((k) => `    '${k}': 'no bar drawn',`).join('\n')}\n}\n`;
 
 const PANELS = 'references/wang-2022-cd31-vascular-network/figures/panels';
@@ -109,6 +110,16 @@ test('panel-scale-calibration accepts a panel declared uncalibrated, with its re
     tracked: [
       `${PANELS}/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
       'references/rust-2020-fiji-vascular-analysis/figures/panels/VESSEL_rust20fig2_overview_intact_vasculature.png',
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('panel-scale-calibration accepts a panel calibrated from its own image metadata', () => {
+  const findings = panelScaleCalibration.run(ctx({
+    files: { [MEASURE]: withTable(['fig1'], [], ['rust20suppl_representative']) },
+    tracked: [
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/VESSEL_rust20suppl_representative.png',
     ],
   }));
   assert.deepEqual(findings, []);
