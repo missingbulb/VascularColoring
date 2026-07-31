@@ -62,7 +62,7 @@ test('rendered-overlays-untracked is quiet on scripts plus source images', () =>
     tracked: [
       'analysis/measure_vessels.py',
       'analysis/results-first-pass.md',
-      'references/figures/panels/VESSEL_fig3_ischemic_gP-CD31_red.png',
+      'references/wang-2022-cd31-vascular-network/figures/panels/VESSEL_fig3_ischemic_gP-CD31_red.png',
     ],
   }));
   assert.deepEqual(findings, []);
@@ -71,15 +71,18 @@ test('rendered-overlays-untracked is quiet on scripts plus source images', () =>
 // --- panel-scale-calibration -------------------------------------------------
 
 const MEASURE = 'analysis/measure_vessels.py';
-const withTable = (keys) =>
-  `UM_PER_BAR = 50.0\nSCALEBAR_PX = {${keys.map((k) => `'${k}': 61`).join(', ')}}\n`;
+const withTable = (keys, uncal = []) =>
+  `UM_PER_BAR = 50.0\nSCALEBAR_PX = {${keys.map((k) => `'${k}': 61`).join(', ')}}\n` +
+  `UNCALIBRATED = {\n${uncal.map((k) => `    '${k}': 'no bar drawn',`).join('\n')}\n}\n`;
 
-test('panel-scale-calibration fires on a panel figure with no bar measurement', () => {
+const PANELS = 'references/wang-2022-cd31-vascular-network/figures/panels';
+
+test('panel-scale-calibration fires on a panel with no bar measurement', () => {
   const findings = panelScaleCalibration.run(ctx({
     files: { [MEASURE]: withTable(['fig1']) },
     tracked: [
-      'references/figures/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png',
-      'references/figures/panels/VESSEL_fig9_ischemic_gP-CD31_red.png',
+      `${PANELS}/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+      `${PANELS}/VESSEL_fig9_ischemic_gP-CD31_red.png`,
     ],
   }));
   assert.equal(findings.length, 1);
@@ -87,17 +90,39 @@ test('panel-scale-calibration fires on a panel figure with no bar measurement', 
   assert.equal(findings[0].line, 2);
 });
 
-test('panel-scale-calibration is quiet when every panel figure is calibrated', () => {
+test('panel-scale-calibration is quiet when every panel is calibrated', () => {
   const findings = panelScaleCalibration.run(ctx({
     files: { [MEASURE]: withTable(['fig1', 'fig3']) },
     tracked: [
-      'references/figures/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png',
-      'references/figures/panels/VESSEL_fig3_ischemic_gP-CD31_red.png',
+      `${PANELS}/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+      `${PANELS}/VESSEL_fig3_ischemic_gP-CD31_red.png`,
       // fig7 has panels but no VESSEL_ panel — not in the working dataset.
-      'references/figures/panels/fig7_capillaries_gP-CD31.png',
+      `${PANELS}/fig7_capillaries_gP-CD31.png`,
     ],
   }));
   assert.deepEqual(findings, []);
+});
+
+test('panel-scale-calibration accepts a panel declared uncalibrated, with its reason', () => {
+  const findings = panelScaleCalibration.run(ctx({
+    files: { [MEASURE]: withTable(['fig1'], ['rust20fig2_overview']) },
+    tracked: [
+      `${PANELS}/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/VESSEL_rust20fig2_overview_intact_vasculature.png',
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('panel-scale-calibration still fires on a second paper\'s uncovered panel', () => {
+  const findings = panelScaleCalibration.run(ctx({
+    files: { [MEASURE]: withTable(['fig1'], ['rust20fig2_overview']) },
+    tracked: [
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/VESSEL_rust20fig3_overview_AD_vasculature.png',
+    ],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /rust20fig3_overview_AD_vasculature/);
 });
 
 // --- locked-metric-fields ----------------------------------------------------
@@ -335,9 +360,9 @@ test('render-outputs-gitignored is quiet when every render directory is ignored'
       [MEASURE]: script('overlays'),
       '.gitignore': GITIGNORE,
       // A source tree the scripts only read from is not an output directory.
-      'references/figures/panels/expected-results.md': '# expectations\n',
+      'references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md': '# expectations\n',
     },
-    tracked: [ANNOTATE, MEASURE, '.gitignore', 'references/figures/panels/expected-results.md'],
+    tracked: [ANNOTATE, MEASURE, '.gitignore', 'references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md'],
   }));
   assert.deepEqual(findings, []);
 });

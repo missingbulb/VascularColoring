@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-"""First-pass vessel quantification for the gP-CD31 red-channel panels.
+"""First-pass vessel quantification for the isolated vessel-channel panels.
 
-Delivers the professor's three asks per image:
+Runs over every references/<paper-slug>/figures/panels/VESSEL_*.png, delivering the
+professor's three asks per image:
   - CATEGORIZE : each vessel as capillary vs penetrating artery, by centerline diameter
   - COUNT      : number of branch segments (junction-to-junction / junction-to-tip pieces)
-  - MEASURE    : total centerline length (px, plus a provisional um estimate)
+  - MEASURE    : total centerline length (px, and um wherever the panel is calibrated)
 
-Pipeline: red-dominance segmentation (ignores the white 'A2/B2' panel labels)
--> bridge small gaps -> skeletonize -> prune spurs -> branch graph + width.
+Pipeline: red-dominance segmentation (ignores white panel labels, ROI boxes and dashed
+annotation lines) -> bridge small gaps -> skeletonize -> prune spurs -> branch graph + width.
 
 Run:  python3 analysis/measure_vessels.py [--overlays]
-Prints a per-image table + region rollup; with --overlays also writes annotated
+Prints a per-image table + a per-paper region rollup; with --overlays also writes annotated
 3-view PNGs (original | measure+count | categorize) to analysis/overlays/.
 
 CAVEATS (first pass, figure-resolution crops):
-  * um calibration is PROVISIONAL: assumes each panel spans the full 310 um 40x
-    confocal field (digest 5). Verify against the 50 um scale bar / raw .oib data
-    before quoting absolute lengths.
-  * the capillary/artery split is a single diameter threshold; borderline vessels
-    flip. Directionally right, not final.
+  * um comes from the scale bar each figure prints (SCALEBAR_PX below), measured off the
+    panel itself. A panel with no bar is listed in UNCALIBRATED and reports px + area% only.
+  * raw length is NOT comparable across figures (different zoom) — compare length_density
+    (mm/mm2) and area %. The rollup is grouped by paper for the same reason.
+  * the capillary/artery split is a single diameter threshold; borderline vessels flip.
+    Directionally right, not final.
   * some fragmentation survives pruning (short breaks where the stain dims).
 """
-import argparse, glob, os, warnings
+import argparse, glob, os, re, warnings
 warnings.filterwarnings('ignore')
 import numpy as np
 from PIL import Image
@@ -30,25 +32,68 @@ from skimage.morphology import skeletonize, disk
 from scipy import ndimage as ndi
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.normpath(os.path.join(HERE, '..', 'references', 'figures', 'panels'))
+# One panels dir per source paper: references/<paper-slug>/figures/panels/VESSEL_*.png
+REFS = os.path.normpath(os.path.join(HERE, '..', 'references'))
+SRC = os.path.join(REFS, '*', 'figures', 'panels')
 OUT = os.path.join(HERE, 'overlays')
 
 ARTERY_DIAM_PX = 9.0    # branch mean diameter >= this -> penetrating artery/arteriole
 
-# Real calibration: measured from the 50 um scale bar printed on each figure's merge/montage
-# panel (same resolution as its VESSEL panel). Bar widths: fig1=61px, fig3=47px, fig4/5/6=76px.
+# Real calibration, measured off the scale bar each figure prints (the bar is drawn on the
+# panel at the panel's own resolution, so it calibrates that panel directly).
+#
+# Keys are PANEL-NAME PREFIXES, matched longest-first, so a figure whose rows differ in zoom
+# can calibrate each row separately. UM_PER_BAR is the bar's stated length in um; a figure
+# whose bar is not 50 um carries its own length in SCALEBAR_UM.
+#
+#   wang-2022 (bars 50 um): fig1=61px, fig3=47px, fig4/5/6=76px  -> the incumbent panels,
+#     named VESSEL_figN_... with no paper tag. Every paper added since is tagged (rust20fig1,
+#     ...) so that prefixes stay unique across papers.
+#   rust-2020: Fig 1 caption states one 50 um bar for panel B; the bar is drawn once per row,
+#     in the right-hand column, and calibrates that whole row (one acquisition scale per row).
+#     Fig 2/3 captions state 100 um (overview row) and 20 um (close-up row).
+#     rust20fig2_overview is ABSENT here on purpose: that row draws no bar, so it stays
+#     uncalibrated and reports px only rather than borrowing a neighbour's scale.
 UM_PER_BAR = 50.0
-SCALEBAR_PX = {'fig1': 61, 'fig3': 47, 'fig4': 76, 'fig5': 76, 'fig6': 76}
+SCALEBAR_PX = {
+    'fig1': 61, 'fig3': 47, 'fig4': 76, 'fig5': 76, 'fig6': 76,     # wang-2022
+    'rust20fig1_dev_overview': 73, 'rust20fig1_dev_closeup': 71,    # rust-2020, 50 um bars
+    'rust20fig1_adult_overview': 37, 'rust20fig1_adult_closeup': 51,
+    'rust20fig2_closeup': 75,                                       # rust-2020, 20 um bar
+    'rust20fig3_overview': 84, 'rust20fig3_closeup': 83,            # rust-2020, 100/20 um bars
+}
+# Bars that are not UM_PER_BAR long, keyed the same way.
+SCALEBAR_UM = {
+    'rust20fig2_closeup': 20.0,
+    'rust20fig3_overview': 100.0, 'rust20fig3_closeup': 20.0,
+}
+
+# Panels that are deliberately NOT calibrated, with the reason. A working panel belongs in
+# exactly one of these two tables: measured, or declared unmeasurable and why. Declaring it
+# is what stops "um n/a" from being a silent omission — these panels still report area % and
+# raw px, and are excluded from every um and density number.
+UNCALIBRATED = {
+    'rust20fig2_overview': 'Fig 2B draws no scale bar on the overview row; the caption states '
+                           '100 um for it but the bar itself is absent, and the close-up bar '
+                           'belongs to a different acquisition, so nothing on the figure fixes '
+                           'this row\'s px->um. Promote it if the raw scale is obtained.',
+}
 
 
 def umpp_for(name):
-    for fig, px in SCALEBAR_PX.items():
-        if name.startswith(fig):
-            return UM_PER_BAR / px
-    return None            # unknown figure -> report px only
+    """um per pixel for a panel, by longest matching prefix. None -> report px only."""
+    hits = [k for k in SCALEBAR_PX if name.startswith(k)]
+    if not hits:
+        return None
+    key = max(hits, key=len)
+    return SCALEBAR_UM.get(key, UM_PER_BAR) / SCALEBAR_PX[key]
 
 S8 = np.ones((3, 3), int)
-REGIONS = ['ischemic', 'penumbra', 'contralateral', 'normal', 'healthy']
+# Region tokens looked for in a panel name, for the per-paper rollup. Rat MCAO (wang-2022)
+# and mouse photothrombosis / human AD (rust-2020) name their regions differently; the rollup
+# is grouped BY PAPER so a mean never mixes species, model or magnification.
+REGIONS = ['ischemic', 'penumbra', 'contralateral', 'normal', 'healthy',
+           'intact', 'ibz', 'core', 'ctrl', 'ad', 'dev', 'adult']
 
 
 def rm_small(mask, minsz):
@@ -181,34 +226,46 @@ def main():
     args = ap.parse_args()
     rows = []
     hdr = ('panel', 'len_um', 'len_dens', 'cnt_dens', 'seg', 'cap', 'art', 'area%', 'wp90')
-    print(f'{hdr[0]:28s}' + ''.join(f'{h:>9s}' for h in hdr[1:]))
-    print(f'{"":28s}{"um":>9s}{"mm/mm2":>9s}{"seg/mm2":>9s}')
+    print(f'{hdr[0]:34s}' + ''.join(f'{h:>9s}' for h in hdr[1:]))
+    print(f'{"":34s}{"um":>9s}{"mm/mm2":>9s}{"seg/mm2":>9s}')
     for fn in sorted(glob.glob(os.path.join(SRC, 'VESSEL_*.png'))):
         rgb = np.asarray(Image.open(fn).convert('RGB'))
-        name = os.path.basename(fn).replace('VESSEL_', '').replace('_gP-CD31_red.png', '')
+        paper = fn.split(os.sep)[-4]        # references/<paper-slug>/figures/panels/<file>
+        name = os.path.basename(fn)[len('VESSEL_'):].rsplit('.', 1)[0]
+        name = name.replace('_gP-CD31_red', '')          # wang-2022 panels keep their short names
         m, aux = analyze(rgb, umpp_for(name))
-        rows.append((name, m))
-        print(f'{name:28s}{m["length_um"]:9.0f}{m["length_density"]:9.1f}{m["count_density"]:9.0f}'
+        rows.append((paper, name, m))
+        um = f'{m["length_um"]:9.0f}' if m['length_um'] is not None else f'{"n/a":>9s}'
+        ld = f'{m["length_density"]:9.1f}' if m['length_density'] is not None else f'{"n/a":>9s}'
+        cd = f'{m["count_density"]:9.0f}' if m['count_density'] is not None else f'{"n/a":>9s}'
+        print(f'{name:34s}{um}{ld}{cd}'
               f'{m["segments"]:9d}{m["capillary"]:9d}{m["artery"]:9d}{m["area"]:9.1f}{m["wp90"]:9.1f}')
         if args.overlays:
             save_overlay(name, rgb, m, aux)
 
     from collections import defaultdict
     agg = defaultdict(lambda: defaultdict(list))
-    for name, m in rows:
+    for paper, name, m in rows:
+        if m['length_density'] is None:     # uncalibrated panel: no density to average
+            continue
+        # whole-token match, never substring: 'ad' must not swallow 'adult'
+        toks = set(re.split(r'[_\-.]', name.lower()))
         for r in REGIONS:
-            if r in name:
+            if r in toks:
                 for k in ('length_density', 'count_density', 'area'):
-                    agg[r][k].append(m[k])
+                    agg[(paper, r)][k].append(m[k])
                 break
-    print('\nregion means (scale-invariant, comparable across figures):')
-    print(f'{"region":15s}{"len_dens":>9s}{"cnt_dens":>9s}{"area%":>7s}  n')
-    print(f'{"":15s}{"mm/mm2":>9s}{"seg/mm2":>9s}')
-    for r in REGIONS:
-        if agg[r]['length_density']:
-            g = agg[r]
-            print(f'{r:15s}{np.mean(g["length_density"]):9.1f}{np.mean(g["count_density"]):9.0f}'
-                  f'{np.mean(g["area"]):7.1f}  {len(g["length_density"])}')
+    print('\nregion means (scale-invariant; grouped BY PAPER — never average across papers,')
+    print('they differ in species, injury model and magnification):')
+    for paper in sorted({p for p, _ in agg}):
+        print(f'\n  {paper}')
+        print(f'  {"region":15s}{"len_dens":>9s}{"cnt_dens":>9s}{"area%":>7s}  n')
+        print(f'  {"":15s}{"mm/mm2":>9s}{"seg/mm2":>9s}')
+        for r in REGIONS:
+            g = agg.get((paper, r))
+            if g:
+                print(f'  {r:15s}{np.mean(g["length_density"]):9.1f}{np.mean(g["count_density"]):9.0f}'
+                      f'{np.mean(g["area"]):7.1f}  {len(g["length_density"])}')
     if args.overlays:
         print('\noverlays ->', OUT)
 

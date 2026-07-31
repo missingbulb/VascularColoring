@@ -9,7 +9,7 @@ and current state in [`analysis/STATUS.md`](../../../../analysis/STATUS.md).
 ## Never validate the pipeline against itself
 
 Expectations come from **looking at the images** — they live in
-[`expected-results.md`](../../../../references/figures/panels/expected-results.md) and are what the
+[`expected-results.md`](../../../../references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md) and are what the
 automated pipeline is judged *against*. Running the pipeline and presenting its own output as the
 expected result is circular and does not count as evidence.
 
@@ -32,13 +32,27 @@ re-labelled.
 
 ## Raw length is not comparable across figures
 
-Each figure is at a different zoom and carries its own printed 50 µm bar, so px→µm differs per
-figure. Any cross-region or cross-figure comparison uses **length density (mm/mm²) or area %** —
-never raw µm. This is why every working figure must stay calibrated (`panel-scale-calibration`).
+Each figure is at a different zoom and carries its own printed scale bar, so px→µm differs per
+figure — and across papers it differs by more than 5×. Any cross-region or cross-figure comparison
+uses **length density (mm/mm²) or area %** — never raw µm, and **never a mean that spans two
+papers**: species, injury model, marker and magnification all change between them, which is why the
+rollup is grouped per paper. This is why every working panel must stay calibrated
+(`panel-scale-calibration`).
+
+A bar is **measured off the panel**, never inferred from a stated field-of-view and never borrowed
+from a neighbouring row. A figure that draws no bar is not quietly dropped: its panels go in
+`UNCALIBRATED` **with the reason**, report area % and pixels only, and stay visible as a known gap.
 The bar widths are a measurement, not a constant, so they live in exactly one place — `SCALEBAR_PX`
 in `analysis/measure_vessels.py`; a second copy is a second calibration, and whichever copy a script
 or a document happens to read wins silently (`calibration-single-source` for code,
 `scale-numbers-match-calibration` for the numbers quoted in the docs).
+
+## A paper is finished when the PDF is redundant
+
+Source articles are read once and written down, not re-read. An intake is done when the digest,
+the figures and their descriptions carry everything the project needs — including the method that
+only exists inside a figure image, and the parameters the paper *fails* to state, listed as gaps so
+nobody hunts for them twice. The procedure is in [paper-intake](skills/paper-intake/SKILL.md).
 
 ## Say which numbers are trustworthy
 

@@ -45,7 +45,7 @@ Alongside the overlay, write the claims a reader can check against it, in both d
   inflated here".
 
 A review that only shows the good fields is not a review. Compare against the visual expectations in
-`references/figures/panels/expected-results.md` — never against the pipeline's own previous output.
+`references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md` — never against the pipeline's own previous output.
 
 ## 4. Then the numbers
 

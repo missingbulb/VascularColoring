@@ -7,3 +7,8 @@ durable rules for how images are handled and how progress is shown (visual-asser
 outline-over-original overlay style, the image commit rule, locked metric definitions, scale
 calibration). Then read [`analysis/STATUS.md`](analysis/STATUS.md) for current state and the agreed
 next step. These are the authoritative working rules for this project — honor them.
+
+The source literature lives in [`references/`](references/README.md), one self-contained folder per
+paper: **read the paper's `digest.md`, not the PDF** — the digests exist so the PDFs never have to be
+reopened. [`references/METHODS-SYNTHESIS.md`](references/METHODS-SYNTHESIS.md) carries the
+cross-paper method decisions. **Adding an article? Follow the `paper-intake` skill.**
