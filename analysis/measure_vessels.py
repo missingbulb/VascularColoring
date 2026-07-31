@@ -73,6 +73,11 @@ SCALEBAR_UM = {
 # is what stops "um n/a" from being a silent omission — these panels still report area % and
 # raw px, and are excluded from every um and density number.
 UNCALIBRATED = {
+    'fa22': 'The freitas-andrade figures print no scale bar on any panel, and the paper gives no '
+            'pixel size. These panels are kept for ranking and segmentation comparison, not for '
+            'absolute or density numbers. Fig 9 is the exception worth knowing about: it prints '
+            'the authors\' own mm/mm2 and mm-2 per panel, which is ground truth to compare '
+            'against, not a calibration to adopt (see that folder\'s panels/README.md).',
     'rust20fig2_overview': 'Fig 2B draws no scale bar on the overview row; the caption states '
                            '100 um for it but the bar itself is absent, and the close-up bar '
                            'belongs to a different acquisition, so nothing on the figure fixes '
@@ -108,10 +113,20 @@ def nbrs(skel):
     return ndi.convolve(skel.astype(np.uint8), np.ones((3, 3), int), mode='constant') - skel
 
 
+MIN_RED_FRACTION = 0.005   # below this, the panel is not a red-channel image
+
+
 def segment(rgb):
     R, G, B = [rgb[..., i].astype(float) for i in range(3)]
     reddom = (R > G + 12) & (R > B + 12)
-    inten = np.where(reddom, R, 0) / 255.0
+    if reddom.mean() < MIN_RED_FRACTION:
+        # Grayscale panel (white vessels on black) — e.g. the freitas-andrade set. Red-dominance
+        # would return an empty mask, so fall back to plain luminance. Everything downstream is
+        # unchanged; the gate keeps the red panels on exactly the path they were measured with.
+        reddom = np.ones(R.shape, bool)
+        inten = rgb.max(axis=2).astype(float) / 255.0
+    else:
+        inten = np.where(reddom, R, 0) / 255.0
     sm = gaussian(inten, 1.0)
     vals = sm[sm > 0.03]
     t = max(threshold_otsu(vals) if vals.size else 1.0, 0.13)     # floor: no noise in dim fields
