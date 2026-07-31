@@ -34,6 +34,7 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 | Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
 | Metric definitions are locked | prose (+ `locked-metric-fields`) |
 | Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`, `calibration-single-source`) |
+| A paper is read once, written down | prose (+ the `paper-intake` skill) |
 | Say which numbers are trustworthy | prose |
 
 ## Skills
@@ -41,9 +42,10 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 | Skill | Trigger |
 |---|---|
 | [vessel-overlay-review](skills/vessel-overlay-review/SKILL.md) | proposing, revising or reporting on the extraction pipeline |
+| [paper-intake](skills/paper-intake/SKILL.md) | a research paper is added to `references/`, or one needs re-processing |
 
 Distilled from this repo's real usage: [`analysis/WORKING-GUIDE.md`](../../../../analysis/WORKING-GUIDE.md),
 [`analysis/annotate_overlays.py`](../../../../analysis/annotate_overlays.py),
 [`analysis/measure_vessels.py`](../../../../analysis/measure_vessels.py), the `.gitignore` render
 exclusions, and the 16 `VESSEL_*` panels under
-[`references/figures/panels`](../../../../references/figures/panels).
+[`references/wang-2022-cd31-vascular-network/figures/panels`](../../../../references/wang-2022-cd31-vascular-network/figures/panels).

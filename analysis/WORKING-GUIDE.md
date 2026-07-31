@@ -8,8 +8,15 @@
 
 Detect and quantify the fluorescently-labeled cerebral blood vessels in the **gP-CD31 (red) confocal
 panels** from Wang et al. 2022. The professor's three asks: **categorize, count, measure (length)**.
-Biology + imaging numbers: [`references/wang-2022-cd31-vascular-network.md`](../references/wang-2022-cd31-vascular-network.md).
-Working dataset: the **16 `references/figures/panels/VESSEL_*.png`** (isolated red gP-CD31 channel).
+Biology + imaging numbers: [`references/wang-2022-cd31-vascular-network/digest.md`](../references/wang-2022-cd31-vascular-network/digest.md).
+
+**Working dataset:** every `references/*/figures/panels/VESSEL_*.png` — the isolated vessel channel,
+one folder per source paper. The **16 Wang gP-CD31 (red) rat panels** are the primary set, the one
+`expected-results.md` was written against and the one the results tables are built on. Panels from
+other papers are additional inputs with their own caveats (species, marker, magnification) — see
+each paper's `figures/panels/README.md`, and note that `measure_vessels.py` rolls regions up **per
+paper** so the sets are never averaged together. Paper index and the intake protocol:
+[`references/README.md`](../references/README.md).
 
 ## How the owner wants to work on images
 
@@ -17,7 +24,7 @@ Working dataset: the **16 `references/figures/panels/VESSEL_*.png`** (isolated r
    When establishing what a good result looks like, actually *look* at the images and reason about
    them. Never invent/fabricate numbers, and never run the analysis pipeline and present its own
    output as if it were ground truth — that is circular. The visual, LLM-derived expectations live in
-   [`references/figures/panels/expected-results.md`](../references/figures/panels/expected-results.md)
+   [`references/figures/panels/expected-results.md`](../references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md)
    and are the reference the automated pipeline is judged against.
 
 2. **We converse on visual assertions.** Progress is discussed by *overlaying the extracted data on
@@ -34,11 +41,18 @@ Working dataset: the **16 `references/figures/panels/VESSEL_*.png`** (isolated r
    - **CATEGORIZE = vessel caliber**: capillary vs penetrating artery, by centerline diameter.
    - **MEASURE = total centerline length**; report both raw µm and the scale-invariant density.
 
-5. **Real units & cross-figure comparison.** Every figure prints a **50 µm scale bar**; px→µm is
-   calibrated from it (fig1 = 0.820, fig3 = 1.064, fig4/5/6 = 0.658 µm/px — `SCALEBAR_PX` in
-   `measure_vessels.py`). The figures are at **different zoom**, so **raw length is NOT comparable
-   across figures** — use **length density (mm/mm²)** and **area %** for any cross-region/cross-figure
-   comparison.
+5. **Real units & cross-figure comparison.** px→µm is calibrated from the **scale bar the figure
+   itself prints**, measured off the panel — never assumed from a stated field size. For the Wang
+   panels every bar is 50 µm (fig1 = 0.820, fig3 = 1.064, fig4/5/6 = 0.658 µm/px); other papers print
+   other lengths, so `SCALEBAR_PX` is keyed by panel-name prefix and `SCALEBAR_UM` carries any bar
+   that is not 50 µm. All of it lives in `measure_vessels.py` — the single calibration source.
+   The figures are at **different zoom**, so **raw length is NOT comparable across figures** — use
+   **length density (mm/mm²)** and **area %** for any cross-region/cross-figure comparison.
+
+   **A panel with no measurable bar is declared, not guessed.** If a figure draws no scale bar, add
+   the panel prefix to `UNCALIBRATED` with the reason instead of borrowing a neighbouring row's
+   scale. Such panels report area % and pixels only, and drop out of every µm and density number —
+   which is fine, as long as it is on the record rather than silent.
 
 6. **Commit rule for images.** Commit image files **only if** they come from real data, or we agree
    they are valuable as progress or ground truth. In practice:
@@ -66,8 +80,11 @@ The owner iterated to this exact style — keep it:
   the red vessels).
 - **Arrows + labels:** point an arrow at representative measured vessels and write the **length in
   µm**; for an example artery, write its **diameter**. Labels stay opaque/readable.
-- **Drawn 50 µm scale bar** inside the image, and a **totals banner along the bottom**: segment count
-  (capillary/artery split), total length + density, junction count, area %.
+- **Drawn scale bar** inside the image, labelled with that panel's real bar length (50 µm for the
+  Wang panels; other papers differ), and a **totals banner along the bottom**: segment count
+  (capillary/artery split), total length + density, junction count, area %. An uncalibrated panel
+  gets no overlay at all — `annotate_overlays.py` skips it and says so, rather than drawing a bar
+  it cannot justify.
 - **Tuning knobs** (in `annotate_overlays.py`): `CONTOUR_A` (contour opacity), `ARROW_A` / `RING_A`
   (arrow/ring alpha), `SC` (render scale), `ARTERY_DIAM_PX` (caliber threshold, in `measure_vessels.py`).
 
@@ -75,9 +92,11 @@ The owner iterated to this exact style — keep it:
 
 | Path | What |
 |---|---|
-| `references/wang-2022-cd31-vascular-network.md` | Self-contained paper digest (biology, imaging params, why this dataset). |
-| `references/figures/` + `panels/` | Full figures and cropped panels; `VESSEL_*.png` = the 16-image working dataset; `panels/README.md` = inventory. |
-| `references/figures/panels/expected-results.md` | Visual (LLM) expected results — the validation reference. |
+| `references/README.md` | Index of every source paper + the intake protocol. |
+| `references/METHODS-SYNTHESIS.md` | Cross-paper method comparison: what the literature does, what we adopted, what we rejected. |
+| `references/<paper>/digest.md` | Self-contained digest per paper — read this instead of the PDF. |
+| `references/<paper>/figures/` + `panels/` | Full figures and cropped panels; `VESSEL_*.png` = working-dataset inputs; each `README.md` = inventory + descriptions. |
+| `references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md` | Visual (LLM) expected results for the primary 16 panels — the validation reference. |
 | `analysis/measure_vessels.py` | Extraction + metrics (categorize/count/measure). `--overlays` writes a 3-panel debug view. |
 | `analysis/annotate_overlays.py` | Presentation overlays in the style above. |
 | `analysis/results-first-pass.md` | Measured results, calibration, limitations. |

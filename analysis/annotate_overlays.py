@@ -17,7 +17,19 @@ from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage as ndi
 from skimage.morphology import skeletonize
 from measure_vessels import (segment, prune, nbrs, S8, umpp_for,
-                             ARTERY_DIAM_PX, SCALEBAR_PX, SRC)
+                             ARTERY_DIAM_PX, SCALEBAR_PX, SCALEBAR_UM, UM_PER_BAR, SRC)
+
+
+def panel_name(fn):
+    """Panel name as the results tables spell it: VESSEL_ and the extension stripped."""
+    name = os.path.basename(fn)[len('VESSEL_'):].rsplit('.', 1)[0]
+    return name.replace('_gP-CD31_red', '')
+
+
+def bar_key(name):
+    """Longest matching SCALEBAR_PX prefix, or None if the panel is uncalibrated."""
+    hits = [k for k in SCALEBAR_PX if name.startswith(k)]
+    return max(hits, key=len) if hits else None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'annotated')
@@ -69,8 +81,8 @@ def arrow(d, x0, y0, x1, y1, col, wd=3):
 
 def annotate(fn):
     rgb = np.asarray(Image.open(fn).convert('RGB'))
-    name = os.path.basename(fn).replace('VESSEL_', '').replace('_gP-CD31_red.png', '')
-    fig = next(f for f in SCALEBAR_PX if name.startswith(f))
+    name = panel_name(fn)
+    fig = bar_key(name)
     umpp = umpp_for(name)
     mask, skel, junc, branch_lbl, brs, tot = branch_table(rgb, umpp)
 
@@ -139,9 +151,10 @@ def annotate(fn):
     d = ImageDraw.Draw(cv)
 
     barpx = SCALEBAR_PX[fig] * SC
+    barum = SCALEBAR_UM.get(fig, UM_PER_BAR)
     bx1, by = ML + IW - 20, MT + IH - 22
     d.rectangle([bx1 - barpx, by, bx1, by + 7], fill=(255, 255, 255))
-    d.text((bx1 - barpx, by - 26), "50 um", font=F_LAB, fill=(255, 255, 255))
+    d.text((bx1 - barpx, by - 26), f"{barum:.0f} um", font=F_LAB, fill=(255, 255, 255))
 
     d.text((ML, MT + IH + 10), "● capillary", font=F_LAB, fill=CAP_COL)
     d.text((ML + 150, MT + IH + 10), "● artery", font=F_LAB, fill=ART_COL)
@@ -161,9 +174,14 @@ def main():
     targets = sys.argv[1:] or ['*']
     files = set()
     for t in targets:
-        pat = 'VESSEL_*.png' if t == '*' else f'VESSEL_*{t}*_gP-CD31_red.png'
+        pat = 'VESSEL_*.png' if t == '*' else f'VESSEL_*{t}*.png'
         files.update(glob.glob(os.path.join(SRC, pat)))
     for fn in sorted(files):
+        # The banner and the drawn bar are both in um; an uncalibrated panel has neither,
+        # and a made-up scale is worse than no overlay. Say so and skip.
+        if umpp_for(panel_name(fn)) is None:
+            print('skipped (no scale-bar calibration):', panel_name(fn))
+            continue
         print('annotated', annotate(fn))
     print('->', OUT)
 
