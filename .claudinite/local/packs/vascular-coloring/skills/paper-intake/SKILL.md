@@ -9,8 +9,8 @@ The owner adds articles so the project can keep working **without reopening them
 finished when someone could delete the PDF and lose nothing they need: the biology, the method,
 the parameters, the numbers, and every figure are all in the repo, described.
 
-Layout, slug format and the working-dataset contract: [`references/README.md`](../../../../../references/README.md).
-Cross-paper decisions: [`references/METHODS-SYNTHESIS.md`](../../../../../references/METHODS-SYNTHESIS.md).
+Layout, slug format and the working-dataset contract: [`references/README.md`](../../../../../../references/README.md).
+Cross-paper decisions: [`references/METHODS-SYNTHESIS.md`](../../../../../../references/METHODS-SYNTHESIS.md).
 
 ## The steps
 
@@ -83,13 +83,13 @@ uncertainty in every length the panel produces.
 
 ### 8. Fold into the synthesis
 
-Update [`references/METHODS-SYNTHESIS.md`](../../../../../references/METHODS-SYNTHESIS.md): add
+Update [`references/METHODS-SYNTHESIS.md`](../../../../../../references/METHODS-SYNTHESIS.md): add
 the paper to the folded-in list, extend the metric and processing tables, add reference
 magnitudes, and — most valuable — **compare the published numbers to ours and say what the gap
 means**. A published branch density 5× below ours is a sharper statement of our fragmentation
 problem than any overlay.
 
-Add the paper's row to [`references/README.md`](../../../../../references/README.md).
+Add the paper's row to [`references/README.md`](../../../../../../references/README.md).
 
 ### 9. Verify
 

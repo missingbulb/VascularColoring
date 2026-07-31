@@ -31,14 +31,19 @@ It is the repeatable protocol these folders were built with.
 
 ## Papers
 
-| Paper | What it gives us | Panels in the working dataset |
+| Paper | What it gives us | Panels in the dataset |
 |---|---|---|
-| [**wang-2022-cd31-vascular-network**](wang-2022-cd31-vascular-network/digest.md) — Wang et al., *Sci Rep* 12:22288. gP-CD31 / phalloidin / α-SMA in normal and ischemic **rat** brain. | **The source of the primary images** and of the biology: which marker labels what, the four cortical regions, why gP-CD31 beats mM-CD31. Published only intensity + area %. | **16** (the primary set) |
-| [**rust-2020-fiji-vascular-analysis**](rust-2020-fiji-vascular-analysis/digest.md) — Rust et al., *Front Neurosci* 14:244. Automated **Fiji** analysis of vascular growth, maturation and injury. | **The methods reference.** Defines area fraction / length / branching / nearest-neighbour distance + pericyte coverage, with real reference magnitudes for mouse development, mouse stroke and human AD. | **20** |
-| [**freitas-andrade-2022-pyvane-endothelial-networks**](freitas-andrade-2022-pyvane-endothelial-networks/digest.md) — Freitas-Andrade et al., *Neurophotonics* 9(3):031916. | *(pending intake)* | — |
-| [**hill-2020-aging-mra-cerebrovascular-loss**](hill-2020-aging-mra-cerebrovascular-loss/digest.md) — Hill et al., *Front Aging Neurosci* 12:585218. | *(pending intake)* | — |
-| [**bizou-2026-nvu-angiogenic-programs**](bizou-2026-nvu-angiogenic-programs/digest.md) — Bizou et al., *Nat Commun*. | *(pending intake)* | — |
-| [**stefanitsch-2015-tpa-cerebrovascular-tree**](stefanitsch-2015-tpa-cerebrovascular-tree/digest.md) — Stefanitsch et al., *Front Cell Neurosci* 9:456. | *(pending intake)* | — |
+| [**wang-2022-cd31-vascular-network**](wang-2022-cd31-vascular-network/digest.md)<br>*Sci Rep* 12:22288 — gP-CD31 / phalloidin / α-SMA, normal and ischemic **rat** brain | **The source of the primary images** and of the biology: which marker labels what, the four cortical regions, why gP-CD31 beats mM-CD31. Published only intensity + area %. | **16** — the primary set |
+| [**rust-2020-fiji-vascular-analysis**](rust-2020-fiji-vascular-analysis/digest.md)<br>*Front Neurosci* 14:244 — automated **Fiji** analysis | **The methods reference.** Defines area fraction / length / branching / nearest-neighbour distance + pericyte coverage, with reference magnitudes for mouse development, mouse stroke and human AD. | **20** |
+| [**freitas-andrade-2022-pyvane-endothelial-networks**](freitas-andrade-2022-pyvane-endothelial-networks/digest.md)<br>*Neurophotonics* 9(3):031916 — **Pyvane** | **The closest analogue of our pipeline** and the only **external ground truth**: three images with published density/branching/tortuosity, plus reference masks and skeletons. Fully specified algorithm. | **6** (grayscale, uncalibrated) |
+| [**stefanitsch-2015-tpa-cerebrovascular-tree**](stefanitsch-2015-tpa-cerebrovascular-tree/digest.md)<br>*Front Cell Neurosci* 9:456 — tPA⁻/⁻ mice | **The only quantitative reference for CATEGORIZE**: CD31⁺ caliber bins (<5 / 5–10 / >10 µm) and ASMA⁺ artery diameters (mean 22.9 µm). Says our artery threshold is too low. | none — all micrographs are multi-channel |
+| [**hill-2020-aging-mra-cerebrovascular-loss**](hill-2020-aging-mra-cerebrovascular-loss/digest.md)<br>*Front Aging Neurosci* 12:585218 — CE-MRA | A **cross-modality validation design** worth imitating, a reference count density (458 vessels/mm², young mouse), and aging as a confounder. | none — MR angiography, different modality |
+| [**bizou-2026-nvu-angiogenic-programs**](bizou-2026-nvu-angiogenic-programs/digest.md)<br>*Nat Commun* 17:6746 — NVU communications | **Whole-brain vascular-density heatmaps** (the second paper to converge on the grid-heatmap construct), an open analysis toolkit, and a warning that density is region-specific. | none — all micrographs are multi-channel |
+
+**Three of six contribute no panels, and that is a result, not a gap.** A paper enters the
+working dataset only if it has isolated single-channel vessel images; forcing multi-channel
+merges or a different imaging modality into `VESSEL_*` would break the one contract the dataset
+has. Each of those digests says explicitly why, in its §5.
 
 ---
 
