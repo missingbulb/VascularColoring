@@ -1,5 +1,5 @@
 {
-  "dormant": true,
+  "dormant": false,
   "packs": [
     "basics",
     {
