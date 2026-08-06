@@ -23,8 +23,7 @@ references/
 
 **Slug format:** `<first-author>-<year>-<short-topic>`, lowercase, hyphenated.
 
-**Adding a paper?** Follow the `paper-intake` skill
-([`.claudinite/local/packs/vascular-coloring/skills/paper-intake/SKILL.md`](../.claudinite/local/packs/vascular-coloring/skills/paper-intake/SKILL.md)).
+**Adding a paper?** Follow the `paper-intake` skill.
 It is the repeatable protocol these folders were built with.
 
 ---

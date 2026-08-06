@@ -24,7 +24,7 @@ paper** so the sets are never averaged together. Paper index and the intake prot
    When establishing what a good result looks like, actually *look* at the images and reason about
    them. Never invent/fabricate numbers, and never run the analysis pipeline and present its own
    output as if it were ground truth — that is circular. The visual, LLM-derived expectations live in
-   [`references/figures/panels/expected-results.md`](../references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md)
+   [`references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md`](../references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md)
    and are the reference the automated pipeline is judged against.
 
 2. **We converse on visual assertions.** Progress is discussed by *overlaying the extracted data on

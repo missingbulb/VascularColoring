@@ -47,5 +47,5 @@ export default {
     calibrationSingleSource,
     renderOutputsGitignored,
   ],
-  skills: ['vessel-overlay-review'],
+  skills: ['vessel-overlay-review', 'paper-intake'],
 };
