@@ -10,6 +10,8 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperIndexedInReadme from './paper-indexed-in-readme.mjs';
+import paperPdfNamedForSlug from './paper-pdf-named-for-slug.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -386,6 +388,97 @@ test('render-outputs-gitignored honours a .gitignore beside the scripts', () => 
       'analysis/.gitignore': 'annotated/\n',
     },
     tracked: [ANNOTATE, '.gitignore', 'analysis/.gitignore'],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- paper-indexed-in-readme -------------------------------------------------
+
+const INDEX = 'references/README.md';
+const indexDoc = (rows) => [
+  '# References — source papers',
+  '',
+  'One folder per paper. **Slug format:** `<first-author>-<year>-<short-topic>`.',
+  '',
+  '## Papers',
+  '',
+  '| Paper | What it gives us | Panels in the dataset |',
+  '|---|---|---|',
+  ...rows.map((s) => `| [**${s}**](${s}/digest.md)<br>*journal* | what it gives us | none |`),
+].join('\n');
+
+test('paper-indexed-in-readme fires on a taken-in paper the index never got a row for', () => {
+  const findings = paperIndexedInReadme.run(ctx({
+    files: { [INDEX]: indexDoc(['wang-2022-cd31-vascular-network']) },
+    tracked: [
+      INDEX,
+      'references/wang-2022-cd31-vascular-network/digest.md',
+      'references/hill-2020-aging-mra-cerebrovascular-loss/digest.md',
+      // Not a paper folder: no digest, so nothing to index.
+      'references/_tools/extract_pdf_assets.py',
+    ],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /hill-2020-aging-mra-cerebrovascular-loss\/ carries a digest but has no row/);
+  assert.equal(findings[0].line, 5); // the "## Papers" heading
+});
+
+test('paper-indexed-in-readme fires on a row pointing at a folder that is not there', () => {
+  const findings = paperIndexedInReadme.run(ctx({
+    files: { [INDEX]: indexDoc(['wang-2022-cd31-vascular-network', 'rust-2020-fiji']) },
+    tracked: [INDEX, 'references/wang-2022-cd31-vascular-network/digest.md'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /links rust-2020-fiji\/digest\.md, which is not a tracked paper folder/);
+  assert.equal(findings[0].line, 10);
+});
+
+test('paper-indexed-in-readme is quiet when the index and the folders agree', () => {
+  const findings = paperIndexedInReadme.run(ctx({
+    files: {
+      [INDEX]: `${indexDoc(['wang-2022-cd31-vascular-network', 'hill-2020-aging-mra-cerebrovascular-loss'])}\n`
+        // A second mention of an already-indexed paper, and a link that is not a
+        // digest link at all — neither is a row this rule has anything to say about.
+        + '\nThe primary set comes from [wang-2022](wang-2022-cd31-vascular-network/digest.md);\n'
+        + 'the cross-paper decisions live in [METHODS-SYNTHESIS.md](METHODS-SYNTHESIS.md).\n',
+    },
+    tracked: [
+      INDEX,
+      'references/wang-2022-cd31-vascular-network/digest.md',
+      'references/wang-2022-cd31-vascular-network/figures/README.md',
+      'references/hill-2020-aging-mra-cerebrovascular-loss/digest.md',
+      'references/METHODS-SYNTHESIS.md',
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- paper-pdf-named-for-slug ------------------------------------------------
+
+test('paper-pdf-named-for-slug fires on a PDF still carrying its download name', () => {
+  const findings = paperPdfNamedForSlug.run(ctx({
+    tracked: [
+      'references/rust-2020-fiji-vascular-analysis/1-s2.0-S0006899321004X-main.pdf',
+      'references/rust-2020-fiji-vascular-analysis/digest.md',
+    ],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /1-s2\.0-S0006899321004X-main\.pdf sits in references\/rust-2020-fiji-vascular-analysis\//);
+  assert.match(findings[0].fix, /git mv/);
+});
+
+test('paper-pdf-named-for-slug is quiet on a slug-named PDF and on supplementary material', () => {
+  const findings = paperPdfNamedForSlug.run(ctx({
+    tracked: [
+      'references/rust-2020-fiji-vascular-analysis/rust-2020-fiji-vascular-analysis.pdf',
+      'references/rust-2020-fiji-vascular-analysis/digest.md',
+      // Published filenames are kept under supplementary/ — out of this rule's scope.
+      'references/rust-2020-fiji-vascular-analysis/supplementary/Data_Sheet_1.pdf',
+      'references/rust-2020-fiji-vascular-analysis/supplementary/Quantification.ijm',
+      // Not a paper folder's own PDF either.
+      'references/README.md',
+      'analysis/measure_vessels.py',
+    ],
   }));
   assert.deepEqual(findings, []);
 });

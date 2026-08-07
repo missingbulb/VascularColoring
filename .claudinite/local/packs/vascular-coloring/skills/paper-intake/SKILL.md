@@ -17,7 +17,8 @@ Cross-paper decisions: [`references/METHODS-SYNTHESIS.md`](../../../../../../ref
 ### 1. Place the paper
 
 Slug is `<first-author>-<year>-<short-topic>`. Create `references/<slug>/` and `git mv` the PDF in
-as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name.
+as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name
+(`paper-pdf-named-for-slug`).
 
 ### 2. Extract text and images
 
@@ -104,8 +105,6 @@ the paper to the folded-in list, extend the metric and processing tables, add re
 magnitudes, and — most valuable — **compare the published numbers to ours and say what the gap
 means**. A published branch density 5× below ours is a sharper statement of our fragmentation
 problem than any overlay.
-
-Add the paper's row to [`references/README.md`](../../../../../../references/README.md).
 
 ### 10. Verify
 
