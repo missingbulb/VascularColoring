@@ -10,6 +10,8 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperFolderLayout from './paper-folder-layout.mjs';
+import paperIndexedInReferences from './paper-indexed-in-references.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -386,6 +388,94 @@ test('render-outputs-gitignored honours a .gitignore beside the scripts', () => 
       'analysis/.gitignore': 'annotated/\n',
     },
     tracked: [ANNOTATE, '.gitignore', 'analysis/.gitignore'],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- paper-folder-layout -----------------------------------------------------
+
+const RUST = 'references/rust-2020-fiji-vascular-analysis';
+const cleanLibrary = [
+  `${RUST}/digest.md`,
+  `${RUST}/rust-2020-fiji-vascular-analysis.pdf`,
+  `${RUST}/supplementary/Quantification.ijm`,
+  'references/freitas-andrade-2022-pyvane-endothelial-networks/digest.md',
+  'references/freitas-andrade-2022-pyvane-endothelial-networks/freitas-andrade-2022-pyvane-endothelial-networks.pdf',
+  'references/_tools/extract_pdf_assets.py',
+  'references/README.md',
+];
+
+test('paper-folder-layout fires on a PDF still wearing its download name', () => {
+  const findings = paperFolderLayout.run(ctx({
+    tracked: [...cleanLibrary, 'references/hill-2020-aging-mra-cerebrovascular-loss/digest.md',
+      'references/hill-2020-aging-mra-cerebrovascular-loss/fnagi-12-585218.pdf'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, 'references/hill-2020-aging-mra-cerebrovascular-loss/fnagi-12-585218.pdf');
+  assert.match(findings[0].what, /not hill-2020-aging-mra-cerebrovascular-loss\.pdf/);
+});
+
+test('paper-folder-layout fires on a folder that is not an <author>-<year>-<topic> slug', () => {
+  const findings = paperFolderLayout.run(ctx({
+    tracked: [...cleanLibrary, 'references/CD31_paper2/digest.md', 'references/CD31_paper2/CD31_paper2.pdf'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /'CD31_paper2' is not a <first-author>-<year>-<short-topic> slug/);
+  assert.equal(findings[0].file, 'references/CD31_paper2/digest.md');
+});
+
+test('paper-folder-layout is quiet on a correctly named library', () => {
+  // _tools/ carries no digest so it is not a paper; supplementary files keep the
+  // publisher's own names, and a hyphenated first author is a legal slug.
+  const findings = paperFolderLayout.run(ctx({
+    tracked: [...cleanLibrary, `${RUST}/supplementary/Representative_Image.tif`],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- paper-indexed-in-references ---------------------------------------------
+
+const INDEX = 'references/README.md';
+const indexOf = (slugs) => [
+  '# References — source papers',
+  '',
+  '**Slug format:** `<first-author>-<year>-<short-topic>`, lowercase, hyphenated.',
+  '',
+  '## Papers',
+  '',
+  '| Paper | What it gives us | Panels in the dataset |',
+  '|---|---|---|',
+  ...slugs.map((s) => `| [**${s}**](${s}/digest.md)<br>*J* — topic | what it gives us | none |`),
+].join('\n');
+
+test('paper-indexed-in-references fires on a digested paper with no index row', () => {
+  const findings = paperIndexedInReferences.run(ctx({
+    files: { [INDEX]: indexOf(['rust-2020-fiji-vascular-analysis']) },
+    tracked: [`${RUST}/digest.md`, 'references/bizou-2026-nvu-angiogenic-programs/digest.md', INDEX],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, INDEX);
+  assert.equal(findings[0].line, 5);
+  assert.match(findings[0].what, /bizou-2026-nvu-angiogenic-programs/);
+});
+
+test('paper-indexed-in-references is not satisfied by a passing mention in prose', () => {
+  const findings = paperIndexedInReferences.run(ctx({
+    files: {
+      [INDEX]: `${indexOf(['rust-2020-fiji-vascular-analysis'])}\n\n`
+        + 'Three of six contribute no panels — see bizou-2026-nvu-angiogenic-programs §5.\n',
+    },
+    tracked: [`${RUST}/digest.md`, 'references/bizou-2026-nvu-angiogenic-programs/digest.md', INDEX],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /bizou-2026-nvu-angiogenic-programs/);
+});
+
+test('paper-indexed-in-references is quiet when every paper has its row', () => {
+  const findings = paperIndexedInReferences.run(ctx({
+    files: { [INDEX]: indexOf(['rust-2020-fiji-vascular-analysis', 'bizou-2026-nvu-angiogenic-programs']) },
+    tracked: [`${RUST}/digest.md`, 'references/bizou-2026-nvu-angiogenic-programs/digest.md',
+      'references/_tools/extract_pdf_assets.py', INDEX],
   }));
   assert.deepEqual(findings, []);
 });

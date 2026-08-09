@@ -22,6 +22,8 @@ keep every recorded number meaning the same thing.
 | `locked-metric-fields` | locked metrics stay reported | blocking |
 | `calibration-single-source` | one calibration table, imported | blocking |
 | `render-outputs-gitignored` | render directories stay ignored | blocking |
+| `paper-folder-layout` | paper folder names its article | blocking |
+| `paper-indexed-in-references` | every paper has index row | blocking |
 
 Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
 on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
@@ -34,7 +36,7 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 | Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
 | Metric definitions are locked | prose (+ `locked-metric-fields`) |
 | Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`, `calibration-single-source`) |
-| A paper is read once, written down | prose (+ the `paper-intake` skill) |
+| A paper is read once, written down | prose (+ the `paper-intake` skill, `paper-folder-layout`, `paper-indexed-in-references`) |
 | Say which numbers are trustworthy | prose |
 
 ## Skills

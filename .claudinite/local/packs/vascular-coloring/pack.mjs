@@ -5,6 +5,8 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperFolderLayout from './paper-folder-layout.mjs';
+import paperIndexedInReferences from './paper-indexed-in-references.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
 // in — fluorescence (gP-CD31 red channel) confocal panels measured for
@@ -27,12 +29,20 @@ import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 // (`calibration-single-source`), and every directory a script renders into must
 // stay ignored by git (`render-outputs-gitignored`).
 //
+// The source literature is the other half of the domain, and the two parts of
+// intake that leave a static signature are checks rather than skill prose: a
+// paper folder names its article and carries the PDF under that same slug
+// (`paper-folder-layout`), and it has a row in the references index that links
+// its digest (`paper-indexed-in-references`). What stays in the paper-intake
+// skill is the judgment — what to read, what to transcribe, what to admit is
+// weak.
+//
 // Check modules here stay dependency-free (plain finding objects, no engine
 // import) so the pack loads without the gitignored shared mount.
 export default {
   id: 'vascular-coloring',
   ruleRoutingGuidance: {
-    belongs: 'vessel-image quantification — overlay appearance, render outputs, and the calibration that makes a number micrometres',
+    belongs: 'vessel-image quantification — overlay appearance, render outputs, the calibration behind a micrometre, and the source-paper library layout',
     excludes: 'the research-project class and the working lifecycle — those are canon packs',
   },
   detect: null,
@@ -46,6 +56,8 @@ export default {
     lockedMetricFields,
     calibrationSingleSource,
     renderOutputsGitignored,
+    paperFolderLayout,
+    paperIndexedInReferences,
   ],
   skills: ['vessel-overlay-review', 'paper-intake'],
 };
