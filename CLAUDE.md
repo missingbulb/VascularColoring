@@ -1,3 +1,5 @@
+@.claudinite/claudinite-rules.GENERATED.md
+
 ## Project: vessel image analysis — start here
 
 This repo detects and quantifies cerebral blood vessels in the gP-CD31 (red) confocal panels
