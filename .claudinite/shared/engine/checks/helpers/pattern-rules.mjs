@@ -53,7 +53,8 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //   excludeFileClasses named shared file sets removed from scope (the same
 //                      class names — testFiles is the usual one)
 //   scanIgnoringComments  true = content assertions (matchLines, checkEachFile,
-//                      repoWide) read each file with its JS/TS comments blanked
+//                      repoWide, and requireIndexCoverage's whoseTextMatches)
+//                      read each file with its JS/TS comments blanked
 //                      (string-aware, line count preserved — code-scanning.mjs
 //                      stripComments), so a comment merely naming a forbidden
 //                      token never fires
@@ -72,9 +73,12 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                        trackedFileMatches               some tracked path matches
 //                        noTrackedFileMatches             no tracked path matches
 //                        exactlyOneTrackedFileMatches     exactly one tracked path matches
-//                        someTrackedFileContains          { pathMatching, text } — some
+//                        someTrackedFileContains          { pathMatching, text,
+//                                                           ignoringComments } — some
 //                                                         tracked path matching the first
 //                                                         has text matching the second
+//                                                         (ignoringComments: true reads it
+//                                                         with JS/TS comments blanked)
 //                        scanningWholeRepo                true = only under a whole-repo
 //                                                         sweep (mode 'all'), never a
 //                                                         --changed run
@@ -117,17 +121,39 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                      RegExp lists — anchored at the first group's first
 //                      pattern's first matching line
 //   requirePaths       [{ path, what, fix }] — each path must exist on disk
+//   extractValueSets   [{ setName, fromParsedFile | fromParsedFilesMatching
+//                         (+ whereFileContains), valuesOfArraysAtFields,
+//                         whenSetEmpty }]
+//                      each entry extracts one NAMED value set the rule's
+//                      other assertions may quantify over: the string values
+//                      of the arrays at every listed field path, across every
+//                      selected parsed document. whenSetEmpty is declared,
+//                      never defaulted — "assertNothing" (the sole mode until
+//                      a flagging customer exists) makes every consumer of an
+//                      empty set assert nothing, so an absent source is inert
+//                      by declaration rather than silently vacuous
 //   requireIndexCoverage [{ eachTrackedPathMatching | eachScannedPathMatching
 //                         (+ includeVendored: true to widen scanned to
-//                         ctx.allFiles), indexFile,
-//                         coveredByText | coveredByGlobLinesMatching,
+//                         ctx.allFiles, + whoseTextMatches to keep only files
+//                         whose content matches — read comment-blind under
+//                         scanIgnoringComments)
+//                         | eachValueOfSet: the name of an extractValueSets
+//                           entry — its values are the subjects
+//                           ({value} interpolates, {path} = the source file),
+//                         indexFile,
+//                         coveredByText | coveredByGlobLinesMatching
+//                         | coveredByValueInArrayAtField: { atField, value,
+//                           ignoreCase, matchingEntryObjectsByField },
 //                         whenIndexFileAbsent, anchorFindingsAt, what, fix }]
-//                      every path the quantifier's RegExp matches must be
+//                      every path or value the quantifier selects must be
 //                      covered in `indexFile`: by containing the filled
 //                      `coveredByText` template, or — full path or basename —
 //                      by the first-token glob of some non-comment index line
-//                      `coveredByGlobLinesMatching` matches. The divergent
-//                      semantics are declared, never defaulted:
+//                      `coveredByGlobLinesMatching` matches (path quantifiers
+//                      only), or by the parsed index's array at `atField`
+//                      holding the filled `value` template (an entry object
+//                      counts by its `matchingEntryObjectsByField` field). The
+//                      divergent semantics are declared, never defaulted:
 //                      whenIndexFileAbsent = "assertNothing" | "flagEveryPath",
 //                      anchorFindingsAt = "indexFile" (deduped, sorted) |
 //                      "eachUncoveredPath"
@@ -142,7 +168,9 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                           { field, equals },
 //                         whenFieldPresent,
 //                         requireField, forbidField,
-//                         forbidValueInArray: { atField, value, ignoreCase },
+//                         forbidValueInArray | requireValueInArray:
+//                           { atField, value, ignoreCase,
+//                             matchingEntryObjectsByField },
 //                         requireEqualFields: { field, inFile, atField,
 //                           whenFileMissing, whenUnequal },
 //                         what, fix }]
@@ -154,10 +182,13 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                      holds; {entry} interpolates), gate on `whenFieldPresent`,
 //                      then assert: `requireField` present / `forbidField`
 //                      absent / the array at `forbidValueInArray.atField` free
-//                      of the value / the base's `field` equal to `inFile`'s
-//                      `atField` (an absent `inFile` fires `whenFileMissing` at
-//                      its path; a mismatch fires `whenUnequal` with
-//                      {first}/{second})
+//                      of the value, or holding it under `requireValueInArray`
+//                      (either way an entry that is an object counts by its
+//                      `matchingEntryObjectsByField` field; a missing or
+//                      non-array field satisfies forbid and fails require) /
+//                      the base's `field` equal to `inFile`'s `atField` (an
+//                      absent `inFile` fires `whenFileMissing` at its path; a
+//                      mismatch fires `whenUnequal` with {first}/{second})
 //   checkKeyValueFile  [{ file, keys, whenMissing, whenLineNotKeyValue,
 //                         whenKeyUnknown, whenKeyMissing }]
 //                      the dotenv-style file must exist, hold only KEY=value
@@ -245,24 +276,28 @@ const SPEC_KEYS = {
     'relevantWhen', 'whenMissing',
     'maxLines', 'maxLineLength', 'skipLinesMatching', 'matchLines', 'countMatchingLines',
     'checkEachFile', 'repoWide', 'requirePaths',
-    'requireIndexCoverage', 'checkParsedFiles', 'forbidReferences',
+    'extractValueSets', 'requireIndexCoverage', 'checkParsedFiles', 'forbidReferences',
     'listedInFile', 'coveredByGlobLine', 'checkParsedFile', 'equalParsedValues',
     'forEachParsedEntry', 'checkKeyValueFile', 'checkSections'],
   checkParsedFiles: ['file', 'filesMatching', 'whereFileContains', 'forEachEntryAtField',
     'whereEntryFieldEquals', 'whenFieldPresent', 'requireField', 'forbidField',
-    'forbidValueInArray', 'requireEqualFields', ...MSG],
+    'forbidValueInArray', 'requireValueInArray', 'requireEqualFields', ...MSG],
   whereEntryFieldEquals: ['field', 'equals'],
   requireEqualFields: ['field', 'inFile', 'atField', 'whenFileMissing', 'whenUnequal'],
   whenFileMissing: MSG,
+  extractValueSets: ['setName', 'fromParsedFile', 'fromParsedFilesMatching', 'whereFileContains',
+    'valuesOfArraysAtFields', 'whenSetEmpty'],
   requireIndexCoverage: ['eachTrackedPathMatching', 'eachScannedPathMatching', 'includeVendored',
-    'indexFile', 'coveredByText', 'coveredByGlobLinesMatching', 'whenIndexFileAbsent',
-    'anchorFindingsAt', ...MSG],
+    'whoseTextMatches', 'eachValueOfSet',
+    'indexFile', 'coveredByText', 'coveredByGlobLinesMatching', 'coveredByValueInArrayAtField',
+    'whenIndexFileAbsent', 'anchorFindingsAt', ...MSG],
+  coveredByValueInArrayAtField: ['atField', 'value', 'ignoreCase', 'matchingEntryObjectsByField'],
   forbidReferences: ['from', 'to', 'between', 'siblings', 'scope', 'allow', 'except',
     'matchNames', 'alsoMatchNames', 'matchUniqueFilenames', 'reason'],
   except: ['path', 'to', 'reason'],
   relevantWhen: ['pathExists', 'pathAbsent', 'trackedFileMatches', 'noTrackedFileMatches',
     'exactlyOneTrackedFileMatches', 'someTrackedFileContains', 'scanningWholeRepo', 'repoContains'],
-  someTrackedFileContains: ['pathMatching', 'text'],
+  someTrackedFileContains: ['pathMatching', 'text', 'ignoringComments'],
   whenMissing: MSG,
   maxLines: ['limit', ...MSG],
   maxLineLength: ['bytes', ...MSG],
@@ -282,7 +317,8 @@ const SPEC_KEYS = {
   whenUnequal: MSG,
   forEachParsedEntry: ['inFilesMatching', 'entriesAtField', 'whereFieldEquals', 'forbidValueInArray', ...MSG],
   whereFieldEquals: ['field', 'equals'],
-  forbidValueInArray: ['atField', 'value', 'ignoreCase'],
+  forbidValueInArray: ['atField', 'value', 'ignoreCase', 'matchingEntryObjectsByField'],
+  requireValueInArray: ['atField', 'value', 'ignoreCase', 'matchingEntryObjectsByField'],
   checkKeyValueFile: ['file', 'keys', 'whenMissing', 'whenLineNotKeyValue', 'whenKeyUnknown', 'whenKeyMissing'],
   whenLineNotKeyValue: MSG,
   whenKeyUnknown: MSG,
@@ -395,16 +431,50 @@ function validateEntryShapes(spec, where) {
     if (a.whereFileContains && a.filesMatching === undefined) {
       throw new Error(`${where}: "whereFileContains" refines "filesMatching" and cannot go with "file"`);
     }
-    if (!a.requireField && !a.forbidField && !a.forbidValueInArray && !a.requireEqualFields) {
-      throw new Error(`${where}: a checkParsedFiles entry asserts nothing — add requireField, forbidField, forbidValueInArray, or requireEqualFields`);
+    if (!a.requireField && !a.forbidField && !a.forbidValueInArray && !a.requireValueInArray && !a.requireEqualFields) {
+      throw new Error(`${where}: a checkParsedFiles entry asserts nothing — add requireField, forbidField, forbidValueInArray, requireValueInArray, or requireEqualFields`);
     }
   }
-  for (const a of spec.requireIndexCoverage ?? []) {
-    if ((a.eachTrackedPathMatching === undefined) === (a.eachScannedPathMatching === undefined)) {
-      throw new Error(`${where}: a requireIndexCoverage entry quantifies by exactly one of "eachTrackedPathMatching" or "eachScannedPathMatching"`);
+  for (const s of spec.extractValueSets ?? []) {
+    if (typeof s.setName !== 'string' || !s.setName.trim()) {
+      throw new Error(`${where}: an extractValueSets entry needs a non-empty "setName"`);
     }
-    if ((a.coveredByText === undefined) === (a.coveredByGlobLinesMatching === undefined)) {
-      throw new Error(`${where}: a requireIndexCoverage entry declares exactly one coverage form — "coveredByText" or "coveredByGlobLinesMatching"`);
+    if ((s.fromParsedFile === undefined) === (s.fromParsedFilesMatching === undefined)) {
+      throw new Error(`${where}: an extractValueSets entry selects its documents by exactly one of "fromParsedFile" or "fromParsedFilesMatching"`);
+    }
+    if (s.whereFileContains && s.fromParsedFilesMatching === undefined) {
+      throw new Error(`${where}: "whereFileContains" refines "fromParsedFilesMatching" and cannot go with "fromParsedFile"`);
+    }
+    if (!Array.isArray(s.valuesOfArraysAtFields) || !s.valuesOfArraysAtFields.length ||
+        s.valuesOfArraysAtFields.some((f) => typeof f !== 'string')) {
+      throw new Error(`${where}: "valuesOfArraysAtFields" is a non-empty list of field paths to read arrays from`);
+    }
+    if (s.whenSetEmpty !== 'assertNothing') {
+      throw new Error(`${where}: "whenSetEmpty" must be "assertNothing" — emptiness is declared, never defaulted (a flagging mode lands with its first customer)`);
+    }
+  }
+  const declaredSets = new Set((spec.extractValueSets ?? []).map((s) => s.setName));
+  for (const a of spec.requireIndexCoverage ?? []) {
+    const quantifiers = [a.eachTrackedPathMatching, a.eachScannedPathMatching, a.eachValueOfSet]
+      .filter((q) => q !== undefined);
+    if (quantifiers.length !== 1) {
+      throw new Error(`${where}: a requireIndexCoverage entry quantifies by exactly one of "eachTrackedPathMatching", "eachScannedPathMatching", or "eachValueOfSet"`);
+    }
+    if (a.eachValueOfSet !== undefined) {
+      if (!declaredSets.has(a.eachValueOfSet)) {
+        throw new Error(`${where}: "eachValueOfSet: ${JSON.stringify(a.eachValueOfSet)}" names no declared value set — declare it in "extractValueSets" (declared: ${[...declaredSets].join(', ') || 'none'})`);
+      }
+      if (a.whoseTextMatches !== undefined) {
+        throw new Error(`${where}: "whoseTextMatches" refines a path quantifier and cannot go with "eachValueOfSet"`);
+      }
+      if (a.coveredByGlobLinesMatching !== undefined) {
+        throw new Error(`${where}: "coveredByGlobLinesMatching" covers paths and cannot go with "eachValueOfSet"`);
+      }
+    }
+    const coverageForms = [a.coveredByText, a.coveredByGlobLinesMatching, a.coveredByValueInArrayAtField]
+      .filter((c) => c !== undefined);
+    if (coverageForms.length !== 1) {
+      throw new Error(`${where}: a requireIndexCoverage entry declares exactly one coverage form — "coveredByText", "coveredByGlobLinesMatching", or "coveredByValueInArrayAtField"`);
     }
     if (a.whenIndexFileAbsent !== 'assertNothing' && a.whenIndexFileAbsent !== 'flagEveryPath') {
       throw new Error(`${where}: "whenIndexFileAbsent" must be "assertNothing" or "flagEveryPath" — the divergent case is declared, never defaulted`);
@@ -435,9 +505,11 @@ function relevant(ctx, when) {
   if (when.noTrackedFileMatches && ctx.tracked.some((f) => when.noTrackedFileMatches.test(f))) return false;
   if (when.exactlyOneTrackedFileMatches &&
       ctx.tracked.filter((f) => when.exactlyOneTrackedFileMatches.test(f)).length !== 1) return false;
-  if (when.someTrackedFileContains &&
-      !ctx.tracked.some((f) => when.someTrackedFileContains.pathMatching.test(f) &&
-        when.someTrackedFileContains.text.test(ctx.read(f) ?? ''))) return false;
+  if (when.someTrackedFileContains) {
+    const probe = when.someTrackedFileContains;
+    const view = (f) => (probe.ignoringComments ? stripComments(ctx.read(f) ?? '') : ctx.read(f) ?? '');
+    if (!ctx.tracked.some((f) => probe.pathMatching.test(f) && probe.text.test(view(f)))) return false;
+  }
   if (when.scanningWholeRepo && ctx.mode !== 'all') return false;
   return true; // repoContains resolves after the pass, and only when findings exist
 }
@@ -577,57 +649,130 @@ function assertSections(ctx, j, path, md) {
 const fieldAt = (doc, path) =>
   path.split('.').reduce((v, key) => (v && typeof v === 'object' ? v[key] : undefined), doc);
 
+// The one membership test every value-in-array key shares (forbidValueInArray,
+// requireValueInArray, coveredByValueInArrayAtField): a missing or non-array
+// field holds nothing, and an entry that is an object counts by the field
+// matchingEntryObjectsByField names — the shape a raw `packs` declaration
+// carries, where "core" and { "id": "core" } declare the same pack.
+function arrayHoldsValue(values, matcher, sought) {
+  if (!Array.isArray(values)) return false;
+  const norm = (v) => (matcher.ignoreCase ? String(v).toLowerCase() : String(v));
+  const target = norm(sought);
+  return values.some((entry) => {
+    if (matcher.matchingEntryObjectsByField && entry && typeof entry === 'object') {
+      return norm(fieldAt(entry, matcher.matchingEntryObjectsByField)) === target;
+    }
+    return norm(entry) === target;
+  });
+}
+
 function globToRe(glob) {
   return new RegExp(
     `^${glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`
   );
 }
 
-// The tree/index assertions — they match paths and read at most one index file,
-// so they run directly per rule rather than riding the content pass.
-function assertTreeShape(ctx, j) {
+// Resolve a rule's declared value sets for this context: setName ->
+// [{ value, fromPath }], in document order, deduped per set. An empty set is
+// legal by declaration (whenSetEmpty) and simply yields no subjects.
+function resolveValueSets(ctx, spec, parsed) {
+  const sets = new Map();
+  for (const s of spec.extractValueSets ?? []) {
+    const seen = new Set();
+    const values = [];
+    const docPaths = s.fromParsedFile !== undefined ? [s.fromParsedFile]
+      : ctx.tracked.filter((f) => s.fromParsedFilesMatching.test(f) &&
+          (!s.whereFileContains || s.whereFileContains.test(ctx.read(f) ?? '')));
+    for (const docPath of docPaths) {
+      const doc = parsed(docPath);
+      if (doc == null) continue;
+      for (const field of s.valuesOfArraysAtFields) {
+        const arr = fieldAt(doc, field);
+        if (!Array.isArray(arr)) continue;
+        for (const v of arr) {
+          const value = String(v);
+          if (seen.has(value)) continue;
+          seen.add(value);
+          values.push({ value, fromPath: docPath });
+        }
+      }
+    }
+    sets.set(s.setName, values);
+  }
+  return sets;
+}
+
+// The tree/index assertions — they match paths and read a few named documents
+// through the scan's shared parse cache, so they run directly per rule rather
+// than riding the content pass.
+function assertTreeShape(ctx, j, parsed) {
   const s = j.spec;
+  const sets = s.extractValueSets ? resolveValueSets(ctx, s, parsed) : null;
   for (const a of s.requirePaths ?? []) {
     if (ctx.exists(a.path)) continue;
     const vars = { path: a.path };
     j.out.push(finding(j.rule, { file: a.path, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
   }
 
-  // Index coverage: every selected path must be covered in the index file —
-  // by its filled coveredByText token, or by the first-token glob of some
-  // non-comment index line coveredByGlobLinesMatching selects (full path or
-  // basename). Absence handling and anchoring are declared per entry, never
-  // defaulted, because the two families this merged genuinely diverged there.
+  // Index coverage: every subject the quantifier selects — a path, or a value
+  // read out of a parsed array — must be covered in the index file: by its
+  // filled coveredByText token, by the first-token glob of some non-comment
+  // index line coveredByGlobLinesMatching selects (full path or basename), or
+  // by membership in the parsed index's array at coveredByValueInArrayAtField.
+  // Absence handling and anchoring are declared per entry, never defaulted,
+  // because the two families this merged genuinely diverged there.
   for (const a of s.requireIndexCoverage ?? []) {
     const indexText = ctx.read(a.indexFile);
     if (indexText === null && a.whenIndexFileAbsent === 'assertNothing') continue;
     const globs = a.coveredByGlobLinesMatching === undefined ? [] : (indexText ?? '').split('\n')
       .filter((line) => a.coveredByGlobLinesMatching.test(line) && !line.trim().startsWith('#'))
       .map((line) => globToRe(line.trim().split(/\s+/)[0]));
-    const matcher = a.eachTrackedPathMatching ?? a.eachScannedPathMatching;
-    const paths = a.eachTrackedPathMatching ? ctx.tracked
-      : (a.includeVendored ? ctx.allFiles : ctx.files);
+
+    // Each subject: its message vars, the path a per-subject finding anchors
+    // at, and the path the glob coverage form tests (null for a value subject).
+    const subjects = [];
+    if (a.eachValueOfSet !== undefined) {
+      for (const { value, fromPath } of sets.get(a.eachValueOfSet)) {
+        subjects.push({ vars: { path: fromPath, value }, anchorPath: fromPath, globPath: null });
+      }
+    } else {
+      const matcher = a.eachTrackedPathMatching ?? a.eachScannedPathMatching;
+      const paths = a.eachTrackedPathMatching ? ctx.tracked
+        : (a.includeVendored ? ctx.allFiles : ctx.files);
+      for (const path of paths) {
+        const m = matcher.exec(path);
+        if (!m) continue;
+        if (a.whoseTextMatches) {
+          const text = ctx.read(path) ?? '';
+          if (!a.whoseTextMatches.test(s.scanIgnoringComments ? stripComments(text) : text)) continue;
+        }
+        subjects.push({ vars: { path, ...(m.groups ?? {}) }, anchorPath: path, globPath: path });
+      }
+    }
+
     const atIndex = new Map();
-    for (const path of paths) {
-      const m = matcher.exec(path);
-      if (!m) continue;
-      const vars = { path, ...(m.groups ?? {}) };
+    for (const { vars, anchorPath, globPath } of subjects) {
       let covered;
       let dedupKey;
       if (a.coveredByText !== undefined) {
         const token = fill(a.coveredByText, vars);
         covered = indexText !== null && indexText.includes(token);
         dedupKey = token;
+      } else if (a.coveredByValueInArrayAtField !== undefined) {
+        const membership = a.coveredByValueInArrayAtField;
+        const sought = fill(membership.value, vars);
+        covered = arrayHoldsValue(fieldAt(parsed(a.indexFile), membership.atField), membership, sought);
+        dedupKey = sought;
       } else {
-        const base = path.slice(path.lastIndexOf('/') + 1);
-        covered = globs.some((re) => re.test(path) || re.test(base));
-        dedupKey = path;
+        const base = globPath.slice(globPath.lastIndexOf('/') + 1);
+        covered = globs.some((re) => re.test(globPath) || re.test(base));
+        dedupKey = globPath;
       }
       if (covered) continue;
       if (a.anchorFindingsAt === 'indexFile') {
         if (!atIndex.has(dedupKey)) atIndex.set(dedupKey, vars);
       } else {
-        j.out.push(finding(j.rule, { file: path, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+        j.out.push(finding(j.rule, { file: anchorPath, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
       }
     }
     for (const [, vars] of [...atIndex].sort(([k1], [k2]) => k1.localeCompare(k2))) {
@@ -674,12 +819,13 @@ function assertParsedShape(ctx, j, parsed) {
         }));
         if (a.requireField && fieldAt(base, a.requireField) === undefined) flag(a.what, a.fix);
         if (a.forbidField && fieldAt(base, a.forbidField) !== undefined) flag(a.what, a.fix);
-        if (a.forbidValueInArray) {
-          const values = fieldAt(base, a.forbidValueInArray.atField);
-          const norm = (v) => (a.forbidValueInArray.ignoreCase ? String(v).toLowerCase() : String(v));
-          if (Array.isArray(values) && values.some((v) => norm(v) === norm(a.forbidValueInArray.value))) {
-            flag(a.what, a.fix);
-          }
+        if (a.forbidValueInArray &&
+            arrayHoldsValue(fieldAt(base, a.forbidValueInArray.atField), a.forbidValueInArray, a.forbidValueInArray.value)) {
+          flag(a.what, a.fix);
+        }
+        if (a.requireValueInArray &&
+            !arrayHoldsValue(fieldAt(base, a.requireValueInArray.atField), a.requireValueInArray, a.requireValueInArray.value)) {
+          flag(a.what, a.fix);
         }
         if (a.requireEqualFields) {
           const eq = a.requireEqualFields;
@@ -892,7 +1038,7 @@ function results(ctx) {
   };
 
   for (const j of jobs) {
-    assertTreeShape(ctx, j);
+    assertTreeShape(ctx, j, parsed);
     assertParsedShape(ctx, j, parsed);
     if (j.spec.edges) assertReferenceEdges(ctx, j);
     if (typeof j.spec.scanFiles !== 'string') continue;
@@ -944,7 +1090,8 @@ const PATTERN_KEYS = new Set([
   'pathMatching', 'text', 'repoContains', 'unlessSomeFileMatches', 'flagFilesMatching',
   'neverFlagFiles', 'eachTrackedPathMatching', 'eachPathMatching', 'globLineMatching',
   'filesMatching', 'whereFileContains', 'inFilesMatching', 'pattern', 'linesMatching',
-  'eachScannedPathMatching', 'coveredByGlobLinesMatching',
+  'eachScannedPathMatching', 'coveredByGlobLinesMatching', 'whoseTextMatches',
+  'fromParsedFilesMatching',
 ]);
 const RE_FORM = /^\/(.*)\/([dgimsuvy]*)$/s;
 
