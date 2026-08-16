@@ -15,20 +15,15 @@ expected result is circular and does not count as evidence.
 
 ## Progress is a visual assertion, not a table
 
-An extraction change is discussed by **overlaying the result on the image** and making explicit,
-checkable claims about it ("this outline is what I call a vessel; that red vessel has no outline —
-the baseline missed it"). The overlay is a QA tool first: **show where the method breaks** — missed
-faint vessels, fragmentation, thick-vessel handling — rather than the fields where it looks good.
-The procedure is in [vessel-overlay-review](skills/vessel-overlay-review/SKILL.md).
+An extraction change is discussed by **overlaying the result on the image**, checked against what it
+actually misses here — faint vessels, fragmentation, thick-vessel handling. The procedure is in
+[vessel-overlay-review](skills/vessel-overlay-review/SKILL.md).
 
 ## The metric definitions are locked
 
 COUNT = branch **segments** (junction-to-junction / junction-to-tip — *not* connected components,
 which are reported alongside), CATEGORIZE = **caliber**, MEASURE = **total centerline length**.
-That the script keeps reporting all three is enforced (`locked-metric-fields`); the judgment is that
-re-defining one is an owner call, because it changes every recorded number silently — the column
-keeps its name while the quantity under it moves, so the old numbers must be re-measured, never
-re-labelled.
+That the script keeps reporting all three is enforced (`locked-metric-fields`).
 
 ## Raw length is not comparable across figures
 
@@ -39,25 +34,18 @@ papers**: species, injury model, marker and magnification all change between the
 rollup is grouped per paper. This is why every working panel must stay calibrated
 (`panel-scale-calibration`).
 
-A bar is **measured off the panel**, never inferred from a stated field-of-view and never borrowed
-from a neighbouring row. A figure that draws no bar is not quietly dropped: its panels go in
-`UNCALIBRATED` **with the reason**, report area % and pixels only, and stay visible as a known gap.
-The bar widths are a measurement, not a constant, so they live in exactly one place — `SCALEBAR_PX`
-in `analysis/measure_vessels.py`; a second copy is a second calibration, and whichever copy a script
-or a document happens to read wins silently (`calibration-single-source` for code,
-`scale-numbers-match-calibration` for the numbers quoted in the docs).
+A bar is **measured off the panel**. A figure that draws no bar goes in `UNCALIBRATED` **with the
+reason**, reporting area % and pixels only. The single copy is `SCALEBAR_PX` in
+`analysis/measure_vessels.py` (`calibration-single-source` for code, `scale-numbers-match-calibration`
+for the numbers quoted in the docs).
 
 ## A paper is finished when the PDF is redundant
 
-Source articles are read once and written down, not re-read. An intake is done when the digest,
-the figures and their descriptions carry everything the project needs — including the method that
-only exists inside a figure image, and the parameters the paper *fails* to state, listed as gaps so
-nobody hunts for them twice. The procedure is in [paper-intake](skills/paper-intake/SKILL.md).
+The procedure is in [paper-intake](skills/paper-intake/SKILL.md).
 
 ## Say which numbers are trustworthy
 
-Report the current trust boundary with the numbers, not separately from them: area %, length
-density and the µm calibration are usable; per-segment **count** is still inflated by
+Area %, length density and the µm calibration are usable; per-segment **count** is still inflated by
 fragmentation, absolute length comes from figure-resolution crops, and the capillary/artery split
 is one diameter threshold (`ARTERY_DIAM_PX`). When a number is not yet trustworthy, say so where it
 is quoted.

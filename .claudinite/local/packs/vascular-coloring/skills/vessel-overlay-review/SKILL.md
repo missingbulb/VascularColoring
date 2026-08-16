@@ -44,7 +44,7 @@ Alongside the overlay, write the claims a reader can check against it, in both d
   this dim field"; "this vessel is split into three segments by a stain dropout, so COUNT is
   inflated here".
 
-A review that only shows the good fields is not a review. Compare against the visual expectations in
+Compare against the visual expectations in
 `references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md` — never against the pipeline's own previous output.
 
 ## 4. Then the numbers
