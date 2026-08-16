@@ -22,6 +22,7 @@ keep every recorded number meaning the same thing.
 | `locked-metric-fields` | locked metrics stay reported | blocking |
 | `calibration-single-source` | one calibration table, imported | blocking |
 | `render-outputs-gitignored` | render directories stay ignored | blocking |
+| `paper-figure-naming` | committed figures named `figN_....png` | blocking |
 
 Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
 on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
