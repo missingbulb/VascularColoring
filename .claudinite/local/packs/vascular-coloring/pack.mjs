@@ -5,6 +5,7 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperFigureNaming from './paper-figure-naming.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
 // in — fluorescence (gP-CD31 red channel) confocal panels measured for
@@ -46,6 +47,7 @@ export default {
     lockedMetricFields,
     calibrationSingleSource,
     renderOutputsGitignored,
+    paperFigureNaming,
   ],
   skills: ['vessel-overlay-review', 'paper-intake'],
 };

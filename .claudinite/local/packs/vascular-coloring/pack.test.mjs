@@ -10,6 +10,7 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperFigureNaming from './paper-figure-naming.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -386,6 +387,55 @@ test('render-outputs-gitignored honours a .gitignore beside the scripts', () => 
       'analysis/.gitignore': 'annotated/\n',
     },
     tracked: [ANNOTATE, '.gitignore', 'analysis/.gitignore'],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- paper-figure-naming ------------------------------------------------------
+
+const SLUG = 'wang-2022-cd31-vascular-network';
+const DIGEST = `references/${SLUG}/digest.md`;
+
+test('paper-figure-naming fires on a figure left under its extraction-tool name', () => {
+  const findings = paperFigureNaming.run(ctx({
+    tracked: [
+      DIGEST,
+      `references/${SLUG}/figures/fig1_gP-CD31_Nissl_healthy.png`,
+      `references/${SLUG}/figures/page3_image1.png`,
+    ],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, `references/${SLUG}/figures/page3_image1.png`);
+  assert.match(findings[0].what, /not named figN_<short-name>\.png/);
+});
+
+test('paper-figure-naming fires on the wrong case and the wrong extension', () => {
+  const findings = paperFigureNaming.run(ctx({
+    tracked: [DIGEST, `references/${SLUG}/figures/Figure1.PNG`, `references/${SLUG}/figures/fig2_ischemia_regional.jpg`],
+  }));
+  assert.equal(findings.length, 2);
+});
+
+test('paper-figure-naming is quiet on README.md, crop_panels.py, panels/, and conforming figures', () => {
+  const findings = paperFigureNaming.run(ctx({
+    tracked: [
+      DIGEST,
+      `references/${SLUG}/figures/README.md`,
+      `references/${SLUG}/figures/crop_panels.py`,
+      `references/${SLUG}/figures/fig1_gP-CD31_Nissl_healthy.png`,
+      `references/${SLUG}/figures/fig13_local_tortuosity.png`,
+      // A panels/ file that would not itself match the figN_ pattern — one
+      // path segment deeper, and out of this rule's business.
+      `references/${SLUG}/figures/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('paper-figure-naming ignores a figures/ directory with no digest.md beside it', () => {
+  // references/_tools/ carries scripts, not a paper — never mistaken for one.
+  const findings = paperFigureNaming.run(ctx({
+    tracked: ['references/_tools/extract_pdf_assets.py', 'references/_tools/figures/scratch.txt'],
   }));
   assert.deepEqual(findings, []);
 });
