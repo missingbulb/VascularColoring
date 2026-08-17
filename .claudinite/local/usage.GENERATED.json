@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "foldedThrough": "2026-08-15",
-  "runsFoldedThrough": "2026-08-16T04:46:09Z",
+  "foldedThrough": "2026-08-16",
+  "runsFoldedThrough": "2026-08-17T03:58:59Z",
   "days": {
     "2026-07-28": {
       "captures": 1,
@@ -668,12 +668,17 @@
       "taskExec": {}
     },
     "2026-08-16": {
-      "captures": 2,
-      "merges": 2,
-      "sessions": 2,
+      "captures": 5,
+      "merges": 5,
+      "sessions": 5,
       "userMessages": 0,
       "userCommands": 0,
-      "skillLoads": {},
+      "skillLoads": {
+        "git-github-advanced": 1,
+        "growth-dedup": 1,
+        "single-branch-status": 1,
+        "single-issue-triage": 1
+      },
       "checks": {
         "work": {
           "runs": 2,
@@ -685,11 +690,11 @@
           "ciFailures": 0
         },
         "world": {
-          "runs": 2,
+          "runs": 6,
           "failures": 0,
           "errors": 0,
           "blocking": 0,
-          "advisory": 2,
+          "advisory": 5,
           "ciRuns": 0,
           "ciFailures": 0
         }
@@ -697,7 +702,7 @@
       "checkFindings": {
         "rules-line-length": {
           "blocking": 0,
-          "advisory": 2
+          "advisory": 5
         },
         "task-lifecycle": {
           "blocking": 1,
@@ -888,31 +893,35 @@
       }
     },
     "2026-W33": {
-      "days": 5,
-      "captures": 4,
-      "merges": 4,
-      "sessionDays": 4,
+      "days": 6,
+      "captures": 9,
+      "merges": 9,
+      "sessionDays": 9,
       "userMessages": 0,
       "userCommands": 0,
       "skillLoads": {
-        "session-start-hook": 1
+        "git-github-advanced": 1,
+        "growth-dedup": 1,
+        "session-start-hook": 1,
+        "single-branch-status": 1,
+        "single-issue-triage": 1
       },
       "checks": {
         "work": {
-          "runs": 2,
-          "failures": 2,
+          "runs": 4,
+          "failures": 3,
           "errors": 0,
-          "blocking": 2,
+          "blocking": 3,
           "advisory": 0,
           "ciRuns": 0,
           "ciFailures": 0
         },
         "world": {
-          "runs": 4,
+          "runs": 10,
           "failures": 0,
           "errors": 0,
           "blocking": 0,
-          "advisory": 4,
+          "advisory": 9,
           "ciRuns": 0,
           "ciFailures": 0
         }
@@ -924,7 +933,11 @@
         },
         "rules-line-length": {
           "blocking": 0,
-          "advisory": 4
+          "advisory": 9
+        },
+        "task-lifecycle": {
+          "blocking": 1,
+          "advisory": 0
         }
       },
       "tasks": {
@@ -950,7 +963,7 @@
           "deferred": 0
         },
         "core/update": {
-          "agent": 0,
+          "agent": 2,
           "prework": 2,
           "skipped": 0,
           "failed": 0,
@@ -959,7 +972,7 @@
         "grow_with_claudinite/growth-extract": {
           "agent": 2,
           "prework": 0,
-          "skipped": 3,
+          "skipped": 4,
           "failed": 0,
           "deferred": 0
         },
@@ -982,6 +995,12 @@
         "basics/update": {
           "success": 4,
           "failed": 0,
+          "task-gone": 0,
+          "invalid": 0
+        },
+        "core/update": {
+          "success": 1,
+          "failed": 1,
           "task-gone": 0,
           "invalid": 0
         },
