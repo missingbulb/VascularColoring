@@ -1,13 +1,13 @@
 {
   "version": 2,
   "foldedThrough": "2026-08-16",
-  "runsFoldedThrough": "2026-08-19T04:47:42Z",
+  "runsFoldedThrough": "2026-08-20T04:48:14Z",
   "fields": {
     "day": ["captures","merges","sessions","userMessages","userCommands"],
     "week": ["days","captures","merges","sessionDays","userMessages","userCommands"],
     "checks": ["runs","failures","errors","blocking","advisory","ciRuns","ciFailures"],
     "checkFindings": ["blocking","advisory"],
-    "tasks": ["agent","prework","skipped","failed","deferred"],
+    "tasks": ["agent","code-work","skipped","failed","deferred"],
     "taskExec": ["success","failed","task-gone","invalid"]
   },
   "days": {
@@ -22,7 +22,8 @@
     "2026-08-13": {"totals":[2,2,2,0,0],"skillLoads":{"session-start-hook":1},"checks":{"work":[1,1,0,1,0,0,0],"world":[3,0,0,0,3,0,0]},"checkFindings":{"comment-classification":[1,0],"rules-line-length":[0,3]},"tasks":{"basics/baselining":[0,1,0,0,0],"basics/task-janitor":[0,1,0,0,0],"basics/update":[1,1,0,0,0],"grow_with_claudinite/growth-extract":[1,0,0,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0]},"taskExec":{"basics/update":[1,0,0,0],"grow_with_claudinite/growth-dedup":[1,0,0,0],"grow_with_claudinite/growth-extract":[2,0,0,0],"grow_with_claudinite/prose-to-checks-sweep":[1,0,0,0],"tidy-repo/tidy-branches":[1,0,0,0],"tidy-repo/tidy-prs":[1,0,0,0]}},
     "2026-08-14": {"totals":[2,2,2,0,0],"checks":{"work":[1,1,0,1,0,0,0],"world":[1,0,0,0,1,0,0]},"checkFindings":{"comment-classification":[1,0],"rules-line-length":[0,1]},"tasks":{"basics/task-janitor":[0,1,0,0,0],"basics/update":[1,2,0,0,0],"core/update":[0,1,0,0,0],"grow_with_claudinite/growth-extract":[1,0,0,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0]},"taskExec":{"basics/update":[3,0,0,0],"grow_with_claudinite/growth-extract":[2,0,0,0]}},
     "2026-08-15": {"totals":[0,0,0,0,0],"tasks":{"basics/task-janitor":[0,1,0,0,0],"core/update":[0,1,0,0,0],"grow_with_claudinite/growth-extract":[0,0,1,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0]}},
-    "2026-08-16": {"totals":[5,5,5,0,0],"skillLoads":{"git-github-advanced":1,"growth-dedup":1,"single-branch-status":1,"single-issue-triage":1},"checks":{"work":[2,1,0,1,0,0,0],"world":[6,0,0,0,5,0,0]},"checkFindings":{"rules-line-length":[0,5],"task-lifecycle":[1,0]},"tasks":{"core/update":[2,0,0,0,0],"grow_with_claudinite/growth-extract":[0,0,1,0,0]},"taskExec":{"core/update":[1,1,0,0]}}
+    "2026-08-16": {"totals":[5,5,5,0,0],"skillLoads":{"git-github-advanced":1,"growth-dedup":1,"single-branch-status":1,"single-issue-triage":1},"checks":{"work":[2,1,0,1,0,0,0],"world":[6,0,0,0,5,0,0]},"checkFindings":{"rules-line-length":[0,5],"task-lifecycle":[1,0]},"tasks":{"core/update":[2,0,0,0,0],"grow_with_claudinite/growth-extract":[0,0,1,0,0]},"taskExec":{"core/update":[1,1,0,0]}},
+    "2026-08-20": {"totals":[1,1,1,0,0],"checks":{"work":[5,2,0,3,0,0,0],"world":[1,0,0,0,1,0,0]},"checkFindings":{"reference-integrity":[1,0],"rules-line-length":[0,1],"task-lifecycle":[2,0]},"taskExec":{"core/update":[1,0,0,0]}}
   },
   "weeks": {
     "2026-W31": {"totals":[3,3,3,3,6,0],"checks":{"work":[8,3,0,10,0,0,0],"world":[9,2,0,4,0,0,0]},"checkFindings":{"calibration-single-source":[1,0],"comment-classification":[3,0],"locked-metric-fields":[1,0],"reference-integrity":[4,0],"render-outputs-gitignored":[1,0],"scale-numbers-match-calibration":[1,0],"squash-merge-history":[2,0],"task-lifecycle":[1,0]}},
