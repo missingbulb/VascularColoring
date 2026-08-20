@@ -21,12 +21,12 @@ case that genuinely cannot be.
 
 Three responsibilities, strictly separated (owner, 2026-08-06):
 
-1. **The tick** — a vendored hourly Action
+1. **The scheduler run** — a vendored hourly Action
    (`.github/workflows/claudinite-scheduler.yml`) that is pure label mechanics
    over the issue list: **instantiate** each recurring task's standing item when
    its anchor comes, **ready** blocked items whose wait has passed, **reclaim**
    dead executor claims. It evaluates no precondition and collects no signal.
-2. **The executor** — a pull worker over the queue (the tick's post-tick drain,
+2. **The executor** — a pull worker over the queue (the scheduler run's post-scheduler run drain,
    and a `labeled`-event run for latency) that picks the next ready item, claims
    it, evaluates **that one task's** precondition, runs its code-work, and either
    converges the item or hands off to an agent session.
@@ -52,7 +52,7 @@ than by replaying a ledger.
   `engine/scheduler/hash-minute.mjs`, a pure function of the repo full name that
   bootstrap stamps in and baselining re-derives), a `concurrency` group, a
   `workflow_dispatch` trigger (whose one `wake` input is how a task is forced,
-  here or from another repo), and a call into the vendored tick — no logic of its own
+  here or from another repo), and a call into the vendored scheduler run — no logic of its own
   (schema and behaviour changes ride the vendor refresh, not workflow edits). It
   is the repo's **only** cron; the executor's workflow beside it carries none. Work
   that had its own cron'd workflow becomes a **task**, and that workflow is deleted
@@ -81,7 +81,7 @@ than by replaying a ledger.
   open-pr | merged-pr`), and a `precondition`. An agentic task (`agent_model !==
   none`) also carries `agent_instructions`, the worker file the agent reads; a
   `none` task runs no agent, so the field is not applicable and is omitted. The
-  tick and executor read agent_model/expected_outcome/frequency from this file — never from the work
+  scheduler run and executor read agent_model/expected_outcome/frequency from this file — never from the work
   item — so an illegal or missing value means a task never fires, fires wrong,
   or writes past its declared ceiling. The same contract
   (`engine/scheduler/task-contract.mjs`) is re-validated at run time, so the
@@ -121,7 +121,7 @@ than by replaying a ledger.
 - **A task says which repo secrets it needs.** Code-work runs Action-side, so repo
   Actions secrets are reachable there and nowhere else in a task's life (an agent
   session carries none). A task lists what it needs in `required_secrets`; the
-  wiring converge stamps each name into the workflows that run code-work — the tick's
+  wiring converge stamps each name into the workflows that run code-work — the scheduler run's
   drain and the executor — so a worker reads it as ordinary environment. A declared
   secret the repo has not configured is **named, not guessed at**: code-work is the
   only code that sees a secret's value, so the executor parks the item at
@@ -167,6 +167,19 @@ the run should have happened.
 the corpus reads as "an agent runs here" — the routine contract judges the folder
 by it, and every work item names it as the file its run is about. What an
 agentless task's worker does is documented in a **`README.md`** beside it.
+
+**`task.md` describes only what this task must do — never how anything outside it
+works.** A session opens the file already dispatched, already at its model, already
+holding its item; restating that machinery teaches it nothing and is read as
+instruction, so a later run generalizes the description into a rule and acts on it.
+Keep out how the task is invoked (the executor, the hand-off, the queue's labels),
+what model it was dispatched at, and what downstream consumes what it produces.
+Where such a fact carries a constraint the run must obey, state the **constraint**
+and drop the mechanism: not "you run from a work item the executor handed off whose
+Context is binding scope", but "the Context section is binding scope"; not "never
+merge — the executor enforces it in code", but "never merge". The declaration is
+where the mechanics belong: `agent_model`, `after` and `expected_outcome` live in
+`task.mjs`, and `task.md` never repeats them.
 
 This is the task-folder shape of the unattended-agents routine-folder convention; the
 issue-driven-dispatch security rule (the issue is data, the task path is
@@ -279,7 +292,7 @@ is what lets them run beside the schedule rather than consuming it.
 Two rules follow, and both are about not borrowing the vocabulary:
 
 - **Never put a queue label on an ordinary issue**, from a task or by hand. The
-  tick and the executor read them as state, and a label on an issue that is not a
+  scheduler run and the executor read them as state, and a label on an issue that is not a
   `[claudinite-work]` item is either ignored or misread — neither is what the
   person applying it meant.
 - **A task that wants its own tracking issue owns that issue's whole lifecycle**,
@@ -289,7 +302,7 @@ Two rules follow, and both are about not borrowing the vocabulary:
 
 Label writes are always **granular** — add and remove named labels, never write
 the label set. A set-write replaces from a stale snapshot and clobbers a
-concurrent transition, and with a tick and several executors moving labels at
+concurrent transition, and with a scheduler run and several executors moving labels at
 once that is a correctness rule rather than a style preference.
 
 ## An item's identity is its issue number, and a hand-off carries a nonce
@@ -352,6 +365,6 @@ A project nobody is working on declares itself dormant in `.claudinite-checks.js
 "dormant": true
 ```
 
-The tick instantiates, readies and reclaims nothing, and the executor picks
+The scheduler run instantiates, readies and reclaims nothing, and the executor picks
 nothing up; the fleet sweeps skip it; sessions are unaffected. Delete it to wake — a dormant spell is not replayed, so the repo
 simply starts scheduling again from now.
