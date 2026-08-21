@@ -72,7 +72,8 @@ there is nothing left to wait on but the release itself.
   the run reopens if the verification fails. Make the verification that issue's **sub-issue**
   too (`mcp__github__sub_issue_write`, method `add`, `issue_number` the original,
   `sub_issue_id` the **id** the create call returned, not its number), so the change it proves
-  shows what is still unproven about it.
+  shows what is still unproven about it — [RULES.md](../../RULES.md)' *Filing an issue that
+  belongs under another*, applied where there is no PR left to carry the link.
 - **`In-production-when:`** names a thing to *read*, never a duration to wait. "`missingbulb/Shepherd`'s
   `.claudinite-checks.json` stamps `packVersions.tidy-repo` at 8 or higher." "The live site's
   `/version.json` reports a version past 4.2.0." "Any session started after this landed — check
@@ -88,10 +89,10 @@ there is nothing left to wait on but the release itself.
   yet live, it pushes `Not-before:` forward by exactly this much. Size it to the release you
   wait on — a nightly converge retries daily, a next-session rule in minutes.
 
-Then the labels, as `/do-later` applies them: **`claude-task`** (the mark the scheduler run adopts) and
-**`claude-model:sonnet`** (reading a live artifact and judging an assertion against it). Never
-`claude-automerge` — a verification has nothing to merge. If `claude-task` doesn't exist in the
-repo yet, say so and leave the issue — the labels appear on the next scheduler run.
+Then the mark, as `/do-later` applies it: **`task:origin:ad-hoc`**, the one label the scheduler
+run adopts. Beside it, in the body, **`Model: sonnet`** (reading a live artifact and judging an
+assertion against it). Never `Automerge:` — a verification has nothing to merge. If the mark
+doesn't exist in the repo yet, say so and leave the issue — it appears on the next scheduler run.
 
 ## Tell the run how to converge
 
@@ -104,9 +105,10 @@ decides nothing: it executes this playbook.
    the URL) and close this issue as completed. Fails: reopen `Original-issue:` with a comment
    saying what was asserted, what happened instead and where you read it; comment here linking
    that; close this issue as completed — the verification did its job by finding the fault.
-3. **Not yet live** → push `Not-before:` forward by `Retry-every:`, re-apply `claude-task` and
-   `claude-model:sonnet`, and leave the issue open — the next scheduler run re-adopts it. No comment;
-   the bumped field is the record.
+3. **Not yet live** → push `Not-before:` forward by `Retry-every:`, **clear the issue's
+   `task:status:*` label** (clearing the status is the whole of the re-ask — the mark stays on
+   for life), and leave the issue open. The next scheduler run re-adopts it, and the bumped
+   field holds it until the new moment. No comment; the bumped field is the record.
 
 ## Then say what you filed
 
