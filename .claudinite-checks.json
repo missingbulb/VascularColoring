@@ -42,12 +42,12 @@
     "packVersions": {
       "basics": "60821.4",
       "barriers": "60820.1",
-      "git-github": "60820.2",
+      "git-github": "60821.1",
       "research-project": "60820.1",
-      "claudinite-growth": "60821.1",
+      "claudinite-growth": "60821.2",
       "tidy-repo": "60820.1",
-      "claude-code-web-users-support": "60821.1",
-      "claudinite-lifecycle": "60821.2"
+      "claude-code-web-users-support": "60821.2",
+      "claudinite-lifecycle": "60821.3"
     }
   }
 }
