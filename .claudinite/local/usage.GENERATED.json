@@ -1,9 +1,9 @@
 {
   "version": 3,
-  "generated": "2026-08-22T06:56:56.887Z",
+  "generated": "2026-08-22T07:40:53.387Z",
   "foldedThrough": "2026-08-21",
-  "runsFoldedThrough": "2026-08-22T06:55:55Z",
-  "queueFoldedThrough": "2026-08-22T05:38:56Z",
+  "runsFoldedThrough": "2026-08-22T07:39:57Z",
+  "queueFoldedThrough": "2026-08-22T06:57:07Z",
   "fields": {
     "day": ["captures","merges","sessions","userMessages","userCommands","ruleTokens","ruleTokenSessions","tokensIn","tokensOut","tokenSessions","commits","linesAdded","linesRemoved","releases"],
     "week": ["days","captures","merges","sessionDays","userMessages","userCommands","ruleTokens","ruleTokenSessions","tokensIn","tokensOut","tokenSessions","commits","linesAdded","linesRemoved","releases"],
@@ -40,7 +40,8 @@
     "2026-08-22T03": {"totals":[2,2,0,0]},
     "2026-08-22T04": {"totals":[1,1,0,0]},
     "2026-08-22T05": {"totals":[1,2,1,0]},
-    "2026-08-22T06": {"totals":[1,0,0,0]}
+    "2026-08-22T06": {"totals":[1,1,0,0]},
+    "2026-08-22T07": {"totals":[1,0,0,0]}
   },
   "days": {
     "2026-07-24": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0]},
@@ -72,7 +73,7 @@
     "2026-08-19": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0],"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/usage-fold":[1,0,0,0],"claudinite-lifecycle/update":[1,0,0,0]}},
     "2026-08-20": {"totals":[2,2,2,0,0,24000,2,15585590,49485,2,null,null,null,0],"checks":{"work":[5,2,0,3,0,0,0],"world":[2,0,0,0,2,0,0]},"checkFindings":{"reference-integrity":[1,0],"rules-line-length":[0,2],"task-lifecycle":[2,0]},"taskExec":{"claudinite-lifecycle/update":[1,0,0,0],"core/update":[1,0,0,0]},"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/usage-fold":[1,0,0,0],"claudinite-lifecycle/update":[3,0,0,0]}},
     "2026-08-21": {"totals":[2,2,2,0,0,24000,2,20309156,104465,2,null,null,null,0],"checks":{"work":[3,1,0,3,0,0,0],"world":[1,0,0,0,1,0,0]},"checkFindings":{"comment-classification":[1,0],"rules-line-length":[0,1],"squash-merge-history":[2,0]},"taskExec":{"claudinite-lifecycle/update":[1,0,0,0],"core/update":[1,0,0,0]},"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/logs-prune":[0,0,1,0],"claudinite-growth/usage-fold":[10,0,0,0],"claudinite-lifecycle/update":[1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0],"tidy-repo/tidy-prs":[0,0,1,0]}},
-    "2026-08-22": {"totals":[1,1,1,0,0,12500,1,7112484,57944,1,1,94092,0,0],"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-lifecycle/update":[1,0,0,0]}}
+    "2026-08-22": {"totals":[1,1,1,0,0,12500,1,7112484,57944,1,1,94097,0,0],"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/usage-fold":[1,0,0,0],"claudinite-lifecycle/update":[1,0,0,0]}}
   },
   "weeks": {
     "2026-W31": {"totals":[3,3,3,3,6,0,null,null,null,null,null,null,null,null,null],"checks":{"work":[8,3,0,10,0,0,0],"world":[9,2,0,4,0,0,0]},"checkFindings":{"calibration-single-source":[1,0],"comment-classification":[3,0],"locked-metric-fields":[1,0],"reference-integrity":[4,0],"render-outputs-gitignored":[1,0],"scale-numbers-match-calibration":[1,0],"squash-merge-history":[2,0],"task-lifecycle":[1,0]}},
