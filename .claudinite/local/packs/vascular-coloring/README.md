@@ -2,7 +2,7 @@
 
 The **vessel-image quantification** domain this project works in: gP-CD31 (red) confocal panels
 measured for categorize / count / measure. A local pack — declared by hand as
-`local/vascular-coloring` in `.claudinite-checks.json`, never fingerprinted.
+`local/vascular-coloring` in `.claudinite-settings.json`, never fingerprinted.
 
 It carries only what the canon doesn't: `research-project` already owns the class (run an algorithm
 over similarly-formatted inputs, score against ground truth, iterate visibly), so the loop, the
