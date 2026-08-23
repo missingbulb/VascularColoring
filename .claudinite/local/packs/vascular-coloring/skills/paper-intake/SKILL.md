@@ -47,8 +47,8 @@ Figure 1C. Anything that is only in an image and matters must be **transcribed i
 
 ### 5. Name and commit the figures
 
-`git mv` each real figure to `references/<slug>/figures/figN_<short-name>.png` (convert to PNG).
-Drop logos, glyphs and icons. Write `figures/README.md`: every figure **shown inline**
+Drop logos, glyphs and icons. Every real figure is committed as `figN_<short-name>.png`, converted
+to PNG (`paper-figure-naming` enforces the name). Write `figures/README.md`: every figure **shown inline**
 (`![Figure 1](fig1_….png)`) with a description of each sub-panel, what the scale bars say, and
 **what you actually see in it** — including anything that will trip the pipeline up (surface
 vessels, drawn annotation lines, cross-sections rather than networks).
