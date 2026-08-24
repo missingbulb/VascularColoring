@@ -10,6 +10,7 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import uncalibratedReasonRequired from './uncalibrated-reason-required.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -134,6 +135,38 @@ test('panel-scale-calibration still fires on a second paper\'s uncovered panel',
   }));
   assert.equal(findings.length, 1);
   assert.match(findings[0].what, /rust20fig3_overview_AD_vasculature/);
+});
+
+// --- uncalibrated-reason-required --------------------------------------------
+
+test('uncalibrated-reason-required fires on an UNCALIBRATED entry with an empty reason', () => {
+  const findings = uncalibratedReasonRequired.run(ctx({
+    files: {
+      [MEASURE]: "UNCALIBRATED = {\n    'fig1': 'no bar drawn on the row',\n    'fig9': '',\n}\n",
+    },
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /UNCALIBRATED\['fig9'\] carries no reason/);
+  assert.equal(findings[0].line, 3);
+});
+
+test('uncalibrated-reason-required is quiet when every entry names a reason', () => {
+  // A reason that itself contains a comma, and one spelled as adjacent string
+  // literals across two lines (Python's implicit concatenation) — both must
+  // read as non-empty rather than tripping the comma-aware entry split.
+  const findings = uncalibratedReasonRequired.run(ctx({
+    files: {
+      [MEASURE]: [
+        'UNCALIBRATED = {',
+        "    'fa22': 'no bar on any panel, and the paper gives no pixel size',",
+        "    'rust20fig2_overview': 'the caption states 100 um for it but the bar '",
+        "                           'itself is absent from the row',",
+        '}',
+        '',
+      ].join('\n'),
+    },
+  }));
+  assert.deepEqual(findings, []);
 });
 
 // --- locked-metric-fields ----------------------------------------------------
