@@ -3,7 +3,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60823.1"
+      "version": "60824.1"
     },
     {
       "id": "barriers",
@@ -18,11 +18,11 @@
     },
     {
       "id": "claudinite-growth",
-      "version": "60823.2"
+      "version": "60824.1"
     },
     {
       "id": "tidy-repo",
-      "version": "60823.1"
+      "version": "60824.1"
     },
     "local/vascular-coloring",
     {
@@ -37,7 +37,7 @@
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60823.1"
+      "version": "60824.3"
     }
   ],
   "taskScheduler": {
