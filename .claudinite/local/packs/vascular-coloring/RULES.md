@@ -25,19 +25,10 @@ COUNT = branch **segments** (junction-to-junction / junction-to-tip — *not* co
 which are reported alongside), CATEGORIZE = **caliber**, MEASURE = **total centerline length**.
 That the script keeps reporting all three is enforced (`locked-metric-fields`).
 
-## Raw length is not comparable across figures
+## Cross-paper comparisons are never averaged
 
-Each figure is at a different zoom and carries its own printed scale bar, so px→µm differs per
-figure — and across papers it differs by more than 5×. Any cross-region or cross-figure comparison
-uses **length density (mm/mm²) or area %** — never raw µm, and **never a mean that spans two
-papers**: species, injury model, marker and magnification all change between them, which is why the
-rollup is grouped per paper. This is why every working panel must stay calibrated
-(`panel-scale-calibration`).
-
-A bar is **measured off the panel**. A figure that draws no bar goes in `UNCALIBRATED` **with the
-reason**, reporting area % and pixels only. The single copy is `SCALEBAR_PX` in
-`analysis/measure_vessels.py` (`calibration-single-source` for code, `scale-numbers-match-calibration`
-for the numbers quoted in the docs).
+Scale differs by more than 5× across papers — species, injury model, marker and magnification all
+change between them too — so the rollup is grouped per paper, never merged into one mean.
 
 ## A paper is finished when the PDF is redundant
 
@@ -47,5 +38,4 @@ The procedure is in [paper-intake](skills/paper-intake/SKILL.md).
 
 Area %, length density and the µm calibration are usable; per-segment **count** is still inflated by
 fragmentation, absolute length comes from figure-resolution crops, and the capillary/artery split
-is one diameter threshold (`ARTERY_DIAM_PX`). When a number is not yet trustworthy, say so where it
-is quoted.
+is one diameter threshold (`ARTERY_DIAM_PX`).
