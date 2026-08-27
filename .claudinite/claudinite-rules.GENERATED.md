@@ -4,5 +4,4 @@
 @shared/packs/claudinite-growth/RULES.md
 @shared/packs/claudinite-lifecycle/RULES.md
 @shared/packs/research-project/RULES.md
-@shared/packs/tidy-repo/RULES.md
 @local/packs/vascular-coloring/RULES.md
