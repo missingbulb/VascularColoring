@@ -85,10 +85,22 @@ than by replaying a ledger.
   Choose the **narrowest policy that covers the task's whole write surface** — the
   policy is the contract's statement of why landing unattended is safe, and the
   policy engine plus the `automerge-policy-scope` check hold every run to it.
-  **Compose the built-in classes first** — they are meant to cover most tasks with
-  no configuration; a pack declares its own class (a `merge-rules.json` beside its
-  `pack.mjs`) only when a task genuinely knows a finer boundary than the built-ins
-  can state. An agentic
+  **Start from the folder.** A task's write surface is almost always a *place* —
+  the tree its worker is told to write in, which you know exactly while writing
+  this declaration — and a folder bound holds where a kind bound does not:
+  `doc-changes` authorizes Markdown anywhere in the repo, the root `README.md`
+  included, where `under:<dir>` authorizes one tree and a run that strays parks.
+  So name the tree inline first, then narrow it by kind where the task writes
+  only one — **a list is a union, so adding a term widens; `&&` inside a term
+  narrows**, every part having to match (`under:product-wiki && doc-changes` is
+  "docs, and only under that folder"). Leave the scope bare where the task
+  legitimately writes more than one kind: a bare `under:<dir>` covers the code
+  and the test beside it, where intersecting a code class would park the run the
+  moment its own test file joined the diff. Reach for a bare kind class only
+  where the task genuinely writes repo-wide, as a comment sweep does. A pack
+  declares its own class (a `merge-rules.json` beside its `pack.mjs`) only when a
+  task knows a finer boundary than a class or a folder can state — a file-name
+  matcher, or a grant like the mount rewrite's. An agentic
   task (`agent_model !==
   none`) also carries `agent_instructions`, the worker file the agent reads; a
   `none` task runs no agent, so the field is not applicable and is omitted. The
@@ -344,7 +356,9 @@ closing or running anything.
   precondition is re-evaluated at that pickup — which is what makes the retry safe
   even when the failed run half-did its work. The four:
   - `task:status:needs-human-approval` — succeeded, and deliberately left an unmerged PR
-    for a person to merge or close. The only park that is not a fault.
+    for a person to merge or close. The only park that is not a fault. `--pr` names that
+    PR, and any park may name what would end it: the item then closes by itself when
+    the target resolves, `done` if it merged and `rejected` if it did not.
   - `task:status:needs-human-action` — something outside the code must change before this
     can run: a secret set, a scope granted, a routine rewired, an input supplied.
   - `task:status:needs-human-decision` — the run stopped mid-flight and the next step is a

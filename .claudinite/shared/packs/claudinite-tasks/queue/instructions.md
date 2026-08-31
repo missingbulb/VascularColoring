@@ -78,15 +78,29 @@ instructions.
    engine's own `AUTOMERGE: yes` (deliver-pr.md).
    Exceeding the ceiling is a failure, not a success with a surprise.
 
-6. **Converge the issue exactly once — in code, not by hand.** One command
-   performs every side effect the transition needs: the comment, the label swap,
-   the outcome label, the `claudinite-task-exec` record on the item, the close
-   with the right state reason, and the request write-back.
+6. **Converge the issue exactly once — in code, not by hand.** `<here>` in the
+   commands below is **the directory this file sits in** —
+   `packs/claudinite-tasks/queue/` in the canon, the same path under
+   `.claudinite/shared/` in a member's mount — and `<engine>` is
+   `<here>/../../../engine`. Derive both from where you found this file rather
+   than from any root you were told.
+
+   **The command decides the transition; you perform it.** It does not touch
+   GitHub, and it is not trying to: your GitHub access is yours, and a subprocess
+   you spawn cannot reach it. So it plans every side effect the transition needs
+   — the comment, the label swap, the outcome label, the `claudinite-task-exec`
+   record, the close with the right state reason, the request write-back — and
+   prints them as the exact calls to make. That printout **is** the successful
+   run.
+
+   Two calls, in this order. First read the item with your own GitHub tools and
+   save it as JSON — `issue_read`, method `get` — then:
 
    ```bash
-   node <engine>/scheduler/queue/converge-item.mjs --issue <n> \
+   node <here>/converge-item.mjs --issue <n> \
      --outcome done|approval|action|decision|failure \
-     --summary '<what happened>' [--pr <n>]
+     --summary '<what happened>' [--pr <n>] \
+     --repo <owner/name> --item-file <path to that JSON>
    ```
 
    **You supply the judgment — which outcome, and the prose.** Everything below
@@ -94,26 +108,11 @@ instructions.
    read what it says: it means this item is not yours to converge, and doing it
    by hand anyway is how an item ends up closed wearing a live status.
 
-   **If it says it has no REST route from this session**, that is the ordinary
-   case — a session's GitHub access belongs to the session, and a subprocess
-   cannot reach it. Nothing is broken and nothing is deferred: you finish this
-   item yourself, with the command still deciding every step. Give it the issue
-   you already read and it prints the exact calls:
-
-   ```bash
-   CLAUDINITE_ITEM_REPO=<owner/repo> CLAUDINITE_ITEM_JSON='<the issue as your GitHub
-     tools returned it: number, title, body, state, labels>' \
-   node <engine>/scheduler/queue/converge-item.mjs --issue <n> \
-     --outcome done|approval|action|decision|failure \
-     --summary '<what happened>' [--pr <n>]
-   ```
-
-   Then **make those calls with your GitHub tools, in the order given, changing
-   nothing** — the bodies verbatim, the label sets exactly as written. They are
-   computed, not suggested: the label sets already carry every label the issue
-   should still have, so writing your own is how one gets dropped. One step asks
-   you to output a line in your reply; do that too, it is the run's only census
-   record.
+   Then **make the calls it printed, in the order given, changing nothing** — the
+   bodies verbatim, the label sets exactly as written. They are computed, not
+   suggested: each label set already carries every label the issue should still
+   have, so writing your own is how one gets dropped. One step asks you to output
+   a line in your reply; do that too, it is the run's only census record.
 
    | label | when |
    |---|---|
@@ -138,6 +137,12 @@ instructions.
    recurring until a person has looked. Choosing a lane-releasing park here is
    how one broken convergence became fourteen stranded items in a member repo,
    one a night, each looking like a fresh incident.
+
+   **Pass `--pr` on any park a pull request or an issue would end**, not only on an
+   approval, where it is required. It stamps `Ends-when: #<n> closed` on the item, and
+   that is what makes the park end by itself: the janitor closes the item `done` when
+   the target merges and `rejected` when it is closed unmerged. Without it the park
+   stands until a person happens to read it.
 
    **A marked issue needs no write-back at all**: it is the item, so the approval
    park it wears *is* the in-review state and the failure park *is* the report (which
