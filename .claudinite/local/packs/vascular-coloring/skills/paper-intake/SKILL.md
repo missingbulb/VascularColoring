@@ -28,22 +28,15 @@ python3 references/_tools/extract_pdf_assets.py references/<slug>/<slug>.pdf /tm
 Writes `fulltext.txt`, `raw/` and `manifest.tsv`. **Work from the scratchpad**, not the repo —
 only named, described figures get committed.
 
-### 3. Chase the supplementary material — it is often where the method actually lives
+### 3. Chase the supplementary material — it is often where the method actually lives (1)
 
-**Ask for it if it is not to hand.** Rust 2020's main text leaves the binarization method, the
-filter radius, the particle-size floor and the heatmap grid all unstated; its supplementary Data
-Sheet supplied every one of them, plus the verbatim macro and a **µm-calibrated native-resolution
-vessel image** that became the best input in the repo and the basis of the strongest validation
-the project has. That material was one download away and the digest was materially wrong without it.
-
-Commit supplementary code, scripts, LUTs and data images under
+**Ask for it if it is not to hand.** Commit supplementary code, scripts, LUTs and data images under
 `references/<slug>/supplementary/`. Transcribe supplementary *tables* into the digest.
 
 ### 4. Read the whole paper
 
-Read `fulltext.txt` end to end. Then **look at every extracted image** — do not skip this. Papers
-put their method in figures: Rust 2020's entire pipeline specification exists only as pixels in
-Figure 1C. Anything that is only in an image and matters must be **transcribed into the digest**.
+Read `fulltext.txt` end to end. Then **look at every extracted image** — do not skip this (2).
+Anything that is only in an image and matters must be **transcribed into the digest**.
 
 ### 5. Name and commit the figures
 
@@ -127,7 +120,5 @@ node .claudinite/local/packs/vascular-coloring/pack.test.mjs          # checks s
 - **Different papers are never averaged together.** Species, model, marker and magnification all
   differ; the rollup is grouped per paper for that reason.
 - **Prefer a same-image comparison to a table comparison.** If the paper ships code *and* an
-  image, reimplement the method and run both on that image. Comparing our figure-crop output to a
-  published summary table produced a confident, wrong conclusion about our branch counts; running
-  the authors' own macro on their own image corrected it. A number from a summary table may not
-  be the raw output of the method it describes.
+  image, reimplement the method and run both on that image. A number from a summary table may not
+  be the raw output of the method it describes. (3)
