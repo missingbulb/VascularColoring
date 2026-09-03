@@ -3,7 +3,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60902.5"
+      "version": "60903.5"
     },
     {
       "id": "barriers",
@@ -14,15 +14,15 @@
     },
     {
       "id": "research-project",
-      "version": "60901.1"
+      "version": "60902.1"
     },
     {
       "id": "claudinite-growth",
-      "version": "60902.5"
+      "version": "60903.5"
     },
     {
       "id": "tidy-repo",
-      "version": "60902.2"
+      "version": "60903.3"
     },
     "local/vascular-coloring",
     {
@@ -37,11 +37,11 @@
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60902.2"
+      "version": "60903.5"
     },
     {
       "id": "claudinite-tasks",
-      "version": "60902.9"
+      "version": "60903.4"
     }
   ],
   "taskScheduler": {
