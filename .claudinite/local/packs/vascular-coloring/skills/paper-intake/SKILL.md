@@ -112,8 +112,8 @@ node .claudinite/local/packs/vascular-coloring/pack.test.mjs          # checks s
 - **Never invent a number.** Not a scale bar, not a field size, not a metric. Measure it, cite it,
   or declare it unknown. This is the project's first rule and intake is where it is most tempting
   to break.
-- **The pipeline's own output is never ground truth** for a new panel set. A digest may quote what
-  the *authors* measured; it must not present our run over their images as validation.
+- **A digest may quote what the *authors* measured** — never present our own run over their images
+  as validation.
 - **Say what is weak.** A calibration you half-trust, a panel type the metrics do not suit, a
   direction-of-change that contradicts another paper — all of it goes in the digest. The digests
   are read later by someone deciding what to believe.

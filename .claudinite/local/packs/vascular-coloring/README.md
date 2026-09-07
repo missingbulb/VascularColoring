@@ -30,7 +30,7 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 
 | Rule (≤5 words) | How enforced |
 |---|---|
-| Never validate pipeline against itself | prose |
+| Ground truth lives in `expected-results.md` | prose |
 | Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
 | Metric definitions are locked | prose (+ `locked-metric-fields`) |
 | Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`, `calibration-single-source`) |

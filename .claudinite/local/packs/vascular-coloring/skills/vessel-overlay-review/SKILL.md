@@ -45,7 +45,7 @@ Alongside the overlay, write the claims a reader can check against it, in both d
   inflated here".
 
 Compare against the visual expectations in
-`references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md` — never against the pipeline's own previous output.
+`references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md`.
 
 ## 4. Then the numbers
 
