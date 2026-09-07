@@ -17,7 +17,8 @@ Cross-paper decisions: [`references/METHODS-SYNTHESIS.md`](../../../../../../ref
 ### 1. Place the paper
 
 Slug is `<first-author>-<year>-<short-topic>`. Create `references/<slug>/` and `git mv` the PDF in
-as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name.
+as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name. The
+slug and the PDF's name are held to this by `paper-slug-format`.
 
 ### 2. Extract text and images
 
