@@ -5,6 +5,8 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperSlugFormat from './paper-slug-format.mjs';
+import figureReadmeInline from './figure-readme-inline.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
 // in — fluorescence (gP-CD31 red channel) confocal panels measured for
@@ -24,8 +26,11 @@ import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 // extraction script must keep reporting all three asks' fields, so that is a
 // check too (`locked-metric-fields`). The single-source lines are checks for the
 // same reason: the calibration must stay defined in exactly one file
-// (`calibration-single-source`), and every directory a script renders into must
-// stay ignored by git (`render-outputs-gitignored`).
+// (`calibration-single-source`), every directory a script renders into must
+// stay ignored by git (`render-outputs-gitignored`), and every references/ paper
+// folder must follow the slug contract paper-intake and every calibration prefix
+// rely on (`paper-slug-format`), and every figure PNG a paper folder commits must be
+// embedded inline in that folder's own figures/README.md (`figure-readme-inline`).
 //
 // Check modules here stay dependency-free (plain finding objects, no engine
 // import) so the pack loads without the gitignored shared mount.
@@ -46,6 +51,8 @@ export default {
     lockedMetricFields,
     calibrationSingleSource,
     renderOutputsGitignored,
+    paperSlugFormat,
+    figureReadmeInline,
   ],
   skills: ['vessel-overlay-review', 'paper-intake'],
 };

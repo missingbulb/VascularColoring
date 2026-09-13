@@ -10,6 +10,8 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperSlugFormat from './paper-slug-format.mjs';
+import figureReadmeInline from './figure-readme-inline.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -386,6 +388,108 @@ test('render-outputs-gitignored honours a .gitignore beside the scripts', () => 
       'analysis/.gitignore': 'annotated/\n',
     },
     tracked: [ANNOTATE, '.gitignore', 'analysis/.gitignore'],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- paper-slug-format --------------------------------------------------------
+
+test('paper-slug-format fires on a folder that does not follow the slug', () => {
+  const findings = paperSlugFormat.run(ctx({
+    tracked: ['references/Wang2022_CD31/digest.md', 'references/Wang2022_CD31/Wang2022_CD31.pdf'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, 'references/Wang2022_CD31/digest.md');
+  assert.match(findings[0].what, /does not follow the <first-author>-<year>-<short-topic> slug/);
+});
+
+test('paper-slug-format fires when the PDF still carries its download name', () => {
+  const findings = paperSlugFormat.run(ctx({
+    tracked: [
+      'references/wang-2022-cd31-vascular-network/digest.md',
+      'references/wang-2022-cd31-vascular-network/1-s2.0-S0006899322001234-main.pdf',
+    ],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /carries 1-s2\.0-S0006899322001234-main\.pdf instead of wang-2022-cd31-vascular-network\.pdf/);
+  assert.match(findings[0].fix, /git mv references\/wang-2022-cd31-vascular-network\/1-s2\.0-S0006899322001234-main\.pdf references\/wang-2022-cd31-vascular-network\/wang-2022-cd31-vascular-network\.pdf/);
+});
+
+test('paper-slug-format fires when a well-named folder has no PDF at all', () => {
+  const findings = paperSlugFormat.run(ctx({
+    tracked: ['references/rust-2020-fiji-vascular-analysis/digest.md'],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /has no rust-2020-fiji-vascular-analysis\.pdf/);
+});
+
+test('paper-slug-format is quiet on well-formed paper folders, a supplementary PDF, and non-paper folders', () => {
+  const findings = paperSlugFormat.run(ctx({
+    tracked: [
+      'references/README.md',
+      'references/METHODS-SYNTHESIS.md',
+      'references/_tools/extract_pdf_assets.py',
+      'references/wang-2022-cd31-vascular-network/digest.md',
+      'references/wang-2022-cd31-vascular-network/wang-2022-cd31-vascular-network.pdf',
+      'references/wang-2022-cd31-vascular-network/figures/fig1_overview.png',
+      // A supplementary PDF one level deeper is not the paper itself.
+      'references/rust-2020-fiji-vascular-analysis/digest.md',
+      'references/rust-2020-fiji-vascular-analysis/rust-2020-fiji-vascular-analysis.pdf',
+      'references/rust-2020-fiji-vascular-analysis/supplementary/fiji-macro-appendix.pdf',
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- figure-readme-inline ----------------------------------------------------
+
+const WANG_FIGS = 'references/wang-2022-cd31-vascular-network/figures';
+
+test('figure-readme-inline fires when a figures folder has no README.md', () => {
+  const findings = figureReadmeInline.run(ctx({
+    tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, `${WANG_FIGS}/README.md`);
+  assert.match(findings[0].what, /has 2 figure PNG\(s\) but no README\.md/);
+});
+
+test('figure-readme-inline fires on a figure with no inline embed, quiet on its sibling', () => {
+  const findings = figureReadmeInline.run(ctx({
+    files: {
+      [`${WANG_FIGS}/README.md`]: '# Figures\n\n![Fig 1](fig1_gP-CD31_Nissl_healthy.png)\n\nFig 1 is the cleanest example.\n',
+    },
+    tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /fig2_ischemia_regional\.png has no inline image embed/);
+});
+
+test('figure-readme-inline ignores a panel crop one level deeper', () => {
+  // figures/panels/ follows its own inventory convention (panels/README.md) and is not
+  // required to embed every crop inline — this rule only reaches direct children of figures/.
+  const findings = figureReadmeInline.run(ctx({
+    files: { [`${WANG_FIGS}/README.md`]: '![Fig 1](fig1_gP-CD31_Nissl_healthy.png)\n' },
+    tracked: [
+      `${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`,
+      `${WANG_FIGS}/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('figure-readme-inline is quiet when every figure is embedded inline', () => {
+  const findings = figureReadmeInline.run(ctx({
+    files: {
+      [`${WANG_FIGS}/README.md`]: [
+        '# Figures',
+        '![Fig 1](fig1_gP-CD31_Nissl_healthy.png)',
+        'The cleanest vessel example.',
+        '![Fig 2](fig2_ischemia_regional.png)',
+        'Regional ischemia overview.',
+      ].join('\n'),
+    },
+    tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
   }));
   assert.deepEqual(findings, []);
 });

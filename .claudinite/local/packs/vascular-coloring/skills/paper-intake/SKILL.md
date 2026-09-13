@@ -17,7 +17,8 @@ Cross-paper decisions: [`references/METHODS-SYNTHESIS.md`](../../../../../../ref
 ### 1. Place the paper
 
 Slug is `<first-author>-<year>-<short-topic>`. Create `references/<slug>/` and `git mv` the PDF in
-as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name.
+as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name. The
+slug and the PDF's name are held to this by `paper-slug-format`.
 
 ### 2. Extract text and images
 
@@ -44,7 +45,8 @@ Anything that is only in an image and matters must be **transcribed into the dig
 Drop logos, glyphs and icons. Write `figures/README.md`: every figure **shown inline**
 (`![Figure 1](fig1_….png)`) with a description of each sub-panel, what the scale bars say, and
 **what you actually see in it** — including anything that will trip the pipeline up (surface
-vessels, drawn annotation lines, cross-sections rather than networks).
+vessels, drawn annotation lines, cross-sections rather than networks). `figure-readme-inline`
+holds every committed figure PNG to that inline embed.
 
 ### 6. Crop the panels
 
