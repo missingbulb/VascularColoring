@@ -11,6 +11,7 @@ import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 import paperSlugFormat from './paper-slug-format.mjs';
+import figureReadmeInline from './figure-readme-inline.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -436,6 +437,59 @@ test('paper-slug-format is quiet on well-formed paper folders, a supplementary P
       'references/rust-2020-fiji-vascular-analysis/rust-2020-fiji-vascular-analysis.pdf',
       'references/rust-2020-fiji-vascular-analysis/supplementary/fiji-macro-appendix.pdf',
     ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- figure-readme-inline ----------------------------------------------------
+
+const WANG_FIGS = 'references/wang-2022-cd31-vascular-network/figures';
+
+test('figure-readme-inline fires when a figures folder has no README.md', () => {
+  const findings = figureReadmeInline.run(ctx({
+    tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, `${WANG_FIGS}/README.md`);
+  assert.match(findings[0].what, /has 2 figure PNG\(s\) but no README\.md/);
+});
+
+test('figure-readme-inline fires on a figure with no inline embed, quiet on its sibling', () => {
+  const findings = figureReadmeInline.run(ctx({
+    files: {
+      [`${WANG_FIGS}/README.md`]: '# Figures\n\n![Fig 1](fig1_gP-CD31_Nissl_healthy.png)\n\nFig 1 is the cleanest example.\n',
+    },
+    tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
+  }));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].what, /fig2_ischemia_regional\.png has no inline image embed/);
+});
+
+test('figure-readme-inline ignores a panel crop one level deeper', () => {
+  // figures/panels/ follows its own inventory convention (panels/README.md) and is not
+  // required to embed every crop inline — this rule only reaches direct children of figures/.
+  const findings = figureReadmeInline.run(ctx({
+    files: { [`${WANG_FIGS}/README.md`]: '![Fig 1](fig1_gP-CD31_Nissl_healthy.png)\n' },
+    tracked: [
+      `${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`,
+      `${WANG_FIGS}/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+    ],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('figure-readme-inline is quiet when every figure is embedded inline', () => {
+  const findings = figureReadmeInline.run(ctx({
+    files: {
+      [`${WANG_FIGS}/README.md`]: [
+        '# Figures',
+        '![Fig 1](fig1_gP-CD31_Nissl_healthy.png)',
+        'The cleanest vessel example.',
+        '![Fig 2](fig2_ischemia_regional.png)',
+        'Regional ischemia overview.',
+      ].join('\n'),
+    },
+    tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
   }));
   assert.deepEqual(findings, []);
 });
