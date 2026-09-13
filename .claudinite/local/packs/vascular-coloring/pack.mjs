@@ -6,6 +6,7 @@ import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 import paperSlugFormat from './paper-slug-format.mjs';
+import figureReadmeInline from './figure-readme-inline.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
 // in — fluorescence (gP-CD31 red channel) confocal panels measured for
@@ -28,7 +29,8 @@ import paperSlugFormat from './paper-slug-format.mjs';
 // (`calibration-single-source`), every directory a script renders into must
 // stay ignored by git (`render-outputs-gitignored`), and every references/ paper
 // folder must follow the slug contract paper-intake and every calibration prefix
-// rely on (`paper-slug-format`).
+// rely on (`paper-slug-format`), and every figure PNG a paper folder commits must be
+// embedded inline in that folder's own figures/README.md (`figure-readme-inline`).
 //
 // Check modules here stay dependency-free (plain finding objects, no engine
 // import) so the pack loads without the gitignored shared mount.
@@ -50,6 +52,7 @@ export default {
     calibrationSingleSource,
     renderOutputsGitignored,
     paperSlugFormat,
+    figureReadmeInline,
   ],
   skills: ['vessel-overlay-review', 'paper-intake'],
 };
