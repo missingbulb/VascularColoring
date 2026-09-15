@@ -90,7 +90,7 @@ record in between.
 its drain, and the label-event executor:
 
 ```
-node .claudinite/shared/packs/claudinite-tasks/converge-workflows.mjs <owner/repo>
+node .claudinite/shared/packs/claudinite-tasks/src/adopt/converge-workflows.mjs <owner/repo>
 ```
 
 `.github/workflows/` is the one directory a member's nightly may never push to, so these arrive
@@ -98,7 +98,7 @@ here or not at all. They are static from this moment: the cron minute is hashed 
 full name, both anchor hours come from its `taskScheduler.dailyHour`, and every `run:` names a
 mount path behind which the code converges nightly. The command is a no-op when both files are
 already right. A repo adopting this pack also needs its two CCR routine endpoints — the executor's
-and the work-item session's — pointed at `executor.md` and `queue/instructions.md` in its own
+and the work-item session's — pointed at `executor.md` and `public/instructions.md` in its own
 mount; that is a console setting, so it belongs in the handover issue §4b files.
 
 ## 4. Scaffold what the pack now demands
