@@ -20,6 +20,9 @@
 // CLI shipped (cli/cli#4861) — and with a scheduler run and several executors all
 // moving labels at once, that is a correctness rule rather than a style preference.
 
+import { actionsEnv } from './actions.mjs';
+import { varsBag } from './vars-bag.mjs';
+
 const API = process.env.GITHUB_API_URL || 'https://api.github.com';
 
 // --- how many calls this process has made ---------------------------------------
@@ -262,18 +265,33 @@ export const readBranch = (gh, repo, branch) => gh(`/repos/${repo}/branches/${br
 
 export const readTree = (gh, repo, ref) => gh(`/repos/${repo}/git/trees/${ref}`);
 
-// --- commits, runs, releases and variables --------------------------------------
+// --- commits, runs and releases --------------------------------------
 
 export const readCommit = (gh, repo, sha) => gh(`/repos/${repo}/commits/${sha}`);
 
 export const listRunsForSha = (gh, repo, sha) =>
   gh(`/repos/${repo}/actions/runs?head_sha=${sha}&per_page=100`);
 
+// One workflow file's runs, newest first — how a caller that dispatched a workflow
+// finds the run it started, since a dispatch answers 204 and names no run.
+export const listWorkflowRuns = (gh, repo, file, { event = 'workflow_dispatch', perPage = 10 } = {}) =>
+  gh(`/repos/${repo}/actions/workflows/${file}/runs?event=${event}&per_page=${perPage}`);
+
+export const readWorkflowRun = (gh, repo, runId) => gh(`/repos/${repo}/actions/runs/${runId}`);
+
+// The repo's GitHub Pages site — the URL a deploy answers on. 404 when Pages is off.
+export const readPagesSite = (gh, repo) => gh(`/repos/${repo}/pages`);
+
 export const latestRelease = (gh, repo) => gh(`/repos/${repo}/releases/latest`);
 
-// A repository Actions variable — the hold lever, read live so a person can stop
-// the queue without a merge.
-export const readRepoVariable = (gh, repo, name) => gh(`/repos/${repo}/actions/variables/${name}`);
+// A repository Actions variable, answered from the executor's vars bag in the shape the
+// REST read once returned. Kept at this name for a member's local pack that imports it;
+// the API route itself is never asked, because the Actions GITHUB_TOKEN is refused on it
+// in every member (`repo-variables-through-the-bag`).
+export const readRepoVariable = async (_gh, _repo, name, env = actionsEnv()) => {
+  const bag = varsBag(env);
+  return bag && name in bag ? { status: 200, json: { name, value: String(bag[name]) } } : { status: 404, json: null };
+};
 
 // --- workflows -----------------------------------------------------------------
 

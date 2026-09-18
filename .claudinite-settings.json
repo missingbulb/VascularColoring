@@ -3,7 +3,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60915.8"
+      "version": "60917.1"
     },
     {
       "id": "research-project",
@@ -30,7 +30,7 @@
     },
     {
       "id": "claudinite-tasks",
-      "version": "60915.11"
+      "version": "60918.1"
     }
   ],
   "taskScheduler": {
