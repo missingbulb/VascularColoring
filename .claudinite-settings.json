@@ -11,7 +11,7 @@
     },
     {
       "id": "claudinite-growth",
-      "version": "60915.5"
+      "version": "60920.2"
     },
     "local/vascular-coloring",
     {
@@ -26,11 +26,11 @@
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60918.1"
+      "version": "60920.1"
     },
     {
       "id": "claudinite-tasks",
-      "version": "60918.2"
+      "version": "60920.1"
     }
   ],
   "taskScheduler": {
