@@ -1,6 +1,8 @@
 ---
 name: paper-intake
 description: Take a research paper PDF into references/ — folder, digest, extracted figures, cropped panels, calibration, synthesis. Use whenever a new article is added to this repo, or an existing one needs re-processing.
+metadata:
+  body: guidelines
 ---
 
 # Paper intake
@@ -121,4 +123,4 @@ node .claudinite/local/packs/vascular-coloring/pack.test.mjs          # checks s
   differ; the rollup is grouped per paper for that reason.
 - **Prefer a same-image comparison to a table comparison.** If the paper ships code *and* an
   image, reimplement the method and run both on that image. A number from a summary table may not
-  be the raw output of the method it describes. (3)
+  be the raw output of the method it describes.
