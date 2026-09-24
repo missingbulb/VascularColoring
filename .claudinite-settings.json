@@ -3,7 +3,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60923.1"
+      "version": "60924.1"
     },
     {
       "id": "research-project",
@@ -11,7 +11,7 @@
     },
     {
       "id": "claudinite-growth",
-      "version": "60923.2"
+      "version": "60924.1"
     },
     "local/vascular-coloring",
     {
@@ -26,11 +26,11 @@
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60923.1"
+      "version": "60924.1"
     },
     {
       "id": "claudinite-tasks",
-      "version": "60923.1"
+      "version": "60923.3"
     }
   ],
   "taskScheduler": {
