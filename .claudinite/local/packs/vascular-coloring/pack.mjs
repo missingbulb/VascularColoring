@@ -7,25 +7,8 @@ import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
-// in — fluorescence (gP-CD31 red channel) confocal panels measured for
-// categorize / count / measure. Declared by hand as `local/vascular-coloring`
-// (never fingerprinted or seeded: detect/marker stay null).
-//
-// The canon covers the surrounding facets already — `research-project` owns the
-// class (algorithm over similarly-formatted inputs, scored against ground truth,
-// improved in reviewable iterations), `basics`/`tidy-repo`/`grow_with_claudinite`
-// the working lifecycle. What none of them home is this project's imaging
-// specifics: what the overlay may look like, what may be committed out of a
-// render, what has to stay calibrated for a number to mean micrometres, and that
-// every µm/px number quoted in the docs still equals that one calibration table.
-// Those are the checks; RULES.md keeps only the judgment that no check can
-// carry, and the visual-assertion procedure rides the pack's own skill —
-// except that the locked metric definitions do leave one static signature: the
-// extraction script must keep reporting all three asks' fields, so that is a
-// check too (`locked-metric-fields`). The single-source lines are checks for the
-// same reason: the calibration must stay defined in exactly one file
-// (`calibration-single-source`), and every directory a script renders into must
-// stay ignored by git (`render-outputs-gitignored`).
+// in - gP-CD31 red-channel confocal panels measured for categorize / count /
+// measure. Declared by hand as `local/vascular-coloring`; detect/marker stay null.
 //
 // Check modules here stay dependency-free (plain finding objects, no engine
 // import) so the pack loads without the gitignored shared mount.
