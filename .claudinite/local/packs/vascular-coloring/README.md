@@ -24,14 +24,14 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 
 ## Prose (`RULES.md`)
 
-| Rule (≤5 words) | How enforced |
+| Rule (marker) | How enforced |
 |---|---|
-| Never validate pipeline against itself | prose |
-| Progress is a visual assertion | prose (+ the `vessel-overlay-review` skill) |
-| Metric definitions are locked | prose (+ `locked-metric-fields`) |
-| Raw length not cross-comparable | prose (+ `panel-scale-calibration`, `scale-numbers-match-calibration`, `calibration-single-source`) |
-| A paper is read once, written down | prose (+ the `paper-intake` skill) |
-| Say which numbers are trustworthy | prose |
+| `never-self-validate` | prose |
+| `progress-visual-assertion` | prose (+ the `vessel-overlay-review` skill) |
+| `locked-metric-definitions` | prose (+ `locked-metric-fields`) |
+| `per-paper-rollup` | prose |
+| `paper-finished-pdf-redundant` | prose (+ the `paper-intake` skill) |
+| `trustworthy-numbers` | prose |
 
 ## Skills
 
