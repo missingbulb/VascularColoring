@@ -22,9 +22,13 @@ optional `skip` globs), run `--pin`, commit.
 
 ## Sources
 
+All under the owner's shared Drive root
+[`NoR-VascularColoring data`](https://drive.google.com/drive/folders/1HfpSQ4ndHfBeUotSv4FXzoTyYDOeia7F),
+whose `VascularColoring/` subfolder is the one source here.
+
 | name | what | status |
 |---|---|---|
-| `marianas-cd31-dapi-1.tif` … `-4.tif` | Four ≈170 MB TIFF stacks from the owner's lab (2026-09-25). Per the lab: two channels, **DAPI** (nuclei, all cells) and **CD31** (endothelial membrane, i.e. the vessels) at 488 nm, 60 planes = 30 z-planes × 2 channels. Mouse brain. | **Not yet fetchable** — each Drive link redirected to a Google sign-in on 2026-09-25: the files are not shared "Anyone with the link". Local names are ours; the Drive filenames are unseen. |
+| `owner-stacks` | Four z-stacks from session `4.2.26.sld`, 20×, mouse brain: `cd31_ca1_x20 r 1`/`r 2` (hippocampal CA1) and `cd31_frontal_x20 r 1`/`r 2` (frontal cortex). DAPI + CD31. ≈165 MB each. | **Pinned** 2026-09-25, 4 files, checked against Drive's own folder view. |
 
 ## Why Drive, and not git
 
@@ -40,45 +44,49 @@ Checked on 2026-09-25, for an owner with no local machine:
 - **Drive:** the files are already there; `drive.google.com` and `drive.usercontent.google.com`
   are reachable from the container, and `gdown` handles Drive's large-file confirmation page.
 
-Gotcha: a Drive link shared only with named people redirects to `accounts.google.com` (gdown:
-`status code 401`) — fix the sharing, not the code.
+Gotchas:
+
+- A link shared only with named people redirects to `accounts.google.com` (gdown: `status code
+  401`) — fix the sharing, not the code.
+- **gdown's folder listing is not reliable on its own** — on 2026-09-25 it dropped one of a
+  sibling folder's 13 files on one call and returned it on the next. `--pin` therefore re-lists
+  every time and only *adds* entries (a recorded checksum is never overwritten); check a fresh pin
+  against Drive's own view, `https://drive.google.com/embeddedfolderview?id=<folder id>`.
 
 ## The microscope
 
 Tel Aviv University's **Marianas spinning-disk confocal**
-([facility page](https://en-med.tau.ac.il/marianas-spinning-disk-confocal-sicf)). What the page states:
+([facility page](https://en-med.tau.ac.il/marianas-spinning-disk-confocal-sicf)). The page lists
+lasers 405, 488, 561 and 640 nm, objectives 20×, 60× oil and 100× oil, SoRa super-resolution, and
+a 95% quantum-efficiency camera; it names no vendor or software. The page lists no UV laser, so
+DAPI here is excited at 405 nm — not the 340–360 nm the lab quoted, which is the lamp-based band.
 
-- Dual Nipkow-disk spinning-disk confocal; **SoRa** super-resolution mode (1.4× resolution,
-  further with deconvolution); light-sheet option; live/fixed multicolour, tile scan, multi-position.
-- Lasers **405, 488, 561, 640 nm**. Objectives **20×, 60× oil, 100× oil**.
-- Camera described as a "CCD" with **95% quantum efficiency**.
+**Measured from the files (2026-09-25):**
 
-What is **inferred, not verified** — check each against the first real file's metadata:
-
-- **Frame size.** 170 MB ÷ 60 planes ≈ 2.9 MB per plane = exactly 1200×1200 at 16 bit, which fits a
-  Photometrics Prime 95B sCMOS (95% QE, 1200×1200, 11 µm pixels): about 0.18 µm/px at 60×, before
-  any SoRa magnifier.
-- **DAPI excitation is 405 nm**, not the 340–360 nm the lab quoted: that is the classic lamp-based
-  DAPI band, and the page lists no UV laser.
-- **Software.** "Marianas" is Intelligent Imaging Innovations' (3i) system, whose software
-  (SlideBook) writes `.sld`/`.sldy`. The lab offered `.vsi`, which is Olympus cellSens's format, so
-  which software exported these is worth confirming.
+- The raw acquisition is **3i SlideBook** (`D:\gal\4.2.26.sld`, recorded in each file); the TIFFs
+  were saved from it through **ImageJ 1.54p** (Bio-Formats import), so they carry ImageJ metadata.
+- Frames are **1200 × 1200, 16-bit** — the geometry of a Photometrics Prime 95B sCMOS
+  (11 µm pixels, 95% QE).
+- Pixel size, as stored: **0.55 µm/px** (`XResolution` 1.818181 px/µm, unit micron) = 11 µm ÷ 20,
+  matching the 20× in the names. Read it from each file, per the WORKING-GUIDE's calibration rule,
+  rather than from this note.
+- **No z-step is stored**, and no channel names or wavelengths.
 
 ## Handling these stacks
 
+- **Layout: `ZCYX` = 30 z × 2 channels, interleaved** (Bio-Formats `DimensionOrder = XYCZT`);
+  `tifffile.imread(path)` returns shape `(30, 2, 1200, 1200)`.
+- **Channel 1 = DAPI, channel 2 = CD31** in all four, established by looking at max projections
+  (ch1 scattered round nuclei, ch2 branching tubes). The stored display colours are ch1 red, ch2
+  green — do not read identity off them. In the sibling NoRFinder data the channel order *varies
+  between files*; with four files here it does not, but check each new file by content.
 - **These are not the figure panels.** The pipeline so far runs on RGB figure crops and segments by
-  *red dominance*. A raw stack is **grayscale 16-bit, one plane per channel per z**; CD31 here is
-  the 488 nm channel, which has no colour of its own. Select the channel by index, never by hue.
-- **Plane order is unknown** — 30 z × 2 channels can be interleaved (ch, ch, ch…) or blocked (all
-  DAPI, then all CD31). Read it from the metadata (`tifffile`: ImageJ `channels`/`slices`, OME-XML
-  `DimensionOrder`); if absent, measure it — DAPI planes are scattered round nuclei, CD31 planes
-  are tubes.
-- **Scale comes from the file**, per the WORKING-GUIDE's calibration rule: here that means the
-  TIFF's own metadata (`XResolution`/`ResolutionUnit`, ImageJ `spacing` for the z-step, OME
-  `PhysicalSizeX/Z`), not a printed scale bar. If the export dropped it, mark the stack
-  uncalibrated with the reason and ask the lab for an OME-TIFF export.
-- **A z-stack changes "length".** Centerline length measured on a max-intensity projection
-  under-counts vessels running through z; decide projection vs 3D skeleton deliberately.
-- **A `.vsi` is only an index**: the pixels are in a sibling folder of `.ets` files, which must be
-  uploaded with it. Reading VSI needs Bio-Formats (Java) — a heavy route, used only if the TIFFs
-  lack what we need.
+  *red dominance*. A raw stack is **grayscale 16-bit per channel**: select CD31 by index, never by
+  hue.
+- **Artefacts:** the CA1 CD31 projection has a few bright rectangular blobs, likely debris, that a
+  vessel segmenter must not count.
+- **A z-stack changes "length".** Centerline length on a max projection under-counts vessels
+  running through z, and 3D length needs the missing z-step — ask the lab for it (it is in the
+  `.sld`) before measuring in 3D.
+- **The raw `.sld` holds more than these exports** (z-step, channel names, wavelengths). Reading
+  `.sld`/`.sldy` needs Bio-Formats (Java) or 3i's tools — use only if a missing piece blocks work.
