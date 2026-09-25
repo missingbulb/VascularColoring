@@ -37,6 +37,9 @@
 3. **Caliber split is a single diameter threshold** (`ARTERY_DIAM_PX = 9 px`); borderline vessels flip.
    Worse, the threshold is in **pixels**, so it is a different physical size on every panel.
 4. **Figure-resolution crops** — recompute absolute length on raw `.oib` data for publication numbers.
+   The owner's own raw stacks are now available: four Marianas 20× DAPI + CD31 z-stacks
+   (30 z × 2 ch, 0.55 µm/px from the files, no z-step), fetched from Drive by
+   `analysis/fetch_data.py` — see [`data/README.md`](../data/README.md).
 5. **Every scale-dependent constant is in pixels**, not µm, across panels spanning 0.24–1.35 µm/px.
 
 ## Literature review done — six papers digested

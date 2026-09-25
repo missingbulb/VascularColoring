@@ -1,0 +1,34 @@
+{
+  "sources": [
+    {
+      "name": "owner-stacks",
+      "drive_id": "1AH4EVGT-ECPZvhHiHMwUzrMLLtljs1Pd",
+      "kind": "folder",
+      "skip": [
+        "*.zip"
+      ],
+      "files": [
+        {
+          "path": "4.2.26.sld - cd31_ca1_x20 r 1.tif",
+          "drive_id": "120fa23B63UriSMZ12agbi3W7DJrmcPUI",
+          "sha256": "8921bebf3808e1deb197d513e5cc48b7b502cfa5986e1a386edc65de2fb9dca4"
+        },
+        {
+          "path": "4.2.26.sld - cd31_ca1_x20 r 2.tif",
+          "drive_id": "1js2WFdh3JfGp8EpiekjTzT_f96tl84RC",
+          "sha256": "5a30395abbb6c220f2c624ceafe6d5f74b1be07121361a9b3f75b3bba8e39498"
+        },
+        {
+          "path": "4.2.26.sld - cd31_frontal_x20 r 1.tif",
+          "drive_id": "1Zzp1GuClB4hGamxaEhlaLZwT0O8P6Jxr",
+          "sha256": "0017fb3cb8d9c5e817c75ff8df146b9dcddff99c18ae265b6ac393a533fc3d3e"
+        },
+        {
+          "path": "4.2.26.sld - cd31_frontal_x20 r 2.tif",
+          "drive_id": "1GGJ3uAzUjm9Db8J6WIlKIpveViD8QsfV",
+          "sha256": "666e18bb2d9a6674c305866c1617955fe22d0607ef4a980fee4e80619a403a5f"
+        }
+      ]
+    }
+  ]
+}

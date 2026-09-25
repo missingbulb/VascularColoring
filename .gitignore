@@ -11,3 +11,6 @@ __pycache__/
 # python bytecode cache
 __pycache__/
 *.pyc
+
+# raw confocal data, fetched from Drive (python3 analysis/fetch_data.py), never committed
+/data/raw/
