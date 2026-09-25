@@ -1,0 +1,28 @@
+{
+  "sources": [
+    {
+      "name": "marianas-cd31-dapi-1.tif",
+      "drive_id": "1fWl3HORu-bMirbm_21vhwbA_S8HVaWfB",
+      "kind": "file",
+      "sha256": null
+    },
+    {
+      "name": "marianas-cd31-dapi-2.tif",
+      "drive_id": "1fnXhy59p3RotW2zGPq36fE06OdCPnJNB",
+      "kind": "file",
+      "sha256": null
+    },
+    {
+      "name": "marianas-cd31-dapi-3.tif",
+      "drive_id": "1Y7id8JXfq8Sl1YDudfTlltD3S9T2FdPG",
+      "kind": "file",
+      "sha256": null
+    },
+    {
+      "name": "marianas-cd31-dapi-4.tif",
+      "drive_id": "1v0gwIEYWRxA47fNgE3O0oSH8pxAqfdBP",
+      "kind": "file",
+      "sha256": null
+    }
+  ]
+}

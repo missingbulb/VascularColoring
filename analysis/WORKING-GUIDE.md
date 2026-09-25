@@ -101,5 +101,6 @@ The owner iterated to this exact style — keep it:
 | `analysis/annotate_overlays.py` | Presentation overlays in the style above. |
 | `analysis/results-first-pass.md` | Measured results, calibration, limitations. |
 | `analysis/STATUS.md` | Current state and agreed next step. |
+| `data/README.md` + `data/sources.json` | The owner's raw confocal stacks: kept in Google Drive, never in git; fetched by `analysis/fetch_data.py` and checked by SHA-256. What is known about the microscope and how to read the stacks. |
 
-Setup: `pip install -r requirements.txt` (numpy, scipy, scikit-image, Pillow).
+Setup: `pip install -r requirements.txt` (numpy, scipy, scikit-image, Pillow, gdown). Raw stacks: `python3 analysis/fetch_data.py`.
