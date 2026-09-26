@@ -16,7 +16,7 @@ const isRedDominant = (r, g, b) => r >= 128 && r - g >= MARGIN && r - b >= MARGI
 
 const rule = {
   id: 'overlay-color-contrast',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'Presentation overlay marks must not be red-dominant',
   doc: '.claudinite/local/packs/vascular-coloring/RULES.md',
   why: 'the gP-CD31 signal being measured IS red — a red outline, arrow or ring vanishes on the very vessels it is supposed to mark',

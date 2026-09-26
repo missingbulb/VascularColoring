@@ -102,7 +102,7 @@ function ignored(ctx, dir) {
 
 const rule = {
   id: 'render-outputs-gitignored',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'Every directory a script renders into is gitignored',
   doc: '.claudinite/local/packs/vascular-coloring/skills/vessel-overlay-review/SKILL.md',
   why: 'overlay renders are regenerated from the scripts, not data — an output directory that is not ignored gets swept into the repo by the first `git add -A` after a run, and from then on a stale PNG is what reviewers see instead of what the current script draws',
