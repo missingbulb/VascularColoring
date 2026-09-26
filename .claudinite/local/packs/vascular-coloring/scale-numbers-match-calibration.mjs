@@ -53,7 +53,7 @@ const blocks = (text) => {
 
 const rule = {
   id: 'scale-numbers-match-calibration',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'Scale numbers quoted in the docs match the SCALEBAR_PX calibration',
   doc: '.claudinite/local/packs/vascular-coloring/RULES.md',
   why: 'the um/px per figure is derived from one measured table (UM_PER_BAR / SCALEBAR_PX); a doc that quotes a stale copy does not fail loudly — it silently re-labels every length and density number in that document with the wrong scale',

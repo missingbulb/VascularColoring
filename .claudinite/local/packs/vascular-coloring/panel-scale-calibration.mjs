@@ -22,7 +22,7 @@ const keysOf = (block) => (block ? [...block.matchAll(/['"]([^'"]+)['"]\s*:/g)].
 
 const rule = {
   id: 'panel-scale-calibration',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'Every working panel is either scale-calibrated or declared uncalibrated',
   doc: '.claudinite/local/packs/vascular-coloring/RULES.md',
   why: 'an uncalibrated figure does not fail — it silently reports "um n/a" and drops out of every length and density number, so a panel added without its bar measurement quietly shrinks the result set',

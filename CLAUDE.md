@@ -1,4 +1,4 @@
-@.claudinite/claudinite-rules.GENERATED.md
+@.claudinite/flat/claudinite-rules.GENERATED.md
 
 ## Project: vessel image analysis — start here
 

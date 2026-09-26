@@ -6,7 +6,7 @@ const IMAGE = /\.(png|jpe?g|tiff?|gif|bmp|webp)$/i;
 
 const rule = {
   id: 'rendered-overlays-untracked',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'No rendered overlay image is committed under analysis/',
   doc: '.claudinite/local/packs/vascular-coloring/RULES.md',
   why: 'an overlay PNG is a regenerable render, not data — committing one freezes a snapshot that silently stops matching the scripts, and the owner\'s rule is that only real data or an agreed ground-truth image gets committed',
