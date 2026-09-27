@@ -18,6 +18,9 @@ anti-overfitting stance are `research-project`'s, so reach for that pack for tho
 | `locked-metric-fields` | locked metrics stay reported | blocking |
 | `calibration-single-source` | one calibration table, imported | blocking |
 | `render-outputs-gitignored` | render directories stay ignored | blocking |
+| `paper-slug-format` | paper folder + PDF follow the slug | blocking |
+| `figure-readme-inline` | every figure PNG embedded inline | blocking |
+| `panel-name-paper-tag` | every panel name tagged with its paper | blocking |
 
 Fixtures: [`pack.test.mjs`](pack.test.mjs) — each check shown firing on a violating input and quiet
 on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).

@@ -5,6 +5,9 @@ import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs'
 import lockedMetricFields from './locked-metric-fields.mjs';
 import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import paperSlugFormat from './paper-slug-format.mjs';
+import figureReadmeInline from './figure-readme-inline.mjs';
+import panelNamePaperTag from './panel-name-paper-tag.mjs';
 
 // The project's own pack: the vessel-image quantification domain this repo works
 // in - gP-CD31 red-channel confocal panels measured for categorize / count /
@@ -29,6 +32,9 @@ export default {
     lockedMetricFields,
     calibrationSingleSource,
     renderOutputsGitignored,
+    paperSlugFormat,
+    figureReadmeInline,
+    panelNamePaperTag,
   ],
   skills: ['vessel-overlay-review', 'paper-intake'],
 };
