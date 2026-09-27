@@ -63,7 +63,7 @@ function reportedFields(source) {
 
 const rule = {
   id: 'locked-metric-fields',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'The extraction script still reports all three locked metrics',
   doc: '.claudinite/local/packs/vascular-coloring/RULES.md',
   why: 'COUNT / CATEGORIZE / MEASURE are locked definitions - dropping or renaming one of their fields changes what every recorded number means, and it fails silently: the metric just stops appearing in the tables it used to anchor',

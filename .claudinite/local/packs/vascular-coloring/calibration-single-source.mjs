@@ -73,7 +73,7 @@ function definitions(text) {
 
 const rule = {
   id: 'calibration-single-source',
-  severity: 'blocking',
+  on_fail: 'block',
   description: 'The scale-bar calibration is defined only in the extraction script',
   doc: '.claudinite/local/packs/vascular-coloring/RULES.md',
   why: 'UM_PER_BAR / SCALEBAR_PX are a measurement, not a constant — a second definition means two calibrations, and the one a given script happens to read wins silently, re-labelling its lengths and densities with a scale nobody re-measured',
