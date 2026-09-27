@@ -12,6 +12,7 @@ import calibrationSingleSource from './calibration-single-source.mjs';
 import renderOutputsGitignored from './render-outputs-gitignored.mjs';
 import paperSlugFormat from './paper-slug-format.mjs';
 import figureReadmeInline from './figure-readme-inline.mjs';
+import panelNamePaperTag from './panel-name-paper-tag.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
@@ -490,6 +491,36 @@ test('figure-readme-inline is quiet when every figure is embedded inline', () =>
       ].join('\n'),
     },
     tracked: [`${WANG_FIGS}/fig1_gP-CD31_Nissl_healthy.png`, `${WANG_FIGS}/fig2_ischemia_regional.png`],
+  }));
+  assert.deepEqual(findings, []);
+});
+
+// --- panel-name-paper-tag -----------------------------------------------------
+
+test('panel-name-paper-tag fires once per paper on untagged panel names, naming the count', () => {
+  const findings = panelNamePaperTag.run(ctx({
+    tracked: [
+      `${WANG_FIGS}/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png`,
+      `${WANG_FIGS}/panels/fig1_C2_healthy_Nissl_green.png`,
+      `${WANG_FIGS}/panels/VESSEL_fig3_ischemic_gP-CD31_red.png`,
+    ],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].file, `${WANG_FIGS}/panels/VESSEL_fig1_C1_healthy_gP-CD31_red.png`);
+  assert.match(findings[0].what, /has 3 panel\(s\) with no paper tag before fig<N>/);
+});
+
+test('panel-name-paper-tag is quiet on tagged panel names, and ignores a level deeper', () => {
+  const findings = panelNamePaperTag.run(ctx({
+    tracked: [
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/VESSEL_rust20fig1_adult_closeup_CD31.png',
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/rust20fig2_closeup_ibz_vasculature-pericytes.png',
+      'references/freitas-andrade-2022-pyvane-endothelial-networks/figures/panels/VESSEL_fa22fig13_original.png',
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/README.md',
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/crop_panels.py',
+      // A level deeper is a different crop convention this rule doesn't reach.
+      'references/rust-2020-fiji-vascular-analysis/figures/panels/archive/fig1_old.png',
+    ],
   }));
   assert.deepEqual(findings, []);
 });

@@ -56,7 +56,8 @@ Locate the grid programmatically where possible (photomicrograph panels are dark
 white — find the dark bands), then **freeze the coordinates** into
 `references/<slug>/figures/crop_panels.py` so the crop is reproducible. Prefix the isolated
 vessel-channel panels `VESSEL_` and nothing else. Tag every panel name with the paper
-(`rust20fig1_…`) so calibration prefixes stay unique. Write `figures/panels/README.md`: the
+(`rust20fig1_…`) so calibration prefixes stay unique — `panel-name-paper-tag` holds every
+panel filename to that tag. Write `figures/panels/README.md`: the
 inventory, the µm/px per row, and the caveats that come with folding these into the dataset.
 
 ### 7. Calibrate — measure, never assume

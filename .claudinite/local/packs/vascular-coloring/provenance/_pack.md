@@ -51,3 +51,44 @@
 - **Model:** Claude, per the commit trailer.
 - **Mechanism:** `paper-intake` added to the manifest's `skills`.
 - **Landed:** #61.
+
+## 2026-09-07 · scope-changed · Convert the paper-intake slug/PDF-naming rule to a check (#373)
+- **Source:** the weekly prose-to-checks sweep, round 1.
+- **Reason:** paper-intake step 1's slug/PDF-naming instruction had a static signature nothing
+  enforced.
+- **Actor:** @missingbulb (owner).
+- **Model:** Claude, per the commit trailer.
+- **Mechanism:** one blocking world check added to the manifest, `paper-slug-format`.
+- **Landed:** #373.
+
+## 2026-09-13 · scope-changed · Convert the paper-intake figure-inline-embed rule to a check (#373)
+- **Source:** the weekly prose-to-checks sweep, round 2.
+- **Reason:** paper-intake step 5's inline-embed instruction had a static signature nothing
+  enforced. Verified against the real tree first: five of six paper folders already complied;
+  wang-2022 had no figures/README.md at all.
+- **Actor:** @missingbulb (owner).
+- **Model:** Claude, per the commit trailer.
+- **Mechanism:** one blocking world check added to the manifest, `figure-readme-inline`, shipped
+  with a 14-day advisory grace window for the wang-2022 gap it surfaces on landing.
+- **Landed:** #373.
+
+## 2026-09-27 · scope-changed · Claudinite growth: prose to checks, round 4 (#373)
+- **Source:** the weekly prose-to-checks sweep, round 4 - re-deriving Round 3's "not universal"
+  verdict on paper-intake step 6 against today's tree found the prefix-uniqueness half of that
+  bullet still stands, with live evidence: measure_vessels.py's SCALEBAR_PX comment already flags
+  wang-2022's bare `fig1`/`fig3`/... keys by hand ("# wang-2022") because nothing else disambiguates
+  them, and `umpp_for` matches a calibration key by `name.startswith(key)`, so an untagged key
+  silently wins over any future paper's own untagged panel.
+- **Reason:** every one of wang-2022's 94 committed panels is untagged while every rust-2020 and
+  freitas-andrade panel already carries its paper's tag - a static, per-file form check: strip a
+  leading VESSEL_, then the remainder must not start straight on fig<N>.
+- **Actor:** @missingbulb (owner).
+- **Model:** Claude, per the commit trailer.
+- **Mechanism:** one blocking world check added to the manifest, `panel-name-paper-tag`, shipped
+  with a 14-day advisory grace window given the wang-2022 backlog it surfaces on landing; renaming
+  those 94 files is a data migration outside this sweep's bounded surface, left for a separate
+  change.
+- **Rejected:** enforcing the exact tag scheme (rust-2020's full-author-name form vs
+  freitas-andrade's initials form) - the prose keeps that choice; the check only holds the form
+  every existing tag already shares.
+- **Landed:** #373.
