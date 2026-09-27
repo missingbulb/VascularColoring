@@ -34,3 +34,13 @@
 - **Mechanism:** a step of the paper-intake skill, a workflow
 - **Retire when:** Reaffirm while re-running a paper's own method on its own image remains available
   and more reliable than a table comparison.
+
+## 2026-09-27 · weakened · Growth dedup: strip the canon-owned ground-truth clause from a rule bullet (#524)
+- **Source:** growth dedup (#524), superseding the stale #372.
+- **Reason:** "The pipeline's own output is never ground truth for a new panel set" restated
+  research-project's "never against the pipeline's own prior output, which validates nothing"; the
+  digest-authorship residue (quote the authors, never present our own run as validation) stayed,
+  which the canon doesn't state.
+- **Actor:** @missingbulb (owner).
+- **Model:** Claude, per the commit trailer.
+- **Landed:** #524.

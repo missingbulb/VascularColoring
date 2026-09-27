@@ -27,3 +27,13 @@
   and act-time detail kept.
 - **Actor:** @missingbulb (owner).
 - **Landed:** #512.
+
+## 2026-09-27 · weakened · Growth dedup: strip the circularity clause now covered by research-project (#524)
+- **Source:** growth dedup (#524), superseding the stale #372.
+- **Reason:** research-project's ground-truth rule now states "never against the pipeline's own
+  prior output, which validates nothing" directly; the circularity clause restated it. The
+  `expected-results.md` pointer stayed as local residue — where this project's ground truth
+  actually lives.
+- **Actor:** @missingbulb (owner).
+- **Model:** Claude, per the commit trailer.
+- **Landed:** #524.
