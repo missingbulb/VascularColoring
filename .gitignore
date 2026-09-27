@@ -1,6 +1,7 @@
 !/.claudinite/shared/
 /.claudinite-hooks.log.tmp
 /.claudinite-hooks.log
+/.claudinite/temp/
 
 # generated annotation overlays (regenerate with: python3 analysis/measure_vessels.py --overlays)
 /analysis/overlays/
