@@ -46,3 +46,11 @@
 - **Actor:** @missingbulb (owner).
 - **Model:** Claude, per the commit trailer.
 - **Landed:** #524.
+
+## 2026-09-27 · trigger-changed · skill-description-length advisory, this update cycle (#527)
+- **Reason:** description ran 37 words, past the basics pack's 30-word cap for a skill description;
+  trimmed the method clause ("Show a vessel-extraction result as an annotated overlay on the
+  original panel and state explicit visual assertions about it" shortened) while keeping the trigger
+  intact.
+- **Mechanism:** SKILL.md frontmatter `description` field.
+- **Actor:** claudinite-lifecycle/update task, running as work item #527.

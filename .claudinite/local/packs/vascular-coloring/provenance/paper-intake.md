@@ -44,3 +44,10 @@
 - **Actor:** @missingbulb (owner).
 - **Model:** Claude, per the commit trailer.
 - **Landed:** #524.
+
+## 2026-09-27 · trigger-changed · skill-description-length advisory, this update cycle (#527)
+- **Reason:** description ran 31 words, past the basics pack's 30-word cap for a skill description;
+  cut the method detail (folder, digest, figures, panels, calibration, synthesis) since it belongs
+  in the skill body, keeping only the trigger.
+- **Mechanism:** SKILL.md frontmatter `description` field.
+- **Actor:** claudinite-lifecycle/update task, running as work item #527.
