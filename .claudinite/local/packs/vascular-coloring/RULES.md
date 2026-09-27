@@ -8,9 +8,8 @@ and current state in [`analysis/STATUS.md`](../../../../analysis/STATUS.md).
 
 - **Judging the extraction pipeline's output** — judge it against the expectations drawn from
   **looking at the images**, recorded in
-  [`expected-results.md`](../../../../references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md);
-  running the pipeline and presenting its own output as the expected result is circular and does
-  not count as evidence. (never-self-validate)
+  [`expected-results.md`](../../../../references/wang-2022-cd31-vascular-network/figures/panels/expected-results.md).
+  (never-self-validate)
 
 - **Discussing an extraction change** — show progress as a visual assertion, **overlaying the
   result on the image** rather than tabling it, checked against what it actually misses here:

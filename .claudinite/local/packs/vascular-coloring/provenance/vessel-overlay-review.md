@@ -37,3 +37,12 @@
 - **Actor:** @missingbulb (owner).
 - **Model:** Claude, per the commit trailer.
 - **Landed:** #128.
+
+## 2026-09-27 · weakened · Growth dedup: strip the canon-owned self-validation clause (#524)
+- **Source:** growth dedup (#524), superseding the stale #372.
+- **Reason:** the trailing "never against the pipeline's own previous output" restated
+  research-project's ground-truth rule verbatim; the instruction to compare against
+  `expected-results.md` is this repo's own residue and stayed.
+- **Actor:** @missingbulb (owner).
+- **Model:** Claude, per the commit trailer.
+- **Landed:** #524.
