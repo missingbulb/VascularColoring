@@ -30,5 +30,5 @@ export default {
     calibrationSingleSource,
     renderOutputsGitignored,
   ],
-  skills: ['vessel-overlay-review', 'paper-intake'],
+  skills: ['vessel-overlay-review', 'paper-intake', 'image-algorithm-development'],
 };
