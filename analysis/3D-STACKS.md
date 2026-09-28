@@ -53,7 +53,7 @@ python3 analysis/export_stack_view.py --inspect STACK.tif        # header only, 
 python3 analysis/export_stack_view.py STACK.tif OUT_DIR [--z-step UM]
 ```
 
-`OUT_DIR` holds `index.html`, `meta.json` and one gzipped 8-bit volume per channel, binned 2× in
+`OUT_DIR` holds `index.html`, `meta.json` and one 8-bit volume per channel (a lossless grayscale PNG of the slices stacked vertically), binned 2× in
 x-y (600 × 600 × 30, 1.1 µm/px). It is published as an Artifact for the owner; the rendered
 volumes are derived data, regenerated, never committed. The page offers:
 

@@ -6,7 +6,6 @@ detection, so no real image is needed. It cannot catch the viewer page drawing t
 
 Run: python3 tests/test_export_stack_view.py
 """
-import gzip
 import json
 import os
 import sys
@@ -14,6 +13,7 @@ import tempfile
 
 import numpy as np
 import tifffile
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'analysis'))
 import export_stack_view as ev
@@ -48,7 +48,7 @@ def main():
             assert json.load(f)['shape'] == m['shape']
         assert os.path.exists(os.path.join(out, 'index.html'))
 
-        cd31 = np.frombuffer(gzip.open(os.path.join(out, 'cd31.u8.gz')).read(), np.uint8).reshape(m['shape'])
+        cd31 = np.asarray(Image.open(os.path.join(out, 'cd31.png'))).reshape(m['shape'])
         assert cd31[:, 9:11, :].mean() > 100 > cd31[:, :5, :].mean(), 'the vessel band is in the CD31 file'
         peaks = cd31[:, 9:11, :].mean(axis=(1, 2))
         assert all(a > b for a, b in zip(peaks, peaks[1:])), f'depth fade must survive the export: {peaks}'

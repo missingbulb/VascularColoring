@@ -266,11 +266,11 @@ let meta, gl, prog, U = {}, vols = {}, half = [1, 1, .1], dirty = true;
 async function loadVol(file) {
   const r = await fetch(file);
   if (!r.ok) throw new Error(`${file}: HTTP ${r.status}`);
-  let buf = new Uint8Array(await r.arrayBuffer());
-  if (buf[0] === 0x1f && buf[1] === 0x8b) {
-    const ds = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
-    buf = new Uint8Array(await new Response(ds).arrayBuffer());
-  }
+  const img = await createImageBitmap(await r.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const c = new OffscreenCanvas(img.width, img.height), cx = c.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(img, 0, 0);
+  const rgba = cx.getImageData(0, 0, img.width, img.height).data, buf = new Uint8Array(img.width * img.height);
+  for (let i = 0; i < buf.length; i++) buf[i] = rgba[i * 4];
   return buf;
 }
 
