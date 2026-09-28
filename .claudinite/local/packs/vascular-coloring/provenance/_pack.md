@@ -51,3 +51,9 @@
 - **Model:** Claude, per the commit trailer.
 - **Mechanism:** `paper-intake` added to the manifest's `skills`.
 - **Landed:** #61.
+
+## 2026-09-28 · scope-changed · image-algorithm-development skill registered (#537)
+- **Reason:** the manifest lists the skill copied from norfinder.
+- **Actor:** @missingbulb (owner).
+- **Mechanism:** the manifest's `skills` list.
+- **Landed:** #537
