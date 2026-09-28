@@ -39,3 +39,4 @@ on a clean one (`node .claudinite/local/packs/vascular-coloring/pack.test.mjs`).
 |---|---|
 | [vessel-overlay-review](skills/vessel-overlay-review/SKILL.md) | proposing, revising or reporting on the extraction pipeline |
 | [paper-intake](skills/paper-intake/SKILL.md) | a research paper is added to `references/`, or one needs re-processing |
+| [image-algorithm-development](skills/image-algorithm-development/SKILL.md) | starting, resuming or iterating on an image detection, segmentation or reading algorithm |
