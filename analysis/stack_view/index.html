@@ -477,6 +477,11 @@ async function main() {
     for (const id of ['z0', 'z1', 'sl']) $(id).max = Z - 1;
     $('z1').value = S.z1; $('sl').value = S.slice;
     if (meta.z_step_um) S.zs = meta.z_step_um;
+    // Background is most of every slice; start with it at black so vessels, not haze, fill the view.
+    const bg = Math.max(...meta.channels.cd31.slice_p50) / 255;
+    S.lo = Math.min(Math.round(bg * 200) / 200, S.hi - .1); $('lo').value = S.lo;
+    const c = meta.channels.cd31, con = c.slice_p99.map((v, i) => v - c.slice_p50[i]);
+    S.slice = con.indexOf(Math.max(...con)); $('sl').value = S.slice;
     $('zs').value = S.zs;
     $('zs-note').textContent = meta.z_step_um ? '' :
       'The file does not record the spacing between slices. Until the lab supplies it, depth is drawn at a guessed spacing: slide it and judge the shapes, not the depth in µm.';

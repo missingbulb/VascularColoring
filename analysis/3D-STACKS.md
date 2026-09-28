@@ -70,6 +70,15 @@ Both channels are scaled by one brightness window over the whole stack, never pe
 fade with depth stays visible. The per-slice shift figure is an upper bound on stage drift, because
 vessels running obliquely through depth also move from slice to slice.
 
+## What the first real stack showed (`cd31_frontal_x20 r 1`, 2026-09-28)
+
+- **Only slices 1–12 carry signal.** CD31's brightest 1% falls from 233 to 16 (of 255) by slice 16
+  and stays there, and DAPI fades the same way, so the lower half is below the tissue or past what
+  the light reaches, not thin vessels. The viewer opens at slice 1 for that reason.
+- **The slices are aligned:** neighbouring slices shift by at most 0.4 px (0.4 µm at bin 2).
+- **The background is high** (half of a bright slice's pixels sit above half scale), so the viewer
+  starts its black point at the brightest slice's median rather than a fixed 0.05.
+
 ## Open questions for the owner
 
 1. **The z-step** (µm between slices). It is in the `.sld`, not the TIFF exports. Until it is
@@ -82,6 +91,6 @@ vessels running obliquely through depth also move from slice to slice.
 | Idea | Source | Status |
 |---|---|---|
 | Flatten all slices into one maximum projection, then run the 2D pipeline | earlier plan | Kept as the baseline and shown beside every 3D view; loses length along z, fuses crossings at different depths, and can merge stacked vessels into one wide one. Revisit as the naive baseline once a 3D answer key exists. |
-| Look at the stack in 3D (ray-cast brightest + surface), by depth colour | owner, this page | Built; waiting on the owner's first look. |
+| Look at the stack in 3D (ray-cast brightest + surface), by depth colour | owner, this page | First real stack published 2026-09-28 (`cd31_frontal_x20 r 1`, bin 2, spacing guessed); waiting on the owner's first look. |
 | Full 3D pipeline: 3D threshold → 3D skeleton → graph → distance-map diameter | STAR Protocols 2020, VesselVio | Not started: needs the z-step and the owner's ground truth first. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |
