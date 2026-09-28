@@ -1,6 +1,6 @@
 ---
 name: vessel-overlay-review
-description: Show a vessel-extraction result as an annotated overlay on the original panel and state explicit visual assertions about it. Use whenever proposing, revising, or reporting on the segmentation/measurement pipeline in this repo — before quoting any new numbers.
+description: Show extraction results as an annotated overlay with explicit visual assertions. Use whenever proposing, revising, or reporting on the segmentation/measurement pipeline in this repo — before quoting numbers.
 metadata:
   body: guidelines
 ---

@@ -1,6 +1,6 @@
 ---
 name: paper-intake
-description: Take a research paper PDF into references/ — folder, digest, extracted figures, cropped panels, calibration, synthesis. Use whenever a new article is added to this repo, or an existing one needs re-processing.
+description: Take a research paper PDF into references/. Use whenever a new article is added to this repo, or an existing one needs re-processing.
 metadata:
   body: guidelines
 ---
