@@ -85,6 +85,7 @@ DAPI here is excited at 405 nm — not the 340–360 nm the lab quoted, which is
   hue.
 - **Artefacts:** the CA1 CD31 projection has a few bright rectangular blobs, likely debris, that a
   vessel segmenter must not count.
+- **Viewing one in 3D:** `analysis/export_stack_view.py` (see [`analysis/3D-STACKS.md`](../analysis/3D-STACKS.md)).
 - **A z-stack changes "length".** Centerline length on a max projection under-counts vessels
   running through z, and 3D length needs the missing z-step — ask the lab for it (it is in the
   `.sld`) before measuring in 3D.
