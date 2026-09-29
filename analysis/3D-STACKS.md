@@ -117,6 +117,12 @@ before the owner's marks: the main vessels are followed; faint links between the
 edges are specks (short isolated pieces); junctions cluster where a vessel runs along a bright blob.
 That draft pruned spurs under 3 vessel widths, before the Murray limit.
 
+**The owner's call on flattening (2026-09-29):** measurement runs on the unflattened stack. After
+rotating the 3D view, two vessels that the flattened picture shows as one crossing are plainly
+distinct, so the flattened draft stays only as a display and a baseline. A first measure of how
+often this bites: on the flattened draft, 11 of 25 junctions have branches whose brightest slice
+differs by 4 or more (indicative: the brightest slice per pixel is noisy on faint vessels).
+
 **The spur limit — Murray's law (owner asked, 2026-09-29).** The owner proposed not marking a node
 whose side branch is no more than about twice the vessel width. Murray's law says a parent of radius
 r0 splits into daughters with r0^a = r1^a + r2^a; a = 3 for laminar flow (Murray 1926; Wikipedia,
