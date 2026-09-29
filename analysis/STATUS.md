@@ -107,6 +107,12 @@ heatmap of per-square area fraction (two papers converge on it; answers *where* 
 under-vascularized), and the published segmentation choices (adaptive local threshold, median
 filter, iterative smallest-first pruning).
 
+## 3D: the owner's raw stacks (started 2026-09-28)
+
+The owner's four 30-slice CD31 + DAPI stacks are being looked at in 3D before anything is measured
+on them: [3D-STACKS.md](3D-STACKS.md) holds the problem, the literature, the web viewer and its
+open questions (the z-step, and the owner's ground truth).
+
 ## Reproduce
 
 ```

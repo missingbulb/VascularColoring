@@ -5,3 +5,4 @@ scipy
 scikit-image
 Pillow
 gdown
+tifffile
