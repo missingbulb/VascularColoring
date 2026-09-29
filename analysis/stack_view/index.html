@@ -94,19 +94,19 @@
         <button type="button" id="chan-dapi" data-v="1" aria-pressed="false">DAPI</button>
         <button type="button" id="chan-both" data-v="2" aria-pressed="false">Both</button>
       </div>
-      <label class="check"><input type="checkbox" id="depth"> Colour by depth</label>
+      <label class="check"><input type="checkbox" id="depth" checked> Colour by depth</label>
     </fieldset>
     <fieldset>
       <legend>Brightness</legend>
-      <label class="row">Black point <output id="lo-o"></output><input type="range" id="lo" min="0" max="1" step="0.005" value="0.05"></label>
-      <label class="row">White point <output id="hi-o"></output><input type="range" id="hi" min="0" max="1" step="0.005" value="0.8"></label>
+      <label class="row">Black point <output id="lo-o"></output><input type="range" id="lo" min="0" max="1" step="0.005" value="0.63"></label>
+      <label class="row">White point <output id="hi-o"></output><input type="range" id="hi" min="0" max="1" step="0.005" value="1"></label>
       <label class="row" id="iso-row">Surface level <output id="iso-o"></output><input type="range" id="iso" min="0" max="1" step="0.005" value="0.35"></label>
     </fieldset>
     <fieldset>
       <legend>Depth</legend>
       <label class="row">Show slices from <output id="z0-o"></output><input type="range" id="z0" min="0" max="29" step="1" value="0"></label>
       <label class="row">to <output id="z1-o"></output><input type="range" id="z1" min="0" max="29" step="1" value="29"></label>
-      <label class="row">Spacing between slices <output id="zs-o"></output><input type="range" id="zs" min="0.25" max="10" step="0.05" value="2"></label>
+      <label class="row">Spacing between slices <output id="zs-o"></output><input type="range" id="zs" min="0.25" max="10" step="0.05" value="1"></label>
       <p class="note warn" id="zs-note"></p>
     </fieldset>
     <fieldset>
@@ -259,7 +259,8 @@ void main(){
 }`;
 
 // ---------- state ----------
-const S = { mode: 0, chan: 0, depth: 0, lo: .05, hi: .8, iso: .35, z0: 0, z1: 29, zs: 2, slice: 15,
+// The owner's approved view (frontal r1, 2026-09-29); change it only when they ask.
+const S = { mode: 0, chan: 0, depth: 1, lo: .63, hi: 1, iso: .35, z0: 0, z1: 29, zs: 1, slice: 15,
             yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], dragging: false };
 let meta, gl, prog, U = {}, vols = {}, half = [1, 1, .1], dirty = true;
 
@@ -477,9 +478,6 @@ async function main() {
     for (const id of ['z0', 'z1', 'sl']) $(id).max = Z - 1;
     $('z1').value = S.z1; $('sl').value = S.slice;
     if (meta.z_step_um) S.zs = meta.z_step_um;
-    // Background is most of every slice; start with it at black so vessels, not haze, fill the view.
-    const bg = Math.max(...meta.channels.cd31.slice_p50) / 255;
-    S.lo = Math.min(Math.round(bg * 200) / 200, S.hi - .1); $('lo').value = S.lo;
     const c = meta.channels.cd31, con = c.slice_p99.map((v, i) => v - c.slice_p50[i]);
     S.slice = con.indexOf(Math.max(...con)); $('sl').value = S.slice;
     $('zs').value = S.zs;

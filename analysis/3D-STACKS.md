@@ -74,10 +74,17 @@ vessels running obliquely through depth also move from slice to slice.
 
 - **Only slices 1–12 carry signal.** CD31's brightest 1% falls from 233 to 16 (of 255) by slice 16
   and stays there, and DAPI fades the same way, so the lower half is below the tissue or past what
-  the light reaches, not thin vessels. The viewer opens at slice 1 for that reason.
+  the light reaches, not thin vessels. The single-slice panel opens on the highest-contrast slice for that reason.
+  The owner (2026-09-29) expects this and is checking it on their side.
 - **The slices are aligned:** neighbouring slices shift by at most 0.4 px (0.4 µm at bin 2).
-- **The background is high** (half of a bright slice's pixels sit above half scale), so the viewer
-  starts its black point at the brightest slice's median rather than a fixed 0.05.
+- **The background is high** (half of a bright slice's pixels sit above half scale).
+
+## The approved view (owner, 2026-09-29, on frontal r1)
+
+CD31, colour by depth, black point 0.63, white point 1.0, slice spacing 1 µm (still a guess), and
+these are the viewer's defaults. It is the frozen render: change it only when the owner asks. The
+brightness points are fractions of each stack's own percentile window, so re-check them with the
+owner on the first stack from another region.
 
 ## Open questions for the owner
 
@@ -91,6 +98,6 @@ vessels running obliquely through depth also move from slice to slice.
 | Idea | Source | Status |
 |---|---|---|
 | Flatten all slices into one maximum projection, then run the 2D pipeline | earlier plan | Kept as the baseline and shown beside every 3D view; loses length along z, fuses crossings at different depths, and can merge stacked vessels into one wide one. Revisit as the naive baseline once a 3D answer key exists. |
-| Look at the stack in 3D (ray-cast brightest + surface), by depth colour | owner, this page | First real stack published 2026-09-28 (`cd31_frontal_x20 r 1`, bin 2, spacing guessed); waiting on the owner's first look. |
+| Look at the stack in 3D (ray-cast brightest + surface), by depth colour | owner, this page | First real stack published 2026-09-28 (`cd31_frontal_x20 r 1`, bin 2, spacing guessed); owner approved the view 2026-09-29 (settings above). |
 | Full 3D pipeline: 3D threshold → 3D skeleton → graph → distance-map diameter | STAR Protocols 2020, VesselVio | Not started: needs the z-step and the owner's ground truth first. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |
