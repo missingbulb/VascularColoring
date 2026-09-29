@@ -54,6 +54,11 @@ def main():
         assert all(a > b for a, b in zip(peaks, peaks[1:])), f'depth fade must survive the export: {peaks}'
 
         assert ev.export(src, out, 2, 2.5)['z_step_source'] == 'command line'
+
+        r = ev.export(src, out, 1, None, region=(10, 12, 16))
+        assert r['shape'] == [Z, 16, 16] and r['region_yx_px'] == [10, 12], r
+        cd31 = np.asarray(Image.open(os.path.join(out, 'cd31.png'))).reshape(r['shape'])
+        assert cd31[:, 8:12, :].mean() > 100 > cd31[:, :6, :].mean(), 'the region keeps the band where the stack has it'
     print('ok')
 
 
