@@ -125,12 +125,14 @@ doi:10.1371/journal.pone.0292962, retinal capillaries). An even split's daughter
 2^(-1/a) = 0.71–0.79 of the parent's width, and even a lopsided real branch is a vessel, not a bump,
 once it has left the parent's wall. So a real daughter reaches at least half the parent's width
 (to the wall) plus its own width beyond it: `SPUR_WIDTHS = 0.5 + 2^(-1/3) ≈ 1.29` parent widths,
-the parent width being the median width of the other edges at that junction. A spur shorter than
-that is a bump. The owner's 2× is kept as the stricter alternative to judge by eye.
+the parent width being the median width of the other edges at that junction. That is a floor: a
+spur shorter than it cannot be a real branch. On the first flattened region, every stub between the
+floor and 2 parent widths was a bump on the wall (skeleton roughness plus bright blobs), so the
+tracer uses the owner's 2×, which Murray's law shows cuts no real even-split daughter.
 
-**Flattened draft (2026-09-29):** same region, `--flat`: 76 edges, 31 junctions, 1579 µm of
-centerline, median width 3.6 µm. With the owner's 2× instead: 60 edges, 25 junctions, 1542 µm;
-at 3×: 52 / 22 / 1512 µm, so the limit moves node counts much more than length. Seen before marks:
+**Flattened draft (2026-09-29):** same region, `--flat`, 2× limit: 60 edges, 25 junctions,
+1542 µm of centerline, median width 3.6 µm. At the 1.29 floor: 76 / 31 / 1579 µm; at 3×: 52 / 22 /
+1512 µm, so the limit moves node counts much more than length. Seen before marks:
 the main vessels and most faint links are followed; a few specks and short stubs off bright blobs
 remain.
 
@@ -152,5 +154,5 @@ remain.
 | Seed on the whole stack's noise, grow per plane | this session | Dropped: the stack-wide noise is set by the quiet lower planes, so seeds fired everywhere in the bright upper ones (506 edges). |
 | Prune every short spur in one pass | this session | Dropped: a bump and the real vessel's last stretch off the same junction both went, eating the vessel; now only the shortest spur per junction goes per pass. |
 | Flatten the raw brightest value, then threshold | this session | Dropped for the flattened draft: deep vessels are faint in raw units and fell below one global threshold; flattening each plane's noise-normalised value keeps them. |
-| Spur limit from Murray's law (1.29 parent widths) vs the owner's 2× | owner + Murray 1926, PLOS One 2023 | Murray limit is the default; 2× drops 16 of 76 flattened edges. Owner to choose by eye on the flattened draft. |
+| Spur limit: Murray floor (1.29 parent widths) vs the owner's 2× | owner + Murray 1926, PLOS One 2023 | 2× is the default: Murray gives 1.29 as the floor below which nothing is a real branch, and every stub between 1.29 and 2 on the first region was a bump (2× drops 16 of 76 flattened edges). Owner may overrule by eye. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |

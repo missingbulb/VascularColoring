@@ -28,9 +28,10 @@ SIGNAL_OVER_NOISE = 1.5            # a plane is traced only if its top 0.1% beat
 MIN_OBJECT_UM3 = 60.0               # below a ~5 µm stretch of the thinnest capillary
 # A real daughter vessel leaves its parent's wall (half the parent's width from the centerline) and
 # runs at least its own width beyond it; by Murray's law (r0^a = r1^a + r2^a, a = 3 laminar, ~2.2
-# measured in capillaries) an even split's daughter is 2^(-1/a) = 0.73-0.79 of the parent's width.
-# A side branch shorter than that from the junction is a bump on the wall, not a vessel.
-SPUR_WIDTHS = 0.5 + 2 ** (-1 / 3)
+# measured in capillaries) an even split's daughter is 2^(-1/a) = 0.73-0.79 of the parent's width,
+# so no real branch is shorter than 0.5 + 0.79 = 1.29 parent widths. The stubs between that floor
+# and 2 parent widths were all wall bumps on the owner's first region, so 2 is used.
+SPUR_WIDTHS = 2.0
 MIN_OBJECT_UM2 = 20.0  # flattened specks; Rust et al. 2020 drop objects below the same area
 ISLAND_WIDTHS = 4     # a lone piece shorter than 4 of its own widths is a speck
 Z_STEP_PLACEHOLDER_UM = 1.0  # the owner's approved guess until the lab supplies the real z-step
