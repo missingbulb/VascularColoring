@@ -12,6 +12,7 @@
     --muted: #82929d;
     --accent: #4fd1d9;
     --warn: #e8b04a;
+    --mark: #ff4fd8;
     --sans: "IBM Plex Sans", system-ui, sans-serif;
     --cond: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -60,6 +61,25 @@
   .legend-bar { height: 8px; border-radius: 2px; background: linear-gradient(90deg, #3e4fb8, #29a8e6, #2fe0a0, #b7f23a, #f7b92a, #e8551a); }
   .legend-ends { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
   p.lede { max-width: 72ch; color: var(--muted); margin: 0 0 12px; }
+  .review[hidden] { display: none; }
+  .verdicts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .verdicts button, .tool { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 6px 4px; font: 12px var(--sans); cursor: pointer; }
+  .verdicts button[aria-pressed="true"] { background: var(--text); color: var(--ground); font-weight: 500; }
+  .tool[aria-pressed="true"] { border-color: var(--mark); color: var(--mark); }
+  .verdicts button:disabled { opacity: .4; cursor: default; }
+  #sel { font: 12px/1.5 var(--mono); color: var(--text); min-height: 3em; margin: 0; }
+  #sel-note { width: 100%; background: var(--ground); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 5px 6px; font: 12px var(--sans); }
+  .progress { font: 12px var(--mono); color: var(--muted); }
+  .key { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 11px var(--mono); color: var(--muted); }
+  .key i { display: inline-block; width: 16px; height: 0; vertical-align: middle; margin-right: 4px; border-top: 2px solid #fff; }
+  .edges-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
+  table.edges { width: 100%; border-collapse: collapse; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+  table.edges th { position: sticky; top: 0; background: var(--panel); text-align: right; font-weight: 500; color: var(--muted); padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  table.edges td { text-align: right; padding: 3px 8px; border-bottom: 1px solid #172026; cursor: pointer; }
+  table.edges th:first-child, table.edges td:first-child, table.edges td:last-child, table.edges th:last-child { text-align: left; }
+  table.edges tr.on td { background: #1d2a31; }
+  .flat-stage { position: relative; }
+  #flat-all.picking { cursor: crosshair; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -79,6 +99,22 @@
     </div>
   </div>
   <aside>
+    <fieldset class="review" id="review" hidden>
+      <legend>Your review of the draft</legend>
+      <label class="check"><input type="checkbox" id="show-graph" checked> Show traced vessels</label>
+      <p id="sel">Click a line or a junction circle in either picture to review it.</p>
+      <div class="verdicts" id="verdicts">
+        <button type="button" data-v="right" disabled>Right</button>
+        <button type="button" data-v="wrong" disabled>Wrong</button>
+        <button type="button" data-v="unsure" disabled>Unsure</button>
+      </div>
+      <input type="text" id="sel-note" placeholder="Note on this item (optional)" disabled>
+      <button type="button" class="tool" id="miss-del" hidden>Remove this missed mark</button>
+      <button type="button" class="tool" id="miss-mode" aria-pressed="false">Mark missed vessels</button>
+      <p class="note" id="miss-note">Turn this on, then click a vessel the draft missed in the flattened picture below.</p>
+      <p class="progress" id="progress"></p>
+      <p class="note warn" id="save-note"></p>
+    </fieldset>
     <fieldset>
       <legend>Render</legend>
       <div class="seg" id="mode">
@@ -132,6 +168,13 @@
     <label class="row" style="margin-top:6px">Single slice <output id="sl-o"></output><input type="range" id="sl" min="0" max="29" step="1" value="15"></label>
   </div>
 </div>
+
+<section class="review" id="edges-sec" hidden>
+  <h2>Traced vessels</h2>
+  <div class="key" style="margin-bottom:8px"><span><i style="border-top-style:dashed"></i>not reviewed</span><span><i></i>right</span><span><i style="border-color:var(--mark)"></i>wrong</span><span><i style="border-color:var(--mark);border-top-style:dashed"></i>unsure</span><span><i style="border-color:var(--mark);width:8px"></i>+ missed</span><span>○ junction</span></div>
+  <div class="edges-wrap"><table class="edges"><thead><tr><th>Edge</th><th>Nodes</th><th>Length µm</th><th>Width µm</th><th>± sd</th><th>Depth µm</th><th>Your mark</th></tr></thead><tbody id="edge-rows"></tbody></table></div>
+  <p class="note" style="margin-top:8px">Length runs along the traced 3D centerline; width is twice the distance from it to the traced edge, so the 20× axial blur widens vessels running through depth. Depth uses the guessed slice spacing. <button type="button" class="tool" id="dl" hidden>Download the graph with your marks</button></p>
+</section>
 
 <h2>Signal through the depth</h2>
 <div class="depth">
@@ -263,6 +306,9 @@ void main(){
 const S = { mode: 0, chan: 0, depth: 1, lo: .63, hi: 1, iso: .35, z0: 0, z1: 29, zs: 1, slice: 15,
             yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], dragging: false };
 let meta, gl, prog, U = {}, vols = {}, half = [1, 1, .1], dirty = true;
+// review of a traced draft graph (graph.json beside the volumes, when the export has one)
+const R = { graph: null, show: true, marks: {}, missed: {}, sel: null, missMode: false, db: null, base: '',
+            pick: { edges: [], nodes: [], missed: [] }, readOnly: false };
 
 async function loadVol(file) {
   const r = await fetch(file);
@@ -361,6 +407,77 @@ function hud(vp) {
   const n = S.z1 - S.z0 + 1;
   const zt = `${n} slices · ${(n * S.zs).toFixed(0)} µm${meta.z_step_um ? '' : ' (spacing guessed)'}`;
   c.fillText(zt, Math.min(Math.max(zx + 6, 4), W - c.measureText(zt).width - 4), Math.min(Math.max(zy, 14), H - 24));
+  if (R.graph && R.show) drawGraph(c, (zyx) => P(world(zyx)), 1, true);
+}
+
+// ---------- the traced draft: drawing ----------
+const MARK = '#ff4fd8';   // no colour the depth palette or the signal uses
+function world(zyx) {
+  const [Z, Y, X] = meta.shape, um = R.graph.um_per_px, zi = zyx[0] / R.graph.z_step_um;
+  return [(2 * (zyx[2] / um + .5) / X - 1) * half[0], (1 - 2 * (zyx[1] / um + .5) / Y) * half[1], half[2] * (1 - 2 * (zi + .5) / Z)];
+}
+const inSlab = (zyx) => { const zi = zyx[0] / R.graph.z_step_um; return zi >= S.z0 - .5 && zi <= S.z1 + .5; };
+function look(key) {
+  const v = R.marks[key] && R.marks[key].verdict;
+  return v === 'right' ? ['#ffffff', []] : v === 'wrong' ? [MARK, []] : v === 'unsure' ? [MARK, [4, 3]] : ['#ffffff', [4, 3]];
+}
+// Draws every traced edge, junction and missed mark with `proj` (zyx µm -> [x, y, w]); `k` scales
+// line widths to the target canvas. Records screen positions for picking when `record` is set.
+function drawGraph(c, proj, k, record) {
+  const pick = { edges: [], nodes: [], missed: [] };
+  c.save(); c.lineJoin = 'round'; c.lineCap = 'round';
+  const labels = [];
+  for (const e of R.graph.edges) {
+    const key = 'e' + e.id, on = R.sel && R.sel.key === key, [col, dash] = look(key);
+    const runs = []; let run = [];
+    for (const q of e.path_zyx_um) {
+      if (!inSlab(q)) { if (run.length > 1) runs.push(run); run = []; continue; }
+      const p = proj(q); if (p[2] <= 0) { run = []; continue; } run.push(p);
+    }
+    if (run.length > 1) runs.push(run);
+    if (!runs.length) continue;
+    for (const [w, st, d] of [[(on ? 5 : 3) * k, 'rgba(0,0,0,.65)', []], [(on ? 3 : 1.4) * k, col, dash]]) {
+      c.lineWidth = w; c.strokeStyle = st; c.setLineDash(d.map(x => x * k));
+      c.beginPath(); for (const r of runs) { c.moveTo(r[0][0], r[0][1]); for (const p of r.slice(1)) c.lineTo(p[0], p[1]); } c.stroke();
+    }
+    const all = runs.flat(), m = all[Math.floor(all.length / 2)];
+    labels.push([String(e.id), m[0], m[1], on]);
+    pick.edges.push([key, all]);
+  }
+  c.setLineDash([]);
+  for (const n of R.graph.nodes) {
+    if (n.kind !== 'junction' || !inSlab(n.zyx_um)) continue;
+    const p = proj(n.zyx_um); if (p[2] <= 0) continue;
+    const key = 'n' + n.id, on = R.sel && R.sel.key === key, [col, dash] = look(key);
+    c.beginPath(); c.arc(p[0], p[1], (on ? 6 : 4) * k, 0, 7);
+    c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.65)'; c.stroke();
+    c.lineWidth = (on ? 2.5 : 1.5) * k; c.strokeStyle = col; c.setLineDash(dash.map(x => x * k)); c.stroke(); c.setLineDash([]);
+    pick.nodes.push([key, p[0], p[1]]);
+  }
+  for (const [id, m] of Object.entries(R.missed)) {
+    if (!inSlab(m.zyx_um)) continue;
+    const p = proj(m.zyx_um); if (p[2] <= 0) continue;
+    const r = (R.sel && R.sel.key === 'm' + id ? 8 : 6) * k;
+    c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(0,0,0,.65)';
+    c.beginPath(); c.moveTo(p[0] - r, p[1]); c.lineTo(p[0] + r, p[1]); c.moveTo(p[0], p[1] - r); c.lineTo(p[0], p[1] + r); c.stroke();
+    c.lineWidth = 2 * k; c.strokeStyle = MARK; c.stroke();
+    pick.missed.push(['m' + id, p[0], p[1]]);
+  }
+  c.font = `${10 * k}px "IBM Plex Mono", monospace`; c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.8)';
+  for (const [t, x, y, on] of labels) { c.strokeText(t, x + 4 * k, y - 4 * k); c.fillStyle = on ? MARK : '#fff'; c.fillText(t, x + 4 * k, y - 4 * k); }
+  c.restore();
+  if (record) R.pick3d = pick; else R.pick2d = pick;
+}
+function nearest(pick, x, y, tol) {
+  let best = null, bd = tol;
+  for (const [key, px, py] of [...pick.missed, ...pick.nodes]) { const d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = key; } }
+  if (best) return best;
+  for (const [key, pts] of pick.edges) for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.min(Math.max(((x - ax) * dx + (y - ay) * dy) / L, 0), 1) : 0;
+    const d = Math.hypot(ax + t * dx - x, ay + t * dy - y); if (d < bd) { bd = d; best = key; }
+  }
+  return best;
 }
 
 function lut2d(v, z, chan, v2) {
@@ -394,6 +511,13 @@ function flat() {
       d[4*i] = r; d[4*i+1] = g; d[4*i+2] = b; d[4*i+3] = 255;
     }
     c.putImageData(img, 0, 0);
+    if (id === 'flat-all' && R.graph && R.show) {
+      const F = 2, tmp = document.createElement('canvas'); tmp.width = X; tmp.height = Y; tmp.getContext('2d').putImageData(img, 0, 0);
+      cv.width = X * F; cv.height = Y * F;
+      const c2 = cv.getContext('2d'); c2.imageSmoothingEnabled = false; c2.drawImage(tmp, 0, 0, X * F, Y * F);
+      const um = R.graph.um_per_px;
+      drawGraph(c2, (q) => [(q[2] / um + .5) * F, (q[1] / um + .5) * F, 1], F * X / Math.max(cv.clientWidth, 1) * 1.2, false);
+    }
   }
   $('cap-all').textContent = `Slices ${S.z0 + 1}–${S.z1 + 1} flattened: brightest value per pixel`;
   $('sl-o').value = `${S.slice + 1} of ${Z}`;
@@ -448,8 +572,14 @@ function bind() {
 
   const cv = $('gl'), pts = new Map();
   let last = null;
-  cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); S.dragging = true; last = null; });
-  const end = (e) => { pts.delete(e.pointerId); if (!pts.size) { S.dragging = false; dirty = true; } last = null; };
+  let down = null;
+  cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); S.dragging = true; last = null;
+    down = pts.size === 1 ? [e.clientX, e.clientY] : null; });
+  const end = (e) => {
+    if (e.type === 'pointerup' && down && R.graph && R.pick3d && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 4) {
+      const r = cv.getBoundingClientRect(); select(nearest(R.pick3d, e.clientX - r.left, e.clientY - r.top, 8));
+    }
+    down = null; pts.delete(e.pointerId); if (!pts.size) { S.dragging = false; dirty = true; } last = null; };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   cv.addEventListener('pointermove', (e) => {
     if (!pts.has(e.pointerId)) return;
@@ -468,6 +598,128 @@ function bind() {
   new ResizeObserver(() => { dirty = true; }).observe(cv);
   const loop = () => { if (dirty) render(); requestAnimationFrame(loop); };
   requestAnimationFrame(loop);
+}
+
+// ---------- the traced draft: review ----------
+const edgeOf = (id) => R.graph.edges.find(e => e.id === id), nodeOf = (id) => R.graph.nodes.find(n => n.id === id);
+const f1 = (v) => v.toFixed(1);
+function redraw() { dirty = true; flat(); reviewPanel(); }
+function select(key) { R.sel = key ? { key } : null; redraw(); }
+function reviewPanel() {
+  const g = R.graph, k = R.sel && R.sel.key, mk = k && R.marks[k];
+  let t = 'Click a line or a junction circle in either picture to review it.';
+  if (k && k[0] === 'e') {
+    const e = edgeOf(+k.slice(1)), z = e.path_zyx_um.map(p => p[0]);
+    t = `Edge ${e.id}: junction/end ${e.from} to ${e.to}\n${f1(e.length_um)} µm long, ${f1(e.width_um_mean)} ± ${f1(e.width_um_sd)} µm wide ` +
+        `(${f1(e.width_um_min)} to ${f1(e.width_um_max)})\ndepth ${f1(Math.min(...z))} to ${f1(Math.max(...z))} µm`;
+  } else if (k && k[0] === 'n') {
+    const n = nodeOf(+k.slice(1)), es = g.edges.filter(e => e.from === n.id || e.to === n.id).map(e => e.id);
+    t = `Junction ${n.id}: ${n.degree} edges meet (${es.join(', ')})\nat depth ${f1(n.zyx_um[0])} µm` +
+        (n.at_region_edge ? '\non the region edge' : '');
+  } else if (k && k[0] === 'm') {
+    t = `A vessel you marked as missed\nat depth ${f1(R.missed[k.slice(1)].zyx_um[0])} µm (brightest point under your click)`;
+  }
+  $('sel').textContent = t;
+  const judged = k && k[0] !== 'm';
+  for (const b of $('verdicts').querySelectorAll('button')) {
+    b.disabled = !judged || R.readOnly; b.setAttribute('aria-pressed', String(!!(judged && mk && mk.verdict === b.dataset.v)));
+  }
+  $('miss-del').hidden = !(k && k[0] === 'm') || R.readOnly;
+  const note = $('sel-note'); note.disabled = !k || R.readOnly;
+  if (document.activeElement !== note) note.value = k ? ((k[0] === 'm' ? R.missed[k.slice(1)] : mk) || {}).note || '' : '';
+  const J = g.nodes.filter(n => n.kind === 'junction'), done = (arr, p) => arr.filter(x => R.marks[p + x.id] && R.marks[p + x.id].verdict).length;
+  $('progress').textContent = `Reviewed ${done(g.edges, 'e')} of ${g.edges.length} edges and ${done(J, 'n')} of ${J.length} junctions · ` +
+    `${Object.keys(R.missed).length} missed ${Object.keys(R.missed).length === 1 ? 'vessel' : 'vessels'} marked`;
+  edgeRows();
+}
+function edgeRows() {
+  const rows = R.graph.edges.map(e => {
+    const z = e.path_zyx_um.map(p => p[0]), v = (R.marks['e' + e.id] || {}).verdict || '';
+    return `<tr data-k="e${e.id}" class="${R.sel && R.sel.key === 'e' + e.id ? 'on' : ''}"><td>${e.id}</td><td>${e.from}–${e.to}</td>` +
+      `<td>${f1(e.length_um)}</td><td>${f1(e.width_um_mean)}</td><td>${f1(e.width_um_sd)}</td>` +
+      `<td>${f1(Math.min(...z))}–${f1(Math.max(...z))}</td><td>${v}</td></tr>`;
+  });
+  $('edge-rows').innerHTML = rows.join('');
+}
+async function save(key, body) {
+  const miss = key[0] === 'm', local = miss ? R.missed : R.marks, id = miss ? key.slice(1) : key;
+  if (body) local[id] = body; else delete local[id];
+  redraw();
+  if (!R.db) return;
+  try {
+    const ref = R.db.doc(`${R.base}/${miss ? 'missed' : 'marks'}/${id}`);
+    await (body ? ref.set(body) : ref.delete());
+  } catch (err) {
+    if (err && err.code === 'invalid_argument') { R.readOnly = true; reviewPanel(); }
+    $('save-note').textContent = R.readOnly ? 'You can look at the marks here but not change them.' : 'That mark did not save; try again.';
+  }
+}
+function missAt(xi, yi) {
+  const [Z, Y, X] = meta.shape, n = X * Y, i = Math.round(yi) * X + Math.round(xi);
+  let best = -1, bz = S.z0;
+  for (let z = S.z0; z <= S.z1; z++) if (vols.cd31[z * n + i] > best) { best = vols.cd31[z * n + i]; bz = z; }
+  const um = R.graph.um_per_px;
+  save('m' + Math.random().toString(36).slice(2, 10),
+       { zyx_um: [+(bz * R.graph.z_step_um).toFixed(2), +(yi * um).toFixed(2), +(xi * um).toFixed(2)], note: '', at: new Date().toISOString() });
+}
+function bindReview() {
+  $('show-graph').addEventListener('change', (e) => { R.show = e.target.checked; redraw(); });
+  $('verdicts').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !R.sel) return;
+    const k = R.sel.key, cur = R.marks[k] || {};
+    save(k, { verdict: cur.verdict === b.dataset.v ? null : b.dataset.v, note: cur.note || '', at: new Date().toISOString() });
+  });
+  $('sel-note').addEventListener('change', (e) => {
+    if (!R.sel) return;
+    const k = R.sel.key, cur = (k[0] === 'm' ? R.missed[k.slice(1)] : R.marks[k]) || {};
+    save(k, { ...cur, note: e.target.value.slice(0, 500), at: new Date().toISOString() });
+  });
+  $('miss-del').addEventListener('click', () => { if (R.sel && R.sel.key[0] === 'm') { const k = R.sel.key; R.sel = null; save(k, null); } });
+  $('miss-mode').addEventListener('click', (e) => {
+    R.missMode = !R.missMode; e.target.setAttribute('aria-pressed', String(R.missMode)); $('flat-all').classList.toggle('picking', R.missMode);
+  });
+  $('flat-all').addEventListener('click', (e) => {
+    const cv = $('flat-all'), r = cv.getBoundingClientRect(), [, Y, X] = meta.shape;
+    const x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
+    const key = R.pick2d && nearest(R.pick2d, x, y, 8 * cv.width / r.width);
+    if (R.missMode && !(key && key[0] === 'm')) { if (!R.readOnly) missAt(x * X / cv.width - .5, y * Y / cv.height - .5); return; }
+    select(key);
+  });
+  $('edge-rows').addEventListener('click', (e) => { const tr = e.target.closest('tr'); if (tr) select(tr.dataset.k); });
+  document.addEventListener('keydown', (e) => {
+    if (!R.sel || R.readOnly || e.target.matches('input, textarea') || e.metaKey || e.ctrlKey) return;
+    const v = { r: 'right', w: 'wrong', u: 'unsure' }[e.key]; if (!v || R.sel.key[0] === 'm') return;
+    $('verdicts').querySelector(`[data-v=${v}]`).click();
+  });
+}
+async function initReview() {
+  const r = await fetch('graph.json');
+  if (!r.ok) return;
+  R.graph = await r.json();
+  R.base = `reviews/${R.graph.draft_id}`;
+  for (const id of ['review', 'edges-sec']) $(id).hidden = false;
+  document.querySelector('h1').textContent = 'Draft vessel graph to review';
+  bindReview(); redraw();
+  const cl = window.claude;
+  const [db, dl] = cl && cl.use ? await Promise.all([cl.use('db').catch(() => null), cl.use('downloads').catch(() => null)]) : [null, null];
+  if (!db) { $('save-note').textContent = 'Marks made here are not saved: this copy of the page has no store.'; return; }
+  R.db = db;
+  const live = (name, into) => db.collection(`${R.base}/${name}`).onSnapshot((snap) => {
+    for (const k of Object.keys(into)) delete into[k];
+    for (const d of snap.docs) into[d.id] = d.data();
+    redraw();
+  }, () => { $('save-note').textContent = 'Saved marks could not be loaded.'; });
+  live('marks', R.marks); live('missed', R.missed);
+  if (dl) {
+    const b = $('dl'); b.hidden = false;
+    b.onclick = () => {
+      const g = JSON.parse(JSON.stringify(R.graph));
+      for (const e of g.edges) e.review = R.marks['e' + e.id] || null;
+      for (const n of g.nodes) n.review = R.marks['n' + n.id] || null;
+      g.missed = Object.values(R.missed);
+      dl.save({ filename: `${g.draft_id}.json`, data: JSON.stringify(g, null, 1) }).catch(() => {});
+    };
+  }
 }
 
 async function main() {
@@ -499,6 +751,7 @@ async function main() {
     texture(0, vols.cd31); texture(1, vols.dapi);
     status('');
     sync(); bind(); flat();
+    await initReview();
   } catch (err) {
     status(`Could not open the stack: ${err.message}`);
     console.error(err);
