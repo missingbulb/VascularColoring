@@ -86,12 +86,41 @@ these are the viewer's defaults. It is the frozen render: change it only when th
 brightness points are fractions of each stack's own percentile window, so re-check them with the
 owner on the first stack from another region.
 
+## What the owner wants out (2026-09-29)
+
+- **No accepted ground truth exists.** The owner asked for a draft to correct.
+- **The output is the whole vessel graph**, usable as ground truth with researchers: per edge (a
+  junction-to-junction or junction-to-tip segment, the locked COUNT unit) its 3D length and its
+  width with the width's spread; per node its position, degree and kind.
+- **Invariances (default, not yet confirmed):** the graph must not change when a stack is rotated
+  or flipped, or imaged brighter or dimmer.
+
+## The draft graph to correct
+
+```
+python3 analysis/trace_vessel_graph.py STACK.tif OUT_DIR --region Y0,X0,SIZE [--z-step UM]
+```
+
+It writes the region's viewer files and `graph.json` (its `_about` field defines every field). The
+viewer then draws the graph over the approved view, and the owner clicks an edge or a junction to
+mark it right, wrong or unsure, or marks a vessel the draft missed on the flattened picture. The
+published page keeps the marks in its store under the draft's id, which changes whenever the
+tracing does, so marks never attach to the wrong edge. Tracing, in scale-free terms: background
+removed at ~11 µm, hysteresis at 5σ / 2.5σ of each plane's own noise, planes with no signal above
+noise skipped, 3D skeleton, then bumps (spurs under 3 vessel widths), specks and split junctions
+cleaned out. `tests/test_trace_vessel_graph.py` pins the graph bookkeeping on drawn tubes.
+
+**First draft (2026-09-29):** frontal r1, region `400,400,400` (220 µm square, all 30 slices,
+z-step 1 µm guessed): 114 edges, 49 junctions, 2011 µm of centerline, traced down to slice 17. Seen
+before the owner's marks: the main vessels are followed; faint links between them are missed; a few
+edges are specks (short isolated pieces); junctions cluster where a vessel runs along a bright blob.
+
 ## Open questions for the owner
 
 1. **The z-step** (µm between slices). It is in the `.sld`, not the TIFF exports. Until it is
    known, depth is drawn at a guessed spacing, and no 3D length or z-shape is quantitative.
-2. **Ground truth.** Nothing measures width or length until the owner has said, in the viewer,
-   what counts as a vessel, which crossings are real junctions, and which vessels are wide.
+2. **Ground truth.** Nothing measures width or length until the owner has marked the draft graph:
+   which edges are vessels, which junctions are real, and which vessels the draft missed.
 
 ## Ledger
 
@@ -99,5 +128,8 @@ owner on the first stack from another region.
 |---|---|---|
 | Flatten all slices into one maximum projection, then run the 2D pipeline | earlier plan | Kept as the baseline and shown beside every 3D view; loses length along z, fuses crossings at different depths, and can merge stacked vessels into one wide one. Revisit as the naive baseline once a 3D answer key exists. |
 | Look at the stack in 3D (ray-cast brightest + surface), by depth colour | owner, this page | First real stack published 2026-09-28 (`cd31_frontal_x20 r 1`, bin 2, spacing guessed); owner approved the view 2026-09-29 (settings above). |
-| Full 3D pipeline: 3D threshold → 3D skeleton → graph → distance-map diameter | STAR Protocols 2020, VesselVio | Not started: needs the z-step and the owner's ground truth first. |
+| Full 3D pipeline: 3D threshold → 3D skeleton → graph → distance-map diameter | STAR Protocols 2020, VesselVio | Built as the draft tracer (above) to produce an answer key for the owner to correct, not as the measurement; scored only once marks exist. |
+| Normalise noise per plane for hysteresis | this session | Kept: the signal fades with depth. Alone it blew camera noise in the empty lower planes into junk edges (120 edges, traced to slice 30); skipping planes whose top 0.1% is within 1.5× of pure-noise level fixed it. |
+| Seed on the whole stack's noise, grow per plane | this session | Dropped: the stack-wide noise is set by the quiet lower planes, so seeds fired everywhere in the bright upper ones (506 edges). |
+| Prune every short spur in one pass | this session | Dropped: a bump and the real vessel's last stretch off the same junction both went, eating the vessel; now only the shortest spur per junction goes per pass. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |

@@ -113,6 +113,11 @@ The owner's four 30-slice CD31 + DAPI stacks are being looked at in 3D before an
 on them: [3D-STACKS.md](3D-STACKS.md) holds the problem, the literature, the web viewer and its
 open questions (the z-step, and the owner's ground truth).
 
+**Now (2026-09-29):** the owner approved the viewer's view and has no ground truth, so a draft 3D
+vessel graph of one 220 µm region of frontal r1 is published for the owner to mark
+(`trace_vessel_graph.py`). Next: read the owner's marks back from the page's store and turn the
+confirmed ones into the answer key; no measurement before that.
+
 ## Reproduce
 
 ```
