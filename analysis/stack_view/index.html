@@ -171,7 +171,7 @@
 
 <section class="review" id="edges-sec" hidden>
   <h2>Traced vessels</h2>
-  <div class="key" style="margin-bottom:8px"><span><i style="border-top-style:dashed"></i>not reviewed</span><span><i></i>right</span><span><i style="border-color:var(--mark)"></i>wrong</span><span><i style="border-color:var(--mark);border-top-style:dashed"></i>unsure</span><span><i style="border-color:var(--mark);width:8px"></i>+ missed</span><span>○ junction</span></div>
+  <div class="key" style="margin-bottom:8px"><span><i style="border-top-style:dashed"></i>not reviewed</span><span><i></i>right</span><span><i style="border-color:var(--mark)"></i>wrong</span><span><i style="border-color:var(--mark);border-top-style:dashed"></i>unsure</span><span><i style="border-color:var(--mark);width:8px"></i>+ missed</span><span>○ junction</span><span>× crossing</span></div>
   <div class="edges-wrap"><table class="edges"><thead><tr><th>Edge</th><th>Nodes</th><th>Length µm</th><th>Width µm</th><th>± sd</th><th id="depth-col">Depth µm</th><th>Your mark</th></tr></thead><tbody id="edge-rows"></tbody></table></div>
   <p class="note" style="margin-top:8px"><span id="edges-note">Length runs along the traced 3D centerline; width is twice the distance from it to the traced edge, so the 20× axial blur widens vessels running through depth. Depth uses the guessed slice spacing.</span> <button type="button" class="tool" id="dl" hidden>Download the graph with your marks</button></p>
 </section>
@@ -407,13 +407,13 @@ function hud(vp) {
   const n = S.z1 - S.z0 + 1;
   const zt = `${n} slices · ${(n * S.zs).toFixed(0)} µm${meta.z_step_um ? '' : ' (spacing guessed)'}`;
   c.fillText(zt, Math.min(Math.max(zx + 6, 4), W - c.measureText(zt).width - 4), Math.min(Math.max(zy, 14), H - 24));
-  if (R.graph && R.show && !R.graph.flat) drawGraph(c, (zyx) => P(world(zyx)), 1, true);
+  if (R.graph && R.show) drawGraph(c, (zyx) => P(world(zyx)), 1, true);
 }
 
 // ---------- the traced draft: drawing ----------
 const MARK = '#ff4fd8';   // no colour the depth palette or the signal uses
 function world(zyx) {
-  const [Z, Y, X] = meta.shape, um = R.graph.um_per_px, zi = zyx[0] / R.graph.z_step_um;
+  const [Z, Y, X] = meta.shape, um = R.graph.um_per_px, zi = R.graph.flat ? zyx[0] : zyx[0] / R.graph.z_step_um;
   return [(2 * (zyx[2] / um + .5) / X - 1) * half[0], (1 - 2 * (zyx[1] / um + .5) / Y) * half[1], half[2] * (1 - 2 * (zi + .5) / Z)];
 }
 const inSlab = (zyx) => { if (R.graph.flat) return true; const zi = zyx[0] / R.graph.z_step_um; return zi >= S.z0 - .5 && zi <= S.z1 + .5; };
@@ -421,16 +421,18 @@ function look(key) {
   const v = R.marks[key] && R.marks[key].verdict;
   return v === 'right' ? ['#ffffff', []] : v === 'wrong' ? [MARK, []] : v === 'unsure' ? [MARK, [4, 3]] : ['#ffffff', [4, 3]];
 }
-// Draws every traced edge, junction and missed mark with `proj` (zyx µm -> [x, y, w]); `k` scales
-// line widths to the target canvas. Records screen positions for picking when `record` is set.
+// Draws every traced edge, junction, crossing and missed mark with `proj` (zyx µm -> [x, y, w]); `k`
+// scales line widths to the target canvas. Records screen positions for picking when `record` is
+// set, which is the 3D view: there a flattened draft is placed at the depth its signal sits.
 function drawGraph(c, proj, k, record) {
+  const at = (o) => record && R.graph.flat ? o.at3 : o.zyx_um;
   const pick = { edges: [], nodes: [], missed: [] };
   c.save(); c.lineJoin = 'round'; c.lineCap = 'round';
   const labels = [];
   for (const e of R.graph.edges) {
     const key = 'e' + e.id, on = R.sel && R.sel.key === key, [col, dash] = look(key);
     const runs = []; let run = [];
-    for (const q of e.path_zyx_um) {
+    for (const q of record && R.graph.flat ? e.path3 : e.path_zyx_um) {
       if (!inSlab(q)) { if (run.length > 1) runs.push(run); run = []; continue; }
       const p = proj(q); if (p[2] <= 0) { run = []; continue; } run.push(p);
     }
@@ -447,11 +449,19 @@ function drawGraph(c, proj, k, record) {
   c.setLineDash([]);
   for (const n of R.graph.nodes) {
     if (n.kind !== 'junction' || !inSlab(n.zyx_um)) continue;
-    const p = proj(n.zyx_um); if (p[2] <= 0) continue;
+    const p = proj(at(n)); if (p[2] <= 0) continue;
     const key = 'n' + n.id, on = R.sel && R.sel.key === key, [col, dash] = look(key);
     c.beginPath(); c.arc(p[0], p[1], (on ? 6 : 4) * k, 0, 7);
     c.lineWidth = 3 * k; c.strokeStyle = 'rgba(0,0,0,.65)'; c.stroke();
     c.lineWidth = (on ? 2.5 : 1.5) * k; c.strokeStyle = col; c.setLineDash(dash.map(x => x * k)); c.stroke(); c.setLineDash([]);
+    pick.nodes.push([key, p[0], p[1]]);
+  }
+  for (const x of R.graph.crossings || []) {
+    const p = proj(at(x)); if (p[2] <= 0) continue;
+    const key = 'c' + x.id, on = R.sel && R.sel.key === key, [col, dash] = look(key), r = (on ? 7 : 5) * k;
+    c.beginPath(); c.moveTo(p[0] - r, p[1] - r); c.lineTo(p[0] + r, p[1] + r); c.moveTo(p[0] - r, p[1] + r); c.lineTo(p[0] + r, p[1] - r);
+    c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(0,0,0,.65)'; c.stroke();
+    c.lineWidth = (on ? 2.5 : 1.8) * k; c.strokeStyle = col; c.setLineDash(dash.map(v => v * k)); c.stroke(); c.setLineDash([]);
     pick.nodes.push([key, p[0], p[1]]);
   }
   for (const [id, m] of Object.entries(R.missed)) {
@@ -607,7 +617,7 @@ function redraw() { dirty = true; flat(); reviewPanel(); }
 function select(key) { R.sel = key ? { key } : null; redraw(); }
 function reviewPanel() {
   const g = R.graph, k = R.sel && R.sel.key, mk = k && R.marks[k];
-  let t = g.flat ? 'Click a line or a junction circle in the flattened picture below to review it.' : 'Click a line or a junction circle in either picture to review it.';
+  let t = g.flat ? 'Click a line, a junction circle or a crossing × in either picture to review it.' : 'Click a line or a junction circle in either picture to review it.';
   if (k && k[0] === 'e') {
     const e = edgeOf(+k.slice(1)), z = e.path_zyx_um.map(p => p[0]);
     t = `Edge ${e.id}: junction/end ${e.from} to ${e.to}\n${f1(e.length_um)} µm long, ${f1(e.width_um_mean)} ± ${f1(e.width_um_sd)} µm wide ` +
@@ -616,6 +626,10 @@ function reviewPanel() {
     const n = nodeOf(+k.slice(1)), es = g.edges.filter(e => e.from === n.id || e.to === n.id).map(e => e.id);
     t = `Junction ${n.id}: ${n.degree} edges meet (${es.join(', ')})` + (g.flat ? '' : `\nat depth ${f1(n.zyx_um[0])} µm`) +
         (n.at_region_edge ? '\non the region edge' : '');
+  } else if (k && k[0] === 'c') {
+    const x = R.graph.crossings.find(c => c.id === +k.slice(1));
+    t = `Crossing ${x.id}: the draft reads these as vessels passing at different depths ` +
+        `(slices ${x.branch_depths_slices.map(d => d.map(f1).join(', ')).join(' / ')}), not meeting.\nRight: they cross. Wrong: they really join here.`;
   } else if (k && k[0] === 'm') {
     t = g.flat ? 'A vessel you marked as missed' :
       `A vessel you marked as missed\nat depth ${f1(R.missed[k.slice(1)].zyx_um[0])} µm (brightest point under your click)`;
@@ -629,7 +643,9 @@ function reviewPanel() {
   const note = $('sel-note'); note.disabled = !k || R.readOnly;
   if (document.activeElement !== note) note.value = k ? ((k[0] === 'm' ? R.missed[k.slice(1)] : mk) || {}).note || '' : '';
   const J = g.nodes.filter(n => n.kind === 'junction'), done = (arr, p) => arr.filter(x => R.marks[p + x.id] && R.marks[p + x.id].verdict).length;
-  $('progress').textContent = `Reviewed ${done(g.edges, 'e')} of ${g.edges.length} edges and ${done(J, 'n')} of ${J.length} junctions · ` +
+  const C = g.crossings || [];
+  $('progress').textContent = `Reviewed ${done(g.edges, 'e')} of ${g.edges.length} edges, ${done(J, 'n')} of ${J.length} junctions` +
+    (C.length ? ` and ${done(C, 'c')} of ${C.length} crossings` : '') + ' · ' +
     `${Object.keys(R.missed).length} missed ${Object.keys(R.missed).length === 1 ? 'vessel' : 'vessels'} marked`;
   edgeRows();
 }
@@ -703,9 +719,10 @@ async function initReview() {
   if (R.graph.flat) {
     document.querySelector('h1').textContent = 'Flattened draft vessel graph to review';
     $('depth-col').remove();
-    $('sel').textContent = 'Click a line or a junction circle in the flattened picture below to review it.';
-    $('edges-note').textContent = 'Traced on the flattened picture, so depth plays no part: length runs along the centerline in the image plane, ' +
-      'and width is twice the distance from it to the traced edge. The 3D view is here to check crossings; the draft is drawn only on the flattened picture.';
+    for (const e of R.graph.edges) e.path3 = e.path_zyx_um.map((q, i) => [e.depth_slices[i], q[1], q[2]]);
+    for (const o of [...R.graph.nodes, ...(R.graph.crossings || [])]) o.at3 = [o.depth_slice, o.zyx_um[1], o.zyx_um[2]];
+    $('edges-note').textContent = 'Traced on the flattened picture: length runs along the centerline in the image plane, and width is twice the ' +
+      'distance from it to the traced edge. Depth is used only to tell crossing vessels (×) from joining ones; the 3D view draws each line at the depth its signal sits.';
   }
   bindReview(); redraw();
   const cl = window.claude;
@@ -724,6 +741,9 @@ async function initReview() {
       const g = JSON.parse(JSON.stringify(R.graph));
       for (const e of g.edges) e.review = R.marks['e' + e.id] || null;
       for (const n of g.nodes) n.review = R.marks['n' + n.id] || null;
+      for (const x of g.crossings || []) x.review = R.marks['c' + x.id] || null;
+      for (const e of g.edges) delete e.path3;
+      for (const o of [...g.nodes, ...(g.crossings || [])]) delete o.at3;
       g.missed = Object.values(R.missed);
       dl.save({ filename: `${g.draft_id}.json`, data: JSON.stringify(g, null, 1) }).catch(() => {});
     };

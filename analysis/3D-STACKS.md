@@ -117,11 +117,24 @@ before the owner's marks: the main vessels are followed; faint links between the
 edges are specks (short isolated pieces); junctions cluster where a vessel runs along a bright blob.
 That draft pruned spurs under 3 vessel widths, before the Murray limit.
 
-**The owner's call on flattening (2026-09-29):** measurement runs on the unflattened stack. After
+**The owner's call on flattening (2026-09-29):** a plain flattened trace is not enough. After
 rotating the 3D view, two vessels that the flattened picture shows as one crossing are plainly
-distinct, so the flattened draft stays only as a display and a baseline. A first measure of how
+distinct. Offered full 3D tracing or a flat trace that uses depth only to split crossings, the owner
+chose **flat plus depth**: lengths stay in the image plane, and depth decides crossing vs junction. A first measure of how
 often this bites: on the flattened draft, 11 of 25 junctions have branches whose brightest slice
 differs by 4 or more (indicative: the brightest slice per pixel is noisy on faint vessels).
+
+**Flat plus depth — the crossing test.** `segment_flat` also returns where each pixel's signal sits
+in depth (the noise-normalised planes' intensity-weighted mean slice). At every junction of the flat
+trace, each branch's depth is read 1–5 of its widths out (clear of the junction's blend), sorted, and
+split into groups wherever neighbours differ by more than 3× their pooled point-to-point depth
+noise (floored at half a slice). If the groups separate and one of them is a pair running straight
+through (over 120° apart), the vessels cross: each group gets its own node, so the pair becomes one
+vessel passing through. A lone branch that merely climbs or dives stays a branch. `graph.json`
+lists these as `crossings`, and each edge carries `depth_slices` so the 3D view can draw the flat
+draft at its depth. Region `400,400,400`: 51 edges, 18 junctions, 7 crossings, 1541 µm (the central
+X of the region is crossing 3: slices 0–1 against 4). Seen before marks: 3 and 7 look like real
+crossings; 5 and 6 cut a short stub off a vessel that changes depth, which may be wrong.
 
 **The spur limit — Murray's law (owner asked, 2026-09-29).** The owner proposed not marking a node
 whose side branch is no more than about twice the vessel width. Murray's law says a parent of radius
@@ -161,4 +174,7 @@ remain.
 | Prune every short spur in one pass | this session | Dropped: a bump and the real vessel's last stretch off the same junction both went, eating the vessel; now only the shortest spur per junction goes per pass. |
 | Flatten the raw brightest value, then threshold | this session | Dropped for the flattened draft: deep vessels are faint in raw units and fell below one global threshold; flattening each plane's noise-normalised value keeps them. |
 | Spur limit: Murray floor (1.29 parent widths) vs the owner's 2× | owner + Murray 1926, PLOS One 2023 | 2× is the default: Murray gives 1.29 as the floor below which nothing is a real branch, and every stub between 1.29 and 2 on the first region was a bump (2× drops 16 of 76 flattened edges). Owner may overrule by eye. |
+| Full 3D tracing, crossings resolved in the volume | owner offered, 2026-09-29 | Not chosen by the owner in favour of flat plus depth. A first 3D run of the same region gave 168 edges and 71 junctions (vs 51 / 18 flat): the volume fragments more. |
+| Crossing when branch depths differ, on the whole-edge depth scatter | this session | Dropped: long vessels dive slowly, so the scatter along a whole edge hid the central X; the point-to-point depth noise found it. |
+| Crossing on depth alone, no straight-through test | this session | Dropped: a Y whose third arm climbs through depth split into a false crossing. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |

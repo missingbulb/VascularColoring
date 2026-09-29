@@ -34,6 +34,11 @@ MIN_OBJECT_UM3 = 60.0               # below a ~5 µm stretch of the thinnest cap
 SPUR_WIDTHS = 2.0
 MIN_OBJECT_UM2 = 20.0  # flattened specks; Rust et al. 2020 drop objects below the same area
 ISLAND_WIDTHS = 4     # a lone piece shorter than 4 of its own widths is a speck
+# Two vessels cross rather than meet when their branches arrive at depths further apart than this
+# many times the branches' own point-to-point depth noise.
+CROSS_SEPARATION = 3.0
+MIN_DEPTH_NOISE_SLICES = 0.5
+STRAIGHT_THROUGH_COS = -0.5    # two branches leaving a node over 120° apart are one vessel   # scale-dependent: a floor of half a slice on that noise
 Z_STEP_PLACEHOLDER_UM = 1.0  # the owner's approved guess until the lab supplies the real z-step
 
 
@@ -57,7 +62,8 @@ def segment(vol, um_xy, z_step):
 
 
 def segment_flat(vol, um_xy):
-    """CD31 (Z, Y, X) -> the flattened picture's mask and distance map (µm), as one-plane volumes."""
+    """CD31 (Z, Y, X) -> the flattened picture's mask and distance map (µm), as one-plane volumes,
+    plus the depth (in slices) where each pixel's signal sits."""
     # Each plane is put in its own noise units first, exactly as the 3D tracer does, and only then
     # flattened, so a vessel that is faint because it lies deep still counts as signal.
     v = vol.astype(np.float32)
@@ -71,7 +77,10 @@ def segment_flat(vol, um_xy):
     mask = remove_small_objects(mask, max_size=int(MIN_OBJECT_UM2 / um_xy ** 2))
     skel = skeletonize(mask)
     dist = ndi.distance_transform_edt(mask, sampling=um_xy)
-    return skel[None], dist[None], np.array([1.0, um_xy, um_xy])
+    zk = ndi.gaussian_filter(z[keep], (0, 2 * SMOOTH_UM / um_xy, 2 * SMOOTH_UM / um_xy))
+    w = np.clip(zk - GROW_SIGMA, 0, None)
+    depth = (w * np.flatnonzero(keep)[:, None, None]).sum(0) / (w.sum(0) + 1e-9)
+    return skel[None], dist[None], np.array([1.0, um_xy, um_xy]), depth
 
 
 def raw_graph(skel):
@@ -187,13 +196,64 @@ ABOUT = {
     'status': 'DRAFT traced by trace_vessel_graph.py; nothing here is ground truth until the owner marks it',
     'units': 'µm; zyx_um is depth, row, column from the region corner (region_yx_px in the full frame)',
     'z_step_um': 'spacing between slices assumed when tracing; z_step_source says whether it is a guess',
-    'flat': 'true when traced on the flattened picture: depth is 0 everywhere and lengths are in the image plane',
+    'flat': 'true when traced on the flattened picture: zyx_um depth is 0 and lengths are in the image plane',
+    'depth_slices': 'flat only: the slice where the signal sits at each centerline point (edges) or node, '
+                    'used to tell crossing vessels apart, never for length',
+    'crossings': 'flat only: points where branches arrived at clearly separate depths, so the draft treats '
+                 'them as vessels passing over each other; branch_depths_slices lists each depth group',
     'nodes': 'id, zyx_um, degree (edges meeting there), kind: junction (3+) or end (1), '
              'at_region_edge: the vessel continues outside the region, so this end is not a real tip',
     'edges': 'id, from/to node ids, length_um along the 3D centerline, width_um_mean/sd/min/max: twice the '
              'distance from the centerline to the mask edge, sampled along the edge; path_zyx_um: the centerline',
     'width_caveat': 'the 20x axial blur widens vessels along z, and widths under ~2 µm are near the pixel size',
 }
+
+
+def branch_depth(p, at, depth, dist_px):
+    """A branch's depth a little way out from node `at`, its point-to-point depth noise, and the
+    in-plane unit direction it leaves `at` in."""
+    if np.linalg.norm(p[0] - at) > np.linalg.norm(p[-1] - at):
+        p = p[::-1]
+    w = 2 * dist_px[tuple(p.T)].mean()
+    L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+    near = (L >= w) & (L <= 5 * w)   # clear of the blend at the junction itself
+    if near.sum() < 3:
+        near = L >= L[-1] / 3
+    d = depth[p[:, 1], p[:, 2]]
+    noise = 1.4826 * np.median(np.abs(np.diff(d))) / np.sqrt(2)   # not the vessel's slow dive
+    heading = p[near][-1, 1:] - p[0, 1:]
+    return float(np.median(d[near])), max(float(noise), MIN_DEPTH_NOISE_SLICES), heading / (np.linalg.norm(heading) + 1e-9)
+
+
+def split_crossings(pos, edges, depth, dist_px):
+    """Where a junction's branches arrive in groups at clearly separate depths, and one group is a
+    vessel running straight through, the vessels cross rather than meet: each group gets its own
+    node, so a pair becomes one vessel passing through. A branch that merely dives stays a branch."""
+    edges = [list(e) for e in edges]
+    deg = {}
+    for a, b, _ in edges:
+        deg[a] = deg.get(a, 0) + 1; deg[b] = deg.get(b, 0) + 1
+    nid, crossings = max(pos), []
+    for n in [n for n, d in deg.items() if d >= 3]:
+        ends = [(j, 0 if e[0] == n else 1) for j, e in enumerate(edges) if n in e[:2]]
+        if len(ends) != deg[n]:
+            continue
+        bd = [branch_depth(edges[j][2], pos[n], depth, dist_px) for j, _ in ends]
+        order = np.argsort([b[0] for b in bd])
+        groups = [[order[0]]]
+        for i, k in zip(order[:-1], order[1:]):
+            if bd[k][0] - bd[i][0] > CROSS_SEPARATION * np.hypot(bd[k][1], bd[i][1]):
+                groups.append([])
+            groups[-1].append(k)
+        through = [g for g in groups if len(g) == 2 and bd[g[0]][2] @ bd[g[1]][2] < STRAIGHT_THROUGH_COS]
+        if len(groups) < 2 or not through or any(len(g) == 2 and g not in through for g in groups):
+            continue
+        crossings.append((pos[n].copy(), [[round(bd[k][0], 1) for k in g] for g in groups]))
+        for g in groups[1:]:
+            nid += 1; pos[nid] = pos[n].copy()
+            for k in g:
+                j, side = ends[k]; edges[j][side] = nid
+    return pos, edges, crossings
 
 
 def to_json(pos, edges, dist_um, sp, meta):
@@ -219,10 +279,20 @@ def to_json(pos, edges, dist_um, sp, meta):
 
 
 def trace_flat(vol, um, meta):
-    skel, dist, sp = segment_flat(vol, um)
+    skel, dist, sp, depth = segment_flat(vol, um)
     pos, edges = raw_graph(skel)
     pos, edges = clean(pos, edges, dist / um)
-    return to_json(pos, edges, dist, sp, {**meta, 'um_per_px': um, 'z_step_um': None, 'flat': True})
+    pos, edges, crossings = split_crossings(pos, edges, depth, dist / um)
+    pos, edges = clean(pos, edges, dist / um)
+    g = to_json(pos, edges, dist, sp, {**meta, 'um_per_px': um, 'z_step_um': None, 'flat': True})
+    at = lambda q: depth[int(round(q[1] / um)), int(round(q[2] / um))]
+    for n in g['nodes']:
+        n['depth_slice'] = round(float(at(n['zyx_um'])), 1)
+    for e in g['edges']:
+        e['depth_slices'] = [round(float(at(q)), 1) for q in e['path_zyx_um']]
+    g['crossings'] = [{'id': i, 'zyx_um': [round(float(v), 2) for v in c * sp], 'depth_slice': float(max(map(max, ds))),
+                       'branch_depths_slices': ds} for i, (c, ds) in enumerate(crossings, 1)]
+    return g
 
 
 def trace(vol, um, z_step, meta):

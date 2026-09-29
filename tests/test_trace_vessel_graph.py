@@ -58,6 +58,16 @@ def main():
     for w, x in zip(want, sorted(e['length_um'] for e in flat['edges'])):
         assert abs(x - w) < 0.2 * w, f'in-plane length {x} vs drawn {w}'
     assert all(n['zyx_um'][0] == 0 for n in flat['nodes'])
+    assert not flat['crossings'], f"a branch that climbs through depth is still a branch: {flat['crossings']}"
+
+    cross = rng.normal(100, 10, vol.shape).astype(np.float32)   # two vessels passing at different depths
+    tube(cross, (2.0, 30.0, 5.0), (2.0, 30.0, 55.0), RADIUS_UM)
+    tube(cross, (9.0, 5.0, 30.0), (9.0, 55.0, 30.0), RADIUS_UM)
+    over = tvg.trace_flat(cross, UM, {})
+    assert len(over['crossings']) == 1, over['crossings']
+    assert not [n for n in over['nodes'] if n['kind'] == 'junction'], over['nodes']
+    lengths = [e['length_um'] for e in over['edges']]
+    assert len(lengths) == 2 and all(abs(x - 50) < 5 for x in lengths), f'each vessel one whole edge: {lengths}'
     print('ok')
 
 
