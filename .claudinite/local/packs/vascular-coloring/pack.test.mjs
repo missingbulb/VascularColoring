@@ -3,13 +3,13 @@
 //   node .claudinite/local/packs/vascular-coloring/pack.test.mjs
 import assert from 'node:assert/strict';
 
-import overlayColorContrast from './overlay-color-contrast.mjs';
-import renderedOverlaysUntracked from './rendered-overlays-untracked.mjs';
-import panelScaleCalibration from './panel-scale-calibration.mjs';
-import scaleNumbersMatchCalibration from './scale-numbers-match-calibration.mjs';
-import lockedMetricFields from './locked-metric-fields.mjs';
-import calibrationSingleSource from './calibration-single-source.mjs';
-import renderOutputsGitignored from './render-outputs-gitignored.mjs';
+import overlayColorContrast from './worldRules/overlay-color-contrast.mjs';
+import renderedOverlaysUntracked from './worldRules/rendered-overlays-untracked.mjs';
+import panelScaleCalibration from './worldRules/panel-scale-calibration.mjs';
+import scaleNumbersMatchCalibration from './worldRules/scale-numbers-match-calibration.mjs';
+import lockedMetricFields from './worldRules/locked-metric-fields.mjs';
+import calibrationSingleSource from './worldRules/calibration-single-source.mjs';
+import renderOutputsGitignored from './worldRules/render-outputs-gitignored.mjs';
 
 // The slice of the check context these rules use: file reads and the tracked list.
 const ctx = ({ files = {}, tracked = [] }) => ({
