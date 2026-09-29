@@ -98,7 +98,7 @@ owner on the first stack from another region.
 ## The draft graph to correct
 
 ```
-python3 analysis/trace_vessel_graph.py STACK.tif OUT_DIR --region Y0,X0,SIZE [--z-step UM]
+python3 analysis/trace_vessel_graph.py STACK.tif OUT_DIR --region Y0,X0,SIZE [--z-step UM | --flat]
 ```
 
 It writes the region's viewer files and `graph.json` (its `_about` field defines every field). The
@@ -107,13 +107,32 @@ mark it right, wrong or unsure, or marks a vessel the draft missed on the flatte
 published page keeps the marks in its store under the draft's id, which changes whenever the
 tracing does, so marks never attach to the wrong edge. Tracing, in scale-free terms: background
 removed at ~11 µm, hysteresis at 5σ / 2.5σ of each plane's own noise, planes with no signal above
-noise skipped, 3D skeleton, then bumps (spurs under 3 vessel widths), specks and split junctions
-cleaned out. `tests/test_trace_vessel_graph.py` pins the graph bookkeeping on drawn tubes.
+noise skipped, 3D skeleton, then bumps (spurs shorter than the Murray limit below), specks and
+split junctions cleaned out. `--flat` flattens the planes that carry signal (each in its own noise
+units, so a deep faint vessel still counts) into one picture and traces that, with no depth. `tests/test_trace_vessel_graph.py` pins the graph bookkeeping on drawn tubes.
 
 **First draft (2026-09-29):** frontal r1, region `400,400,400` (220 µm square, all 30 slices,
 z-step 1 µm guessed): 114 edges, 49 junctions, 2011 µm of centerline, traced down to slice 17. Seen
 before the owner's marks: the main vessels are followed; faint links between them are missed; a few
 edges are specks (short isolated pieces); junctions cluster where a vessel runs along a bright blob.
+That draft pruned spurs under 3 vessel widths, before the Murray limit.
+
+**The spur limit — Murray's law (owner asked, 2026-09-29).** The owner proposed not marking a node
+whose side branch is no more than about twice the vessel width. Murray's law says a parent of radius
+r0 splits into daughters with r0^a = r1^a + r2^a; a = 3 for laminar flow (Murray 1926; Wikipedia,
+"Murray's law"), and measured capillary networks sit nearer a = 2–2.2 (PLOS One 2023,
+doi:10.1371/journal.pone.0292962, retinal capillaries). An even split's daughter is therefore
+2^(-1/a) = 0.71–0.79 of the parent's width, and even a lopsided real branch is a vessel, not a bump,
+once it has left the parent's wall. So a real daughter reaches at least half the parent's width
+(to the wall) plus its own width beyond it: `SPUR_WIDTHS = 0.5 + 2^(-1/3) ≈ 1.29` parent widths,
+the parent width being the median width of the other edges at that junction. A spur shorter than
+that is a bump. The owner's 2× is kept as the stricter alternative to judge by eye.
+
+**Flattened draft (2026-09-29):** same region, `--flat`: 76 edges, 31 junctions, 1579 µm of
+centerline, median width 3.6 µm. With the owner's 2× instead: 60 edges, 25 junctions, 1542 µm;
+at 3×: 52 / 22 / 1512 µm, so the limit moves node counts much more than length. Seen before marks:
+the main vessels and most faint links are followed; a few specks and short stubs off bright blobs
+remain.
 
 ## Open questions for the owner
 
@@ -132,4 +151,6 @@ edges are specks (short isolated pieces); junctions cluster where a vessel runs 
 | Normalise noise per plane for hysteresis | this session | Kept: the signal fades with depth. Alone it blew camera noise in the empty lower planes into junk edges (120 edges, traced to slice 30); skipping planes whose top 0.1% is within 1.5× of pure-noise level fixed it. |
 | Seed on the whole stack's noise, grow per plane | this session | Dropped: the stack-wide noise is set by the quiet lower planes, so seeds fired everywhere in the bright upper ones (506 edges). |
 | Prune every short spur in one pass | this session | Dropped: a bump and the real vessel's last stretch off the same junction both went, eating the vessel; now only the shortest spur per junction goes per pass. |
+| Flatten the raw brightest value, then threshold | this session | Dropped for the flattened draft: deep vessels are faint in raw units and fell below one global threshold; flattening each plane's noise-normalised value keeps them. |
+| Spur limit from Murray's law (1.29 parent widths) vs the owner's 2× | owner + Murray 1926, PLOS One 2023 | Murray limit is the default; 2× drops 16 of 76 flattened edges. Owner to choose by eye on the flattened draft. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |

@@ -4,7 +4,9 @@
 This is a DRAFT answer key, not a measurement: it exists so the owner can mark each traced edge and
 junction right or wrong in the 3D viewer, and only what they confirm becomes ground truth.
 
-    python3 analysis/trace_vessel_graph.py STACK.tif OUT_DIR --region Y0,X0,SIZE [--z-step UM]
+    python3 analysis/trace_vessel_graph.py STACK.tif OUT_DIR --region Y0,X0,SIZE [--z-step UM | --flat]
+
+--flat traces the stack flattened to one picture instead, so no depth and no z-step enter the graph.
 
 OUT_DIR receives the region's viewer files (export_stack_view.py, full resolution) plus graph.json,
 whose `_about` field explains every other field.
@@ -24,7 +26,12 @@ SMOOTH_UM = 0.55      # about the lateral resolution of a 20x objective
 SEED_SIGMA, GROW_SIGMA = 5.0, 2.5   # hysteresis, in each slice's own robust noise units
 SIGNAL_OVER_NOISE = 1.5            # a plane is traced only if its top 0.1% beats pure noise by this
 MIN_OBJECT_UM3 = 60.0               # below a ~5 µm stretch of the thinnest capillary
-SPUR_WIDTHS = 3       # a side branch shorter than 3 vessel widths is a bump on the vessel wall
+# A real daughter vessel leaves its parent's wall (half the parent's width from the centerline) and
+# runs at least its own width beyond it; by Murray's law (r0^a = r1^a + r2^a, a = 3 laminar, ~2.2
+# measured in capillaries) an even split's daughter is 2^(-1/a) = 0.73-0.79 of the parent's width.
+# A side branch shorter than that from the junction is a bump on the wall, not a vessel.
+SPUR_WIDTHS = 0.5 + 2 ** (-1 / 3)
+MIN_OBJECT_UM2 = 20.0  # flattened specks; Rust et al. 2020 drop objects below the same area
 ISLAND_WIDTHS = 4     # a lone piece shorter than 4 of its own widths is a speck
 Z_STEP_PLACEHOLDER_UM = 1.0  # the owner's approved guess until the lab supplies the real z-step
 
@@ -46,6 +53,24 @@ def segment(vol, um_xy, z_step):
     mask = ndi.binary_closing(mask, np.ones((3, 3, 3)))
     mask = remove_small_objects(mask, max_size=int(MIN_OBJECT_UM3 / um_xy ** 3))
     return mask, ndi.distance_transform_edt(mask, sampling=spacing), spacing
+
+
+def segment_flat(vol, um_xy):
+    """CD31 (Z, Y, X) -> the flattened picture's mask and distance map (µm), as one-plane volumes."""
+    # Each plane is put in its own noise units first, exactly as the 3D tracer does, and only then
+    # flattened, so a vessel that is faint because it lies deep still counts as signal.
+    v = vol.astype(np.float32)
+    r = v - ndi.gaussian_filter(v, (0, BACKGROUND_UM / um_xy, BACKGROUND_UM / um_xy))
+    r = ndi.gaussian_filter(r, (0, SMOOTH_UM / um_xy, SMOOTH_UM / um_xy))
+    dev = np.abs(r - np.median(r, axis=(1, 2), keepdims=True))
+    z = r / (1.4826 * np.median(dev, axis=(1, 2), keepdims=True) + 1e-9)
+    keep = np.percentile(z, 99.9, axis=(1, 2)) >= SIGNAL_OVER_NOISE * 3.09   # as in segment()
+    mask = apply_hysteresis_threshold(z[keep].max(axis=0), GROW_SIGMA, SEED_SIGMA)
+    mask = ndi.binary_closing(mask, np.ones((3, 3)))
+    mask = remove_small_objects(mask, max_size=int(MIN_OBJECT_UM2 / um_xy ** 2))
+    skel = skeletonize(mask)
+    dist = ndi.distance_transform_edt(mask, sampling=um_xy)
+    return skel[None], dist[None], np.array([1.0, um_xy, um_xy])
 
 
 def raw_graph(skel):
@@ -129,16 +154,18 @@ def clean(pos, edges, dist_px):
         # Only the shortest spur at each junction goes per pass: two short spurs off one junction are
         # often a bump and the real vessel's last stretch, and the vessel must survive the bump.
         spurs = {}
+        width = {j: 2 * float(dist_px[tuple(p.T)].mean()) for j, (a, b, p) in E.items()}
         for j, (a, b, p) in list(E.items()):
             L = plen(p)
             if a == b and L < 4 * max(rad[a], 1):
                 del E[j]; changed = True; continue
             ends = (deg[a] == 1) + (deg[b] == 1)
             junc = a if deg[b] == 1 else b
-            if ends == 1 and L < SPUR_WIDTHS * 2 * max(rad[junc], 1):
+            parent = [width[k] for k, (c, d, _) in E.items() if k != j and junc in (c, d)]
+            if ends == 1 and L < SPUR_WIDTHS * max(float(np.median(parent)) if parent else 0, 1):
                 if junc not in spurs or L < spurs[junc][1]:
                     spurs[junc] = (j, L)
-            elif ends == 2 and L < ISLAND_WIDTHS * max(2 * float(dist_px[tuple(p.T)].mean()), 1):
+            elif ends == 2 and L < ISLAND_WIDTHS * max(width[j], 1):
                 del E[j]; changed = True
         for j, _ in spurs.values():
             del E[j]; changed = True
@@ -159,6 +186,7 @@ ABOUT = {
     'status': 'DRAFT traced by trace_vessel_graph.py; nothing here is ground truth until the owner marks it',
     'units': 'µm; zyx_um is depth, row, column from the region corner (region_yx_px in the full frame)',
     'z_step_um': 'spacing between slices assumed when tracing; z_step_source says whether it is a guess',
+    'flat': 'true when traced on the flattened picture: depth is 0 everywhere and lengths are in the image plane',
     'nodes': 'id, zyx_um, degree (edges meeting there), kind: junction (3+) or end (1), '
              'at_region_edge: the vessel continues outside the region, so this end is not a real tip',
     'edges': 'id, from/to node ids, length_um along the 3D centerline, width_um_mean/sd/min/max: twice the '
@@ -189,6 +217,13 @@ def to_json(pos, edges, dist_um, sp, meta):
     return {'_about': ABOUT, **meta, 'nodes': nodes, 'edges': out}
 
 
+def trace_flat(vol, um, meta):
+    skel, dist, sp = segment_flat(vol, um)
+    pos, edges = raw_graph(skel)
+    pos, edges = clean(pos, edges, dist / um)
+    return to_json(pos, edges, dist, sp, {**meta, 'um_per_px': um, 'z_step_um': None, 'flat': True})
+
+
 def trace(vol, um, z_step, meta):
     mask, dist, sp = segment(vol, um, z_step)
     pos, edges = raw_graph(skeletonize(mask).astype(bool))
@@ -208,15 +243,18 @@ def main():
     ap.add_argument('stack'); ap.add_argument('out')
     ap.add_argument('--region', required=True, help='Y0,X0,SIZE in full-resolution px')
     ap.add_argument('--z-step', type=float, help='µm between slices; defaults to the file, then the placeholder')
+    ap.add_argument('--flat', action='store_true', help='trace the flattened picture, ignoring depth')
     a = ap.parse_args()
     region = ev.parse_region(a.region)
     m = ev.export(a.stack, a.out, 1, a.z_step, region)
     z_step = m['z_step_um'] or Z_STEP_PLACEHOLDER_UM
     cd31 = next(c for c, name in ev.CHANNELS.items() if name == 'cd31')
     vol = ev.read_channel(a.stack, cd31, len(ev.CHANNELS), region)
-    g = trace(vol, m['um_per_px'], z_step, {
-        'source': m['source'], 'region_yx_px': list(region[:2]), 'region_size_px': region[2],
-        'z_step_source': m['z_step_source'] or 'placeholder'})
+    meta = {'source': m['source'], 'region_yx_px': list(region[:2]), 'region_size_px': region[2]}
+    if a.flat:
+        g = trace_flat(vol, m['um_per_px'], meta)
+    else:
+        g = trace(vol, m['um_per_px'], z_step, {**meta, 'z_step_source': m['z_step_source'] or 'placeholder'})
     g['draft_id'] = draft_id(g)
     with open(os.path.join(a.out, 'graph.json'), 'w') as f:
         json.dump(g, f)
@@ -226,9 +264,9 @@ def main():
     with open(page, 'w') as f:
         f.write(html)
     n_j = sum(n['kind'] == 'junction' for n in g['nodes'])
+    how = 'flattened' if a.flat else f"z-step {z_step} µm, {g['z_step_source']}"
     print(f"{m['source']} region {a.region}: {len(g['edges'])} edges, {n_j} junctions, "
-          f"{sum(e['length_um'] for e in g['edges']):.0f} µm of centerline (z-step {z_step} µm, "
-          f"{g['z_step_source']}) -> {a.out}")
+          f"{sum(e['length_um'] for e in g['edges']):.0f} µm of centerline ({how}) -> {a.out}")
 
 
 if __name__ == '__main__':

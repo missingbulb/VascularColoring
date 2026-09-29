@@ -50,6 +50,14 @@ def main():
 
     for e in g['edges']:
         assert abs(e['width_um_mean'] - 2 * RADIUS_UM) < 1.5, f"width {e['width_um_mean']} vs drawn {2 * RADIUS_UM}"
+
+    flat = tvg.trace_flat(vol, UM, {})
+    assert flat['flat'] and flat['z_step_um'] is None
+    assert len(flat['edges']) == 3, f"flattened: one edge per arm, the bump dropped: {[e['length_um'] for e in flat['edges']]}"
+    want = sorted(float(np.linalg.norm(np.subtract(e, hub)[1:])) for e in arms)    # depth ignored
+    for w, x in zip(want, sorted(e['length_um'] for e in flat['edges'])):
+        assert abs(x - w) < 0.2 * w, f'in-plane length {x} vs drawn {w}'
+    assert all(n['zyx_um'][0] == 0 for n in flat['nodes'])
     print('ok')
 
 
