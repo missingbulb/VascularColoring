@@ -6,6 +6,17 @@
       "version": "60928.1"
     },
     {
+      "id": "claudinite-lifecycle",
+      "version": "60928.1"
+    },
+    {
+      "id": "git-github",
+      "version": "60928.1",
+      "via": [
+        "basics"
+      ]
+    },
+    {
       "id": "research-project",
       "version": "60928.1"
     },
@@ -25,12 +36,26 @@
       }
     },
     {
-      "id": "claudinite-lifecycle",
+      "id": "claudinite-tasks",
+      "version": "60928.2"
+    },
+    {
+      "id": "github-pages",
+      "version": "60928.1",
+      "answers": {
+        "publish_set": "Ariel asked (2026-10-02) for a static GitHub Pages site, titled 3D MicroViewer, that loads a z-stack the way NoR Finder loads images and opens it in the 3D stack viewer. The site is microviewer/, with a root index.html that forwards to it: publish_root ., publish_paths index.html microviewer, build_command node microviewer/build.mjs (writes microviewer/config.js, with the Google API key for loading from Drive when the repository has one)."
+      }
+    },
+    {
+      "id": "public-website",
       "version": "60928.1"
     },
     {
-      "id": "claudinite-tasks",
-      "version": "60928.2"
+      "id": "html",
+      "version": "60928.1",
+      "via": [
+        "public-website"
+      ]
     }
   ],
   "taskScheduler": {

@@ -92,3 +92,4 @@ dialog h2 { margin: 0 0 6px; }
 #drive-list .meta { font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
 .hint-text { font-size: 12px; color: var(--muted); }
 .legend-ends { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
+footer#version { margin-top: 24px; text-align: right; }
