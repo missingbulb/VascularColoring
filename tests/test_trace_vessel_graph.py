@@ -10,6 +10,7 @@ import os
 import sys
 
 import numpy as np
+from scipy import ndimage as ndi
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'analysis'))
 import trace_vessel_graph as tvg
@@ -17,6 +18,7 @@ import trace_vessel_graph as tvg
 UM, Z_STEP = 0.5, 1.0
 Z, Y, X = 12, 120, 120
 RADIUS_UM = 2.0
+AXIAL_BLUR = (1.0, 0.5, 0.5)   # px sigma: the lens spreads each vessel over neighbouring slices
 
 
 def tube(vol, a, b, r_um):
@@ -36,7 +38,7 @@ def main():
     for end in arms:
         tube(vol, hub, end, RADIUS_UM)
     tube(vol, (5.0, 30.0, 42.0), (5.0, 35.0, 42.0), 1.0)                # a bump on the first arm's wall
-    vol += rng.normal(100, 10, vol.shape).astype(np.float32)
+    vol = ndi.gaussian_filter(vol, AXIAL_BLUR) + rng.normal(100, 10, vol.shape).astype(np.float32)
 
     g = tvg.trace(vol, UM, Z_STEP, {})
     junctions = [n for n in g['nodes'] if n['kind'] == 'junction']
@@ -60,11 +62,11 @@ def main():
     assert all(n['zyx_um'][0] == 0 for n in flat['nodes'])
     assert not flat['crossings'], f"a branch that climbs through depth is still a branch: {flat['crossings']}"
 
-    cross = rng.normal(100, 10, vol.shape).astype(np.float32)   # two vessels passing at different depths
-    tube(cross, (2.0, 30.0, 5.0), (2.0, 30.0, 55.0), RADIUS_UM)
-    tube(cross, (9.0, 5.0, 30.0), (9.0, 55.0, 30.0), RADIUS_UM)
-    over = tvg.trace_flat(cross, UM, {})
-    assert len(over['crossings']) == 1, over['crossings']
+    cross = np.zeros_like(vol)   # two vessels passing at different depths
+    tube(cross, (1.0, 30.0, 5.0), (1.0, 30.0, 55.0), RADIUS_UM)
+    tube(cross, (10.0, 5.0, 30.0), (10.0, 55.0, 30.0), RADIUS_UM)
+    over = tvg.trace_flat(ndi.gaussian_filter(cross, AXIAL_BLUR) + rng.normal(100, 10, vol.shape).astype(np.float32), UM, {})
+    assert [c['decided_by'] for c in over['crossings']] == ['slices'], over['crossings']
     assert not [n for n in over['nodes'] if n['kind'] == 'junction'], over['nodes']
     lengths = [e['length_um'] for e in over['edges']]
     assert len(lengths) == 2 and all(abs(x - 50) < 5 for x in lengths), f'each vessel one whole edge: {lengths}'

@@ -141,8 +141,11 @@ crossings; 5 and 6 cut a short stub off a vessel that changes depth, which may b
 branches are joined only if some slice shows both of them, each within one slice of where its own
 signal is at least half its peak, in one connected piece around the junction. Branches that never
 share such a slice are separate vessels; a branch no single slice shows (too faint alone) gives no
-evidence. Region `400,400,400` (prototype, not yet in the tracer): 8 crossings vs the depth test's
-7; both agree on 4, including the central X, which the slices show plainly (one vessel in slices
+evidence. **The owner chose slices first, depth as fallback (2026-10-02), and the tracer now
+does that:** the slices decide wherever they show at least two of a junction's branches; a branch no
+single slice shows joins the group nearest its depth; with fewer than two shown, the depth test
+decides. Each crossing records `decided_by`. Region `400,400,400`: 51 edges, 17 junctions,
+8 crossings, all decided by the slices, 1554 µm. Against the depth test's 7 crossings: both agree on 4, including the central X, which the slices show plainly (one vessel in slices
 1–2, the other in 3–7). Seen before marks: the slice method is right where a vessel dives with a
 stub on it (the depth test's 3 extra calls look like that), and it pairs the through-vessels by
 itself; it is weakest where a branch is faint in every single slice, which it can only leave
@@ -189,5 +192,5 @@ remain.
 | Full 3D tracing, crossings resolved in the volume | owner offered, 2026-09-29 | Not chosen by the owner in favour of flat plus depth. A first 3D run of the same region gave 168 edges and 71 junctions (vs 51 / 18 flat): the volume fragments more. |
 | Crossing when branch depths differ, on the whole-edge depth scatter | this session | Dropped: long vessels dive slowly, so the scatter along a whole edge hid the central X; the point-to-point depth noise found it. |
 | Crossing on depth alone, no straight-through test | this session | Dropped: a Y whose third arm climbs through depth split into a false crossing. |
-| Per-slice detection merged across slices, to split fake junctions | owner, 2026-10-02 | Prototype: 8 crossings, 4 shared with the depth test. Its one-slice tolerance stops a branch whose peak sits in one slice splitting from its neighbour peaking in the next. Without the half-peak filter, axial blur joins crossing vessels in the slice where both blur. Awaiting the owner's pick. |
+| Per-slice detection merged across slices, to split fake junctions | owner, 2026-10-02 | Kept as the primary crossing test, depth as fallback (owner, 2026-10-02): 8 crossings, 4 shared with the depth test. Its one-slice tolerance stops a branch whose peak sits in one slice splitting from its neighbour peaking in the next. Without the half-peak filter, axial blur joins crossing vessels in the slice where both blur. The drawn-tube test needed an axial blur added: flat-topped tubes made every slice equally strong. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |

@@ -38,7 +38,11 @@ ISLAND_WIDTHS = 4     # a lone piece shorter than 4 of its own widths is a speck
 # many times the branches' own point-to-point depth noise.
 CROSS_SEPARATION = 3.0
 MIN_DEPTH_NOISE_SLICES = 0.5
-STRAIGHT_THROUGH_COS = -0.5    # two branches leaving a node over 120° apart are one vessel   # scale-dependent: a floor of half a slice on that noise
+STRAIGHT_THROUGH_COS = -0.5    # two branches leaving a node over 120° apart are one vessel
+# The lens blurs each vessel over neighbouring slices, so two crossing vessels touch in the slice
+# where their blurs overlap: a branch counts in a slice only near its own strongest slices.
+SLICE_PEAK_FRACTION = 0.5
+SLICE_TOLERANCE = 1            # slices; a branch peaking one slice off its neighbour still meets it   # scale-dependent: a floor of half a slice on that noise
 Z_STEP_PLACEHOLDER_UM = 1.0  # the owner's approved guess until the lab supplies the real z-step
 
 
@@ -63,7 +67,8 @@ def segment(vol, um_xy, z_step):
 
 def segment_flat(vol, um_xy):
     """CD31 (Z, Y, X) -> the flattened picture's mask and distance map (µm), as one-plane volumes,
-    plus the depth (in slices) where each pixel's signal sits."""
+    the depth (in slices) where each pixel's signal sits, and each slice segmented on its own:
+    its mask and its signal in noise units (all False / zero for a slice with no signal)."""
     # Each plane is put in its own noise units first, exactly as the 3D tracer does, and only then
     # flattened, so a vessel that is faint because it lies deep still counts as signal.
     v = vol.astype(np.float32)
@@ -80,7 +85,11 @@ def segment_flat(vol, um_xy):
     zk = ndi.gaussian_filter(z[keep], (0, 2 * SMOOTH_UM / um_xy, 2 * SMOOTH_UM / um_xy))
     w = np.clip(zk - GROW_SIGMA, 0, None)
     depth = (w * np.flatnonzero(keep)[:, None, None]).sum(0) / (w.sum(0) + 1e-9)
-    return skel[None], dist[None], np.array([1.0, um_xy, um_xy]), depth
+    slices = np.zeros(z.shape, bool)
+    for i in np.flatnonzero(keep):
+        m = apply_hysteresis_threshold(z[i], GROW_SIGMA, SEED_SIGMA)
+        slices[i] = remove_small_objects(ndi.binary_closing(m, np.ones((3, 3))), max_size=int(MIN_OBJECT_UM2 / um_xy ** 2))
+    return skel[None], dist[None], np.array([1.0, um_xy, um_xy]), depth, slices, np.where(keep[:, None, None], z, 0)
 
 
 def raw_graph(skel):
@@ -200,7 +209,8 @@ ABOUT = {
     'depth_slices': 'flat only: the slice where the signal sits at each centerline point (edges) or node, '
                     'used to tell crossing vessels apart, never for length',
     'crossings': 'flat only: points where branches arrived at clearly separate depths, so the draft treats '
-                 'them as vessels passing over each other; branch_depths_slices lists each depth group',
+                 'them as vessels passing over each other; branch_depths_slices lists each group\'s depths; '
+                 'decided_by: slices (some single slice shows the branches apart) or depth (too faint per slice)',
     'nodes': 'id, zyx_um, degree (edges meeting there), kind: junction (3+) or end (1), '
              'at_region_edge: the vessel continues outside the region, so this end is not a real tip',
     'edges': 'id, from/to node ids, length_um along the 3D centerline, width_um_mean/sd/min/max: twice the '
@@ -225,30 +235,84 @@ def branch_depth(p, at, depth, dist_px):
     return float(np.median(d[near])), max(float(noise), MIN_DEPTH_NOISE_SLICES), heading / (np.linalg.norm(heading) + 1e-9)
 
 
-def split_crossings(pos, edges, depth, dist_px):
-    """Where a junction's branches arrive in groups at clearly separate depths, and one group is a
-    vessel running straight through, the vessels cross rather than meet: each group gets its own
-    node, so a pair becomes one vessel passing through. A branch that merely dives stays a branch."""
+def slice_groups(p_list, at, pieces, z, dist_px):
+    """Group a junction's branches by the slices that show them: two branches join only if one slice
+    shows both, each near its own strongest slices, in one connected piece of that slice.
+    Returns the groups of branch indices and the branches no single slice shows."""
+    near, strong = [], []
+    for p in p_list:
+        if np.linalg.norm(p[0] - at) > np.linalg.norm(p[-1] - at):
+            p = p[::-1]
+        w = 2 * dist_px[tuple(p.T)].mean()
+        L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+        sel = (L >= w) & (L <= 3 * w)   # clear of the blend at the junction itself
+        if sel.sum() < 2:
+            sel = L >= L[-1] / 3
+        q = p[sel][:, 1:]
+        prof = np.array([np.median(z[k][q[:, 0], q[:, 1]] * (pieces[k][q[:, 0], q[:, 1]] > 0)) for k in range(len(z))])
+        on = (prof > 0) & (prof >= SLICE_PEAK_FRACTION * prof.max())
+        strong.append(ndi.binary_dilation(on, iterations=SLICE_TOLERANCE) if on.any() else on)
+        near.append(q)
+    seen = [i for i in range(len(p_list)) if strong[i].any()]
+    root = list(range(len(p_list)))
+
+    def find(i):
+        while root[i] != i:
+            i = root[i]
+        return i
+    for k in range(len(z)):
+        ids = {}
+        for i in seen:
+            if strong[i][k]:
+                l = pieces[k][near[i][:, 0], near[i][:, 1]]; l = l[l > 0]
+                if len(l):
+                    ids[i] = np.bincount(l).argmax()
+        for i in ids:
+            for j in ids:
+                if i < j and ids[i] == ids[j]:
+                    root[find(i)] = find(j)
+    groups = {}
+    for i in seen:
+        groups.setdefault(find(i), []).append(i)
+    return list(groups.values()), [i for i in range(len(p_list)) if i not in seen]
+
+
+def split_crossings(pos, edges, depth, dist_px, slices, z):
+    """Where a junction's branches are separate vessels passing over each other, give each vessel
+    its own node, so a pair becomes one vessel passing through. The slices decide wherever they
+    show the branches; a branch no single slice shows joins the group nearest its depth, and when
+    fewer than two branches are shown, depth alone decides: separate depth groups with one pair
+    running straight through. A branch that merely dives stays a branch."""
     edges = [list(e) for e in edges]
     deg = {}
     for a, b, _ in edges:
         deg[a] = deg.get(a, 0) + 1; deg[b] = deg.get(b, 0) + 1
     nid, crossings = max(pos), []
+    pieces = np.stack([ndi.label(m, np.ones((3, 3)))[0] for m in slices])
     for n in [n for n, d in deg.items() if d >= 3]:
         ends = [(j, 0 if e[0] == n else 1) for j, e in enumerate(edges) if n in e[:2]]
         if len(ends) != deg[n]:
             continue
         bd = [branch_depth(edges[j][2], pos[n], depth, dist_px) for j, _ in ends]
-        order = np.argsort([b[0] for b in bd])
-        groups = [[order[0]]]
-        for i, k in zip(order[:-1], order[1:]):
-            if bd[k][0] - bd[i][0] > CROSS_SEPARATION * np.hypot(bd[k][1], bd[i][1]):
-                groups.append([])
-            groups[-1].append(k)
-        through = [g for g in groups if len(g) == 2 and bd[g[0]][2] @ bd[g[1]][2] < STRAIGHT_THROUGH_COS]
-        if len(groups) < 2 or not through or any(len(g) == 2 and g not in through for g in groups):
-            continue
-        crossings.append((pos[n].copy(), [[round(bd[k][0], 1) for k in g] for g in groups]))
+        groups, faint = slice_groups([edges[j][2] for j, _ in ends], pos[n], pieces, z, dist_px)
+        if sum(map(len, groups)) >= 2:
+            how = 'slices'
+            if len(groups) < 2:
+                continue
+            for i in faint:
+                min(groups, key=lambda g: abs(np.median([bd[k][0] for k in g]) - bd[i][0])).append(i)
+        else:
+            how = 'depth'
+            order = np.argsort([b[0] for b in bd])
+            groups = [[order[0]]]
+            for i, k in zip(order[:-1], order[1:]):
+                if bd[k][0] - bd[i][0] > CROSS_SEPARATION * np.hypot(bd[k][1], bd[i][1]):
+                    groups.append([])
+                groups[-1].append(k)
+            through = [g for g in groups if len(g) == 2 and bd[g[0]][2] @ bd[g[1]][2] < STRAIGHT_THROUGH_COS]
+            if len(groups) < 2 or not through or any(len(g) == 2 and g not in through for g in groups):
+                continue
+        crossings.append((pos[n].copy(), [[round(bd[k][0], 1) for k in g] for g in groups], how))
         for g in groups[1:]:
             nid += 1; pos[nid] = pos[n].copy()
             for k in g:
@@ -279,10 +343,10 @@ def to_json(pos, edges, dist_um, sp, meta):
 
 
 def trace_flat(vol, um, meta):
-    skel, dist, sp, depth = segment_flat(vol, um)
+    skel, dist, sp, depth, slices, z = segment_flat(vol, um)
     pos, edges = raw_graph(skel)
     pos, edges = clean(pos, edges, dist / um)
-    pos, edges, crossings = split_crossings(pos, edges, depth, dist / um)
+    pos, edges, crossings = split_crossings(pos, edges, depth, dist / um, slices, z)
     pos, edges = clean(pos, edges, dist / um)
     g = to_json(pos, edges, dist, sp, {**meta, 'um_per_px': um, 'z_step_um': None, 'flat': True})
     at = lambda q: depth[int(round(q[1] / um)), int(round(q[2] / um))]
@@ -291,7 +355,7 @@ def trace_flat(vol, um, meta):
     for e in g['edges']:
         e['depth_slices'] = [round(float(at(q)), 1) for q in e['path_zyx_um']]
     g['crossings'] = [{'id': i, 'zyx_um': [round(float(v), 2) for v in c * sp], 'depth_slice': float(max(map(max, ds))),
-                       'branch_depths_slices': ds} for i, (c, ds) in enumerate(crossings, 1)]
+                       'branch_depths_slices': ds, 'decided_by': how} for i, (c, ds, how) in enumerate(crossings, 1)]
     return g
 
 

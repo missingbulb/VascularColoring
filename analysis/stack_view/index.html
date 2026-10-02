@@ -629,7 +629,9 @@ function reviewPanel() {
   } else if (k && k[0] === 'c') {
     const x = R.graph.crossings.find(c => c.id === +k.slice(1));
     t = `Crossing ${x.id}: the draft reads these as vessels passing at different depths ` +
-        `(slices ${x.branch_depths_slices.map(d => d.map(f1).join(', ')).join(' / ')}), not meeting.\nRight: they cross. Wrong: they really join here.`;
+        `(slices ${x.branch_depths_slices.map(d => d.map(f1).join(', ')).join(' / ')}), not meeting.\n` +
+        (x.decided_by === 'depth' ? 'Decided by depth: no single slice shows these branches.' : 'Decided by the slices: no single slice shows them joined.') +
+        '\nRight: they cross. Wrong: they really join here.';
   } else if (k && k[0] === 'm') {
     t = g.flat ? 'A vessel you marked as missed' :
       `A vessel you marked as missed\nat depth ${f1(R.missed[k.slice(1)].zyx_um[0])} µm (brightest point under your click)`;
