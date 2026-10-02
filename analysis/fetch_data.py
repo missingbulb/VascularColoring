@@ -7,7 +7,7 @@ means "never fetched yet", and `--pin` writes what was fetched back into the man
     pip install gdown
     python3 analysis/fetch_data.py            # fetch everything missing, verify everything
     python3 analysis/fetch_data.py --pin      # also record checksums / folder listings still null
-    python3 analysis/fetch_data.py NAME ...   # only these sources
+    python3 analysis/fetch_data.py NAME ...   # only these sources, `on_demand` ones included
 """
 import argparse
 import fnmatch
@@ -82,7 +82,7 @@ def fetch_all(manifest, raw, pin=False, only=None, transport=None):
     transport = transport or GoogleDrive()
     sources = load_manifest(manifest)
     for s in sources:
-        if only and s['name'] not in only:
+        if (s['name'] not in only) if only else s.get('on_demand'):
             continue
         if s['kind'] == 'file':
             digest = _fetch_one(s['drive_id'], os.path.join(raw, s['name']), s['sha256'], transport)
@@ -112,7 +112,7 @@ def fetch_all(manifest, raw, pin=False, only=None, transport=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('names', nargs='*', help='only these sources (default: all)')
+    ap.add_argument('names', nargs='*', help='only these sources (default: all but the on_demand ones)')
     ap.add_argument('--pin', action='store_true',
                     help='write checksums and folder listings that are still null')
     args = ap.parse_args()
