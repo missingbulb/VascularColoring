@@ -2,7 +2,8 @@
 the exported viewer does (analysis/export_stack_view.py), whatever encoding the TIFF uses.
 
 tifffile writes each case and is the reference reader; the stacks are drawn because what is checked is
-decoding, not any detection. Needs node on the PATH.
+decoding, not any detection. It cannot catch the page drawing the volumes wrong; that was checked by
+eye in a browser. Needs node on the PATH.
 
 Run: python3 tests/test_microviewer_tiff.py
 """
@@ -82,6 +83,23 @@ def pages(compression):
     return write
 
 
+def refused(name, write, says):
+    """A file the page cannot draw is refused with a reason, never drawn wrong."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, 'stack.tif')
+        write(path)
+        r = read(path)
+    assert 'refused' in r, f'{name}: read instead of refused'
+    assert says in r['refused'], (name, r['refused'])
+    print(f'ok  {name} is refused')
+
+
+def truncated(path):
+    imagej()(path, drawn(np.uint16))
+    with open(path, 'r+b') as f:
+        f.truncate(os.path.getsize(path) // 2)
+
+
 def main():
     a16, a8 = drawn(np.uint16), drawn(np.uint8)
     check('ImageJ 16-bit, uncompressed', a16, imagej(), 'ImageJ')
@@ -91,6 +109,9 @@ def main():
     check('plain pages, LZW', a8[:, :1], pages('tiff_lzw'), 'pages')
     check('OME, Deflate with prediction', a16, ome(compression='zlib', predictor=True), 'OME')
     check('plain pages, PackBits', a8[:, :1], pages('packbits'), 'pages')
+    refused('not a TIFF', lambda p: open(p, 'wb').write(b'\x89PNG\r\n\x1a\n' + bytes(64)), 'not a TIFF')
+    refused('a tiled TIFF', lambda p: tifffile.imwrite(p, a16[:, 0], tile=(16, 16)), 'tiled')
+    refused('a TIFF cut short', truncated, 'cut short')
 
 
 if __name__ == '__main__':
