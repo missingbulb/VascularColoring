@@ -5,7 +5,7 @@
 const $ = (id) => document.getElementById(id);
 
 // ---------- small matrix kit (column-major, as WebGL expects) ----------
-const M = {
+export const M = {
   persp(fovy, asp, n, f) { const t = 1 / Math.tan(fovy / 2), r = 1 / (n - f);
     return [t / asp,0,0,0, 0,t,0,0, 0,0,(n + f) * r,-1, 0,0,2 * n * f * r,0]; },
   look(e, c, u) {
@@ -117,9 +117,15 @@ void main(){
 const LOOK = { lo: .63, hi: 1, iso: .35 };
 const CHANNEL_KEY = 'mv-channel';
 
-const S = { mode: 0, chan: 0, overlay: 0, depth: 1, ...LOOK, z0: 0, z1: 0, zs: 1, slice: 0,
+export const S = { mode: 0, chan: 0, overlay: 0, depth: 1, ...LOOK, z0: 0, z1: 0, zs: 1, slice: 0,
             yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], dragging: false };
-let meta = null, vols = [], gl, U = {}, tex = [], half = [1, 1, .1], dirty = true, bound = false;
+export let meta = null, half = [1, 1, .1];
+let vols = [], gl, U = {}, tex = [], dirty = true, bound = false;
+const drawers = [];
+
+// Other layers drawn in the same camera (the vessel model) register here and redraw with every frame.
+export const onDraw = (fn) => drawers.push(fn);
+export const redraw = () => { dirty = true; };
 
 const other = () => (S.chan === 0 ? 1 : 0);
 const showsOverlay = () => S.overlay && vols.length === 2;
@@ -170,7 +176,7 @@ function geometry() {
   half = ext.map(e => e / m);
 }
 
-function camera(asp) {
+export function camera(asp) {
   const cp = Math.cos(S.pitch), e = [S.dist * cp * Math.sin(S.yaw), S.dist * Math.sin(S.pitch), S.dist * cp * Math.cos(S.yaw)];
   const right = [Math.cos(S.yaw), 0, -Math.sin(S.yaw)];
   const up = [-Math.sin(S.pitch) * Math.sin(S.yaw), Math.cos(S.pitch), -Math.sin(S.pitch) * Math.cos(S.yaw)];
@@ -197,6 +203,7 @@ function render() {
   gl.uniform1f(U.uStep, (2 * half[0] / X) * (S.dragging ? 1.6 : .7));
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   hud(vp);
+  for (const fn of drawers) fn();
 }
 
 function hud(vp) {
@@ -233,7 +240,7 @@ function lut2d(v, z, v2) {
   if (v2 != null) { const bb = w(v2); r += bb * .35; g += bb * .6; b += bb * 1.4; }
   return [Math.min(r, 1) * 255, Math.min(g, 1) * 255, Math.min(b, 1) * 255];
 }
-function turbo(x) {
+export function turbo(x) {
   x = .12 + .8 * Math.min(Math.max(x, 0), 1);
   const p = (k, k2) => k[0] + k[1]*x + k[2]*x*x + k[3]*x*x*x + k2[0]*x**4 + k2[1]*x**5;
   return [p([0.13572138,4.61539260,-42.66032258,132.13108234], [-152.94239396,59.28637943]),
@@ -314,12 +321,32 @@ function bind() {
   $('v-top').onclick = view(0, 0); $('v-tilt').onclick = view(-.5, -.6);
   $('v-side').onclick = view(Math.PI / 2, 0); $('v-front').onclick = view(0, Math.PI / 2 - .001);
 
-  const cv = $('gl'), pts = new Map();
+  controls($('gl'));
+  const loop = () => { if (dirty) render(); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+
+// Drag to rotate, shift-drag or right-drag to pan, wheel or pinch to zoom, on any canvas that shows
+// the stack's camera. grab(e), when given, sees each press first and may take that pointer over by
+// returning {move(e), up(e), cancel()}.
+export function controls(cv, grab) {
+  const pts = new Map(), own = new Map();
   let last = null;
-  cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); S.dragging = true; last = null; });
-  const end = (e) => { pts.delete(e.pointerId); if (!pts.size) { S.dragging = false; dirty = true; } last = null; };
+  cv.addEventListener('pointerdown', (e) => {
+    cv.setPointerCapture(e.pointerId);
+    const g = grab && !pts.size ? grab(e) : null;
+    if (g) { own.set(e.pointerId, g); return; }
+    pts.set(e.pointerId, [e.clientX, e.clientY]); S.dragging = true; last = null;
+  });
+  const end = (e) => {
+    const g = own.get(e.pointerId);
+    if (g) { own.delete(e.pointerId); if (e.type === 'pointerup') g.up(e); else g.cancel?.(); return; }
+    pts.delete(e.pointerId); if (!pts.size) { S.dragging = false; dirty = true; } last = null;
+  };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   cv.addEventListener('pointermove', (e) => {
+    const g = own.get(e.pointerId);
+    if (g) return g.move(e);
     if (!pts.has(e.pointerId)) return;
     const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
     const dx = e.clientX - prev[0], dy = e.clientY - prev[1], k = 2.2 / cv.clientHeight;
@@ -334,8 +361,6 @@ function bind() {
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('wheel', (e) => { e.preventDefault(); S.dist = Math.min(Math.max(S.dist * Math.exp(e.deltaY * .001), .6), 12); dirty = true; }, { passive: false });
   new ResizeObserver(() => { dirty = true; }).observe(cv);
-  const loop = () => { if (dirty) render(); requestAnimationFrame(loop); };
-  requestAnimationFrame(loop);
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

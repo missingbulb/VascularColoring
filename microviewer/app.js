@@ -4,6 +4,7 @@ import { openTiff, TiffError } from './tiff.js';
 import { buildVolumes, binFor } from './stack.js';
 import * as drive from './drive.js';
 import { show, maxTextureSide } from './viewer.js';
+import * as model from './modelview.js';
 
 const $ = (id) => document.getElementById(id);
 const SOURCE = 'mv-load-source', DRIVE_LINK = 'mv-drive-link';
@@ -41,6 +42,7 @@ async function openBytes(name, bytes) {
     $('progress').hidden = true; $('empty').hidden = true; $('viewer').hidden = false;
     document.title = `${name} · 3D MicroViewer`;
     show(name, meta, vols);
+    model.stackOpened(name);
     busy = false;
   } catch (err) { failed(err); }
 }
@@ -56,7 +58,8 @@ for (const ev of ['dragenter', 'dragover']) document.addEventListener(ev, (e) =>
 document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('over'); });
 document.addEventListener('drop', (e) => {
   e.preventDefault(); document.body.classList.remove('over');
-  openFile(e.dataTransfer.files[0]);
+  const f = e.dataTransfer.files[0];
+  if (f && /\.json$/i.test(f.name)) model.openFile(f); else openFile(f);
 });
 
 function load(src) {
@@ -127,6 +130,7 @@ document.addEventListener('click', (e) => { if (!$('load-menu').contains(e.targe
   $('drive-link').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); open(); } });
 }
 
+model.init();
 try { maxTextureSide(); } catch (err) {
   $('load-main').disabled = true; $('empty-msg').textContent = err.message;
 }
