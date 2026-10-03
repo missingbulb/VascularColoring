@@ -6,7 +6,6 @@ detection, so no real image is needed. It cannot catch the viewer page drawing t
 
 Run: python3 tests/test_export_stack_view.py
 """
-import gzip
 import json
 import os
 import sys
@@ -14,6 +13,7 @@ import tempfile
 
 import numpy as np
 import tifffile
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'analysis'))
 import export_stack_view as ev
@@ -48,12 +48,17 @@ def main():
             assert json.load(f)['shape'] == m['shape']
         assert os.path.exists(os.path.join(out, 'index.html'))
 
-        cd31 = np.frombuffer(gzip.open(os.path.join(out, 'cd31.u8.gz')).read(), np.uint8).reshape(m['shape'])
+        cd31 = np.asarray(Image.open(os.path.join(out, 'cd31.png'))).reshape(m['shape'])
         assert cd31[:, 9:11, :].mean() > 100 > cd31[:, :5, :].mean(), 'the vessel band is in the CD31 file'
         peaks = cd31[:, 9:11, :].mean(axis=(1, 2))
         assert all(a > b for a, b in zip(peaks, peaks[1:])), f'depth fade must survive the export: {peaks}'
 
         assert ev.export(src, out, 2, 2.5)['z_step_source'] == 'command line'
+
+        r = ev.export(src, out, 1, None, region=(10, 12, 16))
+        assert r['shape'] == [Z, 16, 16] and r['region_yx_px'] == [10, 12], r
+        cd31 = np.asarray(Image.open(os.path.join(out, 'cd31.png'))).reshape(r['shape'])
+        assert cd31[:, 8:12, :].mean() > 100 > cd31[:, :6, :].mean(), 'the region keeps the band where the stack has it'
     print('ok')
 
 

@@ -115,6 +115,12 @@ open questions (the z-step, and the owner's ground truth).
 The same viewer is a static site, **3D MicroViewer** ([`microviewer/`](../microviewer/)), that opens
 any TIFF z-stack in the browser, from the computer or from Google Drive, with no export step.
 
+**Now (2026-09-29):** the owner approved the viewer's view and has no ground truth, so a draft 3D
+vessel graph of one 220 µm region of frontal r1 is published for the owner to mark
+(`trace_vessel_graph.py`), plus a flattened draft (`--flat`) that tells crossing vessels from joining ones by
+segmenting each slice on its own, with depth as fallback, the owner's chosen route; its spur limit comes from Murray's law (see `3D-STACKS.md`). Next: read the owner's marks back from the page's store and turn the
+confirmed ones into the answer key; no measurement before that.
+
 ## Reproduce
 
 ```
