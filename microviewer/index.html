@@ -38,14 +38,43 @@
 <p class="lede">Each slice of the stack is placed at its depth. Drag to turn the stack; the view opens looking straight down, as the microscope does, which is the same picture as flattening every slice into one. Tilt it to see which crossings are real junctions and which are structures passing over each other at different depths.</p>
 
 <div class="layout">
-  <div>
+  <div class="stages" id="stages">
     <div class="stage" id="stage">
       <canvas id="gl"></canvas>
       <canvas id="hud"></canvas>
-      <div class="hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
+      <div class="hint" id="stage-hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
+      <div class="tag" id="tag-stack" hidden>Stack</div>
+    </div>
+    <div class="stage" id="stage-model" hidden>
+      <canvas id="mcv"></canvas>
+      <div class="hint">drag a point: move it · right-click: delete or split · right-drag from one piece to another: connect them</div>
+      <div class="tag">Model</div>
     </div>
   </div>
   <aside>
+    <fieldset id="model-set">
+      <legend>Vessel model</legend>
+      <div class="views">
+        <button type="button" id="model-draft" hidden>Load the draft model for this stack</button>
+        <button type="button" id="model-load">Load a model file</button>
+      </div>
+      <input id="model-file" type="file" accept=".json,application/json" hidden>
+      <div id="model-on" class="col" hidden>
+        <div class="seg" id="model-mode">
+          <button type="button" data-v="side" aria-pressed="true">Side by side</button>
+          <button type="button" data-v="overlay" aria-pressed="false">Overlay</button>
+          <button type="button" data-v="off" aria-pressed="false">Hide</button>
+        </div>
+        <p class="note" id="model-facts"></p>
+        <div class="views">
+          <button type="button" id="m-undo">Undo</button>
+          <button type="button" id="m-redo">Redo</button>
+          <button type="button" id="m-reset">Discard edits</button>
+        </div>
+        <button type="button" class="primary" id="m-save">Download corrected model</button>
+      </div>
+      <p class="note" id="model-msg"></p>
+    </fieldset>
     <fieldset>
       <legend>Render</legend>
       <div class="seg" id="mode">
@@ -121,6 +150,7 @@
     <div class="drive-row end"><span id="drive-msg" class="hint-text"></span><button value="close">Close</button></div>
   </form>
 </dialog>
+<div id="ctx" class="pop" role="menu" hidden></div>
 <script src="config.js"></script>
 <script type="module" src="app.js"></script>
 </body>
