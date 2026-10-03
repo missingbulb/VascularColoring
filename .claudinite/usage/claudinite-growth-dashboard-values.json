@@ -1,11 +1,23 @@
 {
   "usage-findings": {
-    "value": 7,
+    "value": 9,
     "previous": 7,
-    "note": "2026-09-04 to 2026-10-01"
+    "note": "2026-09-05 to 2026-10-02"
   },
   "usage-newest": {
     "rows": [
+      {
+        "subject": "merge-to-main",
+        "rule": "skill-triggered-missing-moments",
+        "cause": "known",
+        "since": "2026-10-03"
+      },
+      {
+        "subject": "searching-for-a-tool",
+        "rule": "skill-always-loaded",
+        "cause": "known",
+        "since": "2026-10-03"
+      },
       {
         "subject": "fetching-from-the-web",
         "rule": "skill-triggered-missing-moments",
