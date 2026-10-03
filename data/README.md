@@ -18,7 +18,7 @@ This follows the image commit rule in
 
 **Adding data:** put it in Drive, share it as **"Anyone with the link"**, add an entry to
 `sources.json` (`kind: "file"` with `"sha256": null`, or `kind: "folder"` with `"files": null` and
-optional `skip` globs), run `--pin`, commit.
+optional `skip` globs, matched against file names), run `--pin`, commit. A source marked `"on_demand": true` is fetched only when named on the command line.
 
 ## Sources
 
@@ -28,7 +28,8 @@ whose `VascularColoring/` subfolder is the one source here.
 
 | name | what | status |
 |---|---|---|
-| `owner-stacks` | Four z-stacks from session `4.2.26.sld`, 20×, mouse brain: `cd31_ca1_x20 r 1`/`r 2` (hippocampal CA1) and `cd31_frontal_x20 r 1`/`r 2` (frontal cortex). DAPI + CD31. ≈165 MB each. | **Pinned** 2026-09-25, 4 files, checked against Drive's own folder view. |
+| `owner-stacks` | The working set: the four stacks below cut to **CD31 only** and to the slices that carry vessels, chosen by the owner in the 3D viewer (2026-10-02): `cd31_ca1_x20_r_1_slices13-30`, `cd31_ca1_x20_r_2_slices1-24`, `cd31_frontal_x20_r_1_slices1-12`, `cd31_frontal_x20_r_2_slices6-29` (slice numbers count from 1 in the original). Layout `ZYX`, 16-bit, pixels unchanged, 0.55 µm/px kept; the source and range are in each file's ImageJ `Info`. 35–69 MB each. | **Pinned** 2026-10-02, 4 files, each byte-identical to the file written from the originals. |
+| `owner-stacks-originals` | Four z-stacks from session `4.2.26.sld`, 20×, mouse brain: `cd31_ca1_x20 r 1`/`r 2` (hippocampal CA1) and `cd31_frontal_x20 r 1`/`r 2` (frontal cortex). DAPI + CD31, all 30 slices. ≈165 MB each, in the Drive folder's `Originals uncropped/`. **Fetched only on request:** `python3 analysis/fetch_data.py owner-stacks-originals`. | **Pinned** 2026-09-25, 4 files, checked against Drive's own folder view. |
 
 ## Why Drive, and not git
 
@@ -74,7 +75,7 @@ DAPI here is excited at 405 nm — not the 340–360 nm the lab quoted, which is
 
 ## Handling these stacks
 
-- **Layout: `ZCYX` = 30 z × 2 channels, interleaved** (Bio-Formats `DimensionOrder = XYCZT`);
+- **The originals' layout: `ZCYX` = 30 z × 2 channels, interleaved** (Bio-Formats `DimensionOrder = XYCZT`);
   `tifffile.imread(path)` returns shape `(30, 2, 1200, 1200)`.
 - **Channel 1 = DAPI, channel 2 = CD31** in all four, established by looking at max projections
   (ch1 scattered round nuclei, ch2 branching tubes). The stored display colours are ch1 red, ch2
@@ -85,7 +86,7 @@ DAPI here is excited at 405 nm — not the 340–360 nm the lab quoted, which is
   hue.
 - **Artefacts:** the CA1 CD31 projection has a few bright rectangular blobs, likely debris, that a
   vessel segmenter must not count.
-- **Viewing one in 3D:** `analysis/export_stack_view.py` (see [`analysis/3D-STACKS.md`](../analysis/3D-STACKS.md)).
+- **Viewing one in 3D:** `analysis/export_stack_view.py`, which still reads the two-channel originals (see [`analysis/3D-STACKS.md`](../analysis/3D-STACKS.md)).
 - **A z-stack changes "length".** Centerline length on a max projection under-counts vessels
   running through z, and 3D length needs the missing z-step — ask the lab for it (it is in the
   `.sld`) before measuring in 3D.
