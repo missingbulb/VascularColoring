@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D MicroViewer</title>
+<meta name="description" content="Open a confocal z-stack in the browser and turn it in 3D.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>3D MicroViewer</h1>
+  <div class="facts" id="facts"></div>
+  <span class="grow"></span>
+  <div class="split" id="load">
+    <button type="button" id="load-main" class="primary">Load stack</button><details id="load-menu"><summary aria-label="Where to load from"></summary>
+      <div class="pop">
+        <button type="button" class="item" data-src="local">From this computer</button>
+        <button type="button" class="item" data-src="drive">From Google Drive</button>
+      </div>
+    </details>
+  </div>
+  <input id="file" type="file" accept=".tif,.tiff" hidden>
+</header>
+
+<section id="empty">
+  <h2>Open a z-stack</h2>
+  <p>Load a multi-page TIFF: an ImageJ hyperstack, an OME-TIFF, or plain pages stacked in depth. Drop it anywhere on this page, or use Load stack.</p>
+  <p class="hint-text">The file is read in this browser and never leaves it. The 3D view needs WebGL2.</p>
+  <div id="progress" hidden><span id="progress-text"></span><div id="progress-bar"><i></i></div></div>
+  <p id="empty-msg" class="err" role="alert"></p>
+</section>
+
+<section id="viewer" hidden>
+<p class="lede">Each slice of the stack is placed at its depth. Drag to turn the stack; the view opens looking straight down, as the microscope does, which is the same picture as flattening every slice into one. Tilt it to see which crossings are real junctions and which are structures passing over each other at different depths.</p>
+
+<div class="layout">
+  <div>
+    <div class="stage" id="stage">
+      <canvas id="gl"></canvas>
+      <canvas id="hud"></canvas>
+      <div class="hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
+    </div>
+  </div>
+  <aside>
+    <fieldset>
+      <legend>Render</legend>
+      <div class="seg" id="mode">
+        <button type="button" data-v="0" aria-pressed="true">Brightest</button>
+        <button type="button" data-v="1" aria-pressed="false">Surface</button>
+      </div>
+      <p class="note" id="mode-note">Each ray shows the brightest point it passes through.</p>
+    </fieldset>
+    <fieldset>
+      <legend>Channel</legend>
+      <div id="chan-set"><div class="seg" id="chan"></div></div>
+      <label class="check" id="overlay-row"><input type="checkbox" id="overlay"> Add <span id="overlay-name"></span> in blue</label>
+      <label class="check"><input type="checkbox" id="depth" checked> Colour by depth</label>
+    </fieldset>
+    <fieldset>
+      <legend>Brightness</legend>
+      <label class="row">Black point <output id="lo-o"></output><input type="range" id="lo" min="0" max="1" step="0.005" value="0.63"></label>
+      <label class="row">White point <output id="hi-o"></output><input type="range" id="hi" min="0" max="1" step="0.005" value="1"></label>
+      <label class="row" id="iso-row">Surface level <output id="iso-o"></output><input type="range" id="iso" min="0" max="1" step="0.005" value="0.35"></label>
+    </fieldset>
+    <fieldset>
+      <legend>Depth</legend>
+      <label class="row">Show slices from <output id="z0-o"></output><input type="range" id="z0" min="0" max="1" step="1" value="0"></label>
+      <label class="row">to <output id="z1-o"></output><input type="range" id="z1" min="0" max="1" step="1" value="1"></label>
+      <label class="row">Spacing between slices <output id="zs-o"></output><input type="range" id="zs" min="0.25" max="10" step="0.05" value="1"></label>
+      <p class="note warn" id="zs-note"></p>
+    </fieldset>
+    <fieldset>
+      <legend>Look from</legend>
+      <div class="views">
+        <button type="button" id="v-top">Top</button>
+        <button type="button" id="v-tilt">Tilted</button>
+        <button type="button" id="v-side">Side</button>
+        <button type="button" id="v-front">Front</button>
+      </div>
+    </fieldset>
+  </aside>
+</div>
+
+<h2>Flattened against one slice</h2>
+<div class="flat">
+  <div>
+    <canvas id="flat-all"></canvas>
+    <div class="cap" id="cap-all">All shown slices, brightest value per pixel</div>
+  </div>
+  <div>
+    <canvas id="flat-one"></canvas>
+    <label class="row" style="margin-top:6px">Single slice <output id="sl-o"></output><input type="range" id="sl" min="0" max="1" step="1" value="0"></label>
+  </div>
+</div>
+
+<h2>Signal through the depth</h2>
+<div class="depth">
+  <svg id="spark" viewBox="0 0 1100 170" role="img" aria-label="Per-slice brightness"></svg>
+  <div class="facts"><span style="color:#e8b04a">━ brightest 1% of pixels</span><span>━ median pixel (background)</span><span style="color:#4fd1d9">┆ single slice shown above</span></div>
+  <div id="depth-legend" hidden>
+    <div class="legend-bar"></div>
+    <div class="legend-ends"><span>first slice</span><span>depth colour</span><span>last slice</span></div>
+  </div>
+  <p class="note">Every channel is scaled by one brightness window over the whole stack, never per slice, so signal that fades with depth still looks faded.</p>
+</div>
+</section>
+
+<footer class="hint-text" id="version" title="version 0.11002.1">3D MicroViewer</footer>
+
+<dialog id="drive-dlg">
+  <form method="dialog">
+    <h2>Load from Google Drive</h2>
+    <p class="hint-text">Paste the link of a stack or a folder shared as "Anyone with the link".</p>
+    <div class="drive-row"><input id="drive-link" type="text" placeholder="https://drive.google.com/…" autocomplete="off"><button id="drive-go" class="primary" type="button">Open</button></div>
+    <div id="drive-path"></div>
+    <div id="drive-list"></div>
+    <div class="drive-row end"><span id="drive-msg" class="hint-text"></span><button value="close">Close</button></div>
+  </form>
+</dialog>
+<script src="config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

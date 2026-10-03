@@ -112,6 +112,8 @@ filter, iterative smallest-first pruning).
 The owner's four 30-slice CD31 + DAPI stacks are being looked at in 3D before anything is measured
 on them: [3D-STACKS.md](3D-STACKS.md) holds the problem, the literature, the web viewer and its
 open questions (the z-step, and the owner's ground truth).
+The same viewer is a static site, **3D MicroViewer** ([`microviewer/`](../microviewer/)), that opens
+any TIFF z-stack in the browser, from the computer or from Google Drive, with no export step.
 
 **Now (2026-09-29):** the owner approved the viewer's view and has no ground truth, so a draft 3D
 vessel graph of one 220 µm region of frontal r1 is published for the owner to mark
