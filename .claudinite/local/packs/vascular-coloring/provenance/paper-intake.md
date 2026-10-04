@@ -51,3 +51,13 @@
   in the skill body, keeping only the trigger.
 - **Mechanism:** SKILL.md frontmatter `description` field.
 - **Actor:** claudinite-lifecycle/update task, running as work item #527.
+
+## 2026-10-04 · converted · steps 1, 5 and 6 now cite the checks that enforce them (#373)
+- **Reason:** the slug/PDF name, inline figure embed and panel paper-tag instructions are checkable;
+  each step keeps its judgment text and names its check.
+- **Mechanism:** `paper-slug-format`, `figure-readme-inline`, `panel-name-paper-tag` in
+  `worldRules/`. Deletion test: the steps' content requirements (describing sub-panels, `VESSEL_`
+  selectivity) are beyond the checks, so no text was deleted.
+- **Actor:** @missingbulb (owner).
+- **Model:** claude-sonnet-5-5
+- **Landed:** #373
