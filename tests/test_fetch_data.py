@@ -124,9 +124,22 @@ def test_repin_adds_files_uploaded_since_and_keeps_existing_pins():
         assert drive.downloads == ['F2']
 
 
+def test_on_demand_source_is_fetched_only_when_named():
+    with tempfile.TemporaryDirectory() as d:
+        manifest = write_manifest(d, [
+            {'name': 'a.tif', 'drive_id': 'A', 'kind': 'file', 'sha256': None},
+            {'name': 'b.tif', 'drive_id': 'B', 'kind': 'file', 'sha256': None, 'on_demand': True}])
+        raw = os.path.join(d, 'raw')
+        drive = FakeDrive()
+        fetch_data.fetch_all(manifest, raw, transport=drive)
+        assert drive.downloads == ['A']
+        fetch_data.fetch_all(manifest, raw, only={'b.tif'}, transport=drive)
+        assert drive.downloads == ['A', 'B']
+
+
 if __name__ == '__main__':
     tests = [fn for name, fn in list(globals().items()) if name.startswith('test_')]
-    assert len(tests) == 4
+    assert len(tests) == 5
     for fn in tests:
         fn()
         print('ok', fn.__name__)
