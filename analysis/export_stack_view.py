@@ -7,13 +7,15 @@ measurement exists: rotate it, clip it in depth, compare it against the flat pro
     python3 analysis/export_stack_view.py --inspect STACK.tif      # header only, no pixels read
     python3 analysis/export_stack_view.py STACK.tif OUT_DIR [--bin 2] [--z-step UM]
 
-OUT_DIR receives index.html, meta.json and one gzipped uint8 volume per channel (Z, Y, X order).
+OUT_DIR receives index.html, meta.json and one 8-bit volume per channel, stored losslessly as a
+grayscale PNG of the slices stacked top to bottom (Z*Y rows, X columns), a type any static host serves.
 Both channels are scaled by one percentile window over the whole stack, never per slice, so
 signal that fades with depth still looks faded: that fade is something the owner should see.
 """
-import argparse, gzip, json, os, shutil
+import argparse, json, os, shutil
 import numpy as np
 import tifffile
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VIEWER = os.path.join(HERE, 'stack_view', 'index.html')
@@ -42,10 +44,15 @@ def header(path):
         }
 
 
-def read_channel(path, c, n_ch):
+def read_channel(path, c, n_ch, region=None):
+    """One channel as (Z, Y, X); `region` = (y0, x0, size) in full-resolution px cuts a square."""
     with tifffile.TiffFile(path) as tf:
         n_z = len(tf.pages) // n_ch
-        return np.stack([tf.pages[z * n_ch + c].asarray() for z in range(n_z)])
+        vol = np.stack([tf.pages[z * n_ch + c].asarray() for z in range(n_z)])
+    if region:
+        y0, x0, n = region
+        vol = vol[:, y0:y0 + n, x0:x0 + n]
+    return vol
 
 
 def bin_xy(vol, b):
@@ -71,7 +78,7 @@ def slice_drift(vol):
     return out
 
 
-def export(path, out, b, z_step):
+def export(path, out, b, z_step, region=None):
     h = header(path)
     assert h['axes'] == 'ZCYX' and h['shape'][1] == len(CHANNELS), f"unexpected layout {h['axes']} {h['shape']}"
     os.makedirs(out, exist_ok=True)
@@ -79,15 +86,16 @@ def export(path, out, b, z_step):
             'um_per_px': h['um_per_px'] * b if h['um_per_px'] else None,
             'z_step_um': z_step if z_step is not None else h['z_step_um'],
             'z_step_source': 'command line' if z_step is not None else ('file' if h['z_step_um'] else None),
+            'region_yx_px': list(region[:2]) if region else None,
             'channels': {}}
     for c, name in CHANNELS.items():
-        raw = bin_xy(read_channel(path, c, len(CHANNELS)), b)
+        raw = bin_xy(read_channel(path, c, len(CHANNELS), region), b)
         u8, lo, hi = to_u8(raw)
-        with gzip.open(os.path.join(out, f'{name}.u8.gz'), 'wb', compresslevel=6) as f:
-            f.write(u8.tobytes())
+        z, y, x = u8.shape
+        Image.fromarray(u8.reshape(z * y, x), mode='L').save(os.path.join(out, f'{name}.png'), optimize=True)
         meta['shape'] = list(u8.shape)
         meta['channels'][name] = {
-            'file': f'{name}.u8.gz', 'window_raw': [lo, hi],
+            'file': f'{name}.png', 'window_raw': [lo, hi],
             'slice_p50': [round(float(np.percentile(s, 50)), 1) for s in u8],
             'slice_p99': [round(float(np.percentile(s, 99)), 1) for s in u8],
         }
@@ -99,6 +107,10 @@ def export(path, out, b, z_step):
     return meta
 
 
+def parse_region(text):
+    return tuple(int(v) for v in text.split(',')) if text else None
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('stack')
@@ -106,11 +118,12 @@ def main():
     ap.add_argument('--inspect', action='store_true', help='print the header and stop')
     ap.add_argument('--bin', type=int, default=2, help='xy binning factor (default 2)')
     ap.add_argument('--z-step', type=float, help='µm between slices, when the file does not say')
+    ap.add_argument('--region', help='Y0,X0,SIZE: a square cut from the full-resolution frame, in px')
     a = ap.parse_args()
     if a.inspect or not a.out:
         print(json.dumps(header(a.stack), indent=1, default=str))
         return
-    m = export(a.stack, a.out, a.bin, a.z_step)
+    m = export(a.stack, a.out, a.bin, a.z_step, parse_region(a.region))
     print(f"{m['source']}: {m['shape']} (z,y,x) at {m['um_per_px']} µm/px, z-step {m['z_step_um']} µm "
           f"-> {a.out}")
 
