@@ -43,7 +43,7 @@ That brief is the run's *starting point*, not a second bound: the Context's pack
 may cite, so a local item covered by an older line in one of those packs is a legitimate prune when you can
 quote that line. What the brief buys you is attention spent where the *new* coverage is, instead of re-reading
 a corpus whose lines mostly predate this run. It is complete except where it says otherwise — a file whose
-diff was too large to fetch, and a per-file line cap, are both stated in place with the remainder counted; go
+diff has no text patch, and a per-file line cap, are both stated in place with the remainder counted; go
 read those files directly.
 
 A window in which no declared canon pack moved says so, and that run compares the repo's fresh local items
@@ -68,8 +68,7 @@ worker only frames the unattended run around it.
   whole run's prunes, not one per item — never a direct push, and never a branch of your own.
   **Title the commit and the PR
   `Claudinite growth: dedup local packs`** — the `growth-write-scope` check keys on that title to certify the
-  run pruned only the repo's local packs. Then **deliver it by the shared procedure —
-  [deliver-pr.md](../../../claudinite-tasks/src/deliver/deliver-pr.md)** — that procedure, never this file, owns
+  run pruned only the repo's local packs. Then **deliver it as your instructions say to deliver a pull request** — that procedure, never this file, owns
   whether and how the PR lands. What holds the prune bar is the quote-the-canon-line discipline above, the
   `dedup-prune-integrity` and `growth-write-scope` checks, and CI — never a reviewer's second look, which a
   wrongful prune is easy to wave through anyway. **Put the issue reference in the commit message** —
@@ -100,7 +99,7 @@ what the run got wrong: a real lesson pruned on a claim the canon does not actua
 - **Never edit the read-only canon** — it only prunes the repo's *local packs* against it, and the
   `growth-write-scope` check reds a run that touches anything outside them.
 - **Never land a prune outside a PR** — every prune rides the run's single PR, delivered by
-  [deliver-pr.md](../../../claudinite-tasks/src/deliver/deliver-pr.md); a direct push to `main` is never in scope.
+  your instructions' pull-request delivery; a direct push to `main` is never in scope.
 - **Never prune a local item without quoting the mounted-canon line (or covering check rule id) that covers
   it** — when unsure, leave it.
 - **Never widen the dispatch's Context.** If it named the changed canon packs, a prune citing coverage from

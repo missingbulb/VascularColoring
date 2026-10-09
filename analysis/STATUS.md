@@ -112,6 +112,14 @@ filter, iterative smallest-first pruning).
 The owner's four 30-slice CD31 + DAPI stacks are being looked at in 3D before anything is measured
 on them: [3D-STACKS.md](3D-STACKS.md) holds the problem, the literature, the web viewer and its
 open questions (the z-step, and the owner's ground truth).
+The same viewer is a static site, **3D MicroViewer** ([`microviewer/`](../microviewer/)), that opens
+any TIFF z-stack in the browser, from the computer or from Google Drive, with no export step.
+
+**Ground truth, started 2026-10-03:** `analysis/vessel_model.py` drafts a straight-line vessel model
+of a whole stack (first: `cd31_frontal_x20_r_1_slices1-12`, 55 KB against the stack's 35 MB), and
+the MicroViewer shows it beside or over the stack and lets the owner correct it and download the
+corrected JSON. The corrected model is the first answer key; see
+[3D-STACKS.md](3D-STACKS.md#the-vessel-model-a-correctable-answer-key).
 
 ## Reproduce
 
