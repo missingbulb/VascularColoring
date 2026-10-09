@@ -22,6 +22,8 @@ packs:
         publish_set: "Ariel asked (2026-10-02) for a static GitHub Pages site, titled 3D MicroViewer, that loads a z-stack the way NoR Finder loads images and opens it in the 3D stack viewer. The site is microviewer/, with a root index.html that forwards to it: publish_root ., publish_paths index.html microviewer, build_command node microviewer/build.mjs (writes microviewer/config.js, with the Google API key for loading from Drive when the repository has one)."
     - "public-website"
     - "html"
+    - "node"
+    - "numpy-image-processing"
 tasks:
   routines:
     default:
