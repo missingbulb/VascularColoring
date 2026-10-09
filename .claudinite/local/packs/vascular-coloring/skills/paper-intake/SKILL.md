@@ -106,7 +106,7 @@ Add the paper's row to [`references/README.md`](../../../../../../references/REA
 
 ```
 python3 analysis/measure_vessels.py                                   # new panels appear, µm sane
-node .claudinite/local/packs/vascular-coloring/pack.test.mjs          # checks still pass
+sh .claudinite/launch check --pack local/vascular-coloring            # checks still pass
 ```
 
 ## The rules that bite here
