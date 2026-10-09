@@ -8,3 +8,10 @@
 - **Mechanism:** a coded check discovered from the pack's rule folder.
 - **Actor:** @missingbulb (owner).
 - **Model:** claude-opus-5-5
+
+## 2026-10-09 · moved · ported from JavaScript to a Go check
+- **Reason:** the repo moved off the Node engine onto cn, which runs no JavaScript checks.
+- **Actor:** @missingbulb (owner), re-adoption request.
+- **Model:** Claude.
+- **Mechanism:** `checks/scale_numbers_match_calibration.go` replaces `worldRules/scale-numbers-match-calibration.mjs`, same id, behaviour, on_fail and
+  original date; its cases moved from `pack.test.mjs` to the Go test beside it.
