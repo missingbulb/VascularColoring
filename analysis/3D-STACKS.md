@@ -95,7 +95,39 @@ owner on the first stack from another region.
 - **Invariances (default, not yet confirmed):** the graph must not change when a stack is rotated
   or flipped, or imaged brighter or dimmer.
 
-## The draft graph to correct
+## The vessel model: a correctable answer key
+
+```
+python3 analysis/vessel_model.py STACK.tif OUT.json      # a CD31-only trimmed stack or a two-channel original
+```
+
+The model is points in 3D joined by straight segments, with the stack's own number of slices: x and
+y in µm from the image's top-left corner, z in slices (the z-step is unknown), and `status` draft or
+corrected. Its `_about` field defines the rest. It is drawn the owner's chosen way, flat plus depth:
+each slice in its own noise units, flattened, hysteresis 5σ / 2.5σ, skeletonised, spurs under 2
+parent widths, specks under 4 widths and networks adding up to under 10 widths dropped, each
+centerline point placed at the depth where its signal sits (median over 2 widths along the
+vessel), then each vessel cut into the fewest straight segments that stay within half its width of
+the centerline. A point where two segments meet is a bend; three or more, a junction.
+
+The draft for `cd31_frontal_x20_r_1_slices1-12` ships with the MicroViewer (`microviewer/models/`):
+once that stack is open, **Load the draft model for this stack** brings it in. **Side by side** shows
+the stack and the model in two views that turn and zoom together; **Overlay** draws the model in
+magenta over the stack. On the model: drag a point to move it (in the plane of the screen, so a
+tilted view moves it in depth too); right-click a segment to delete it or add a bend, a junction to
+split it into vessels that cross (branches paired off straightest-through first, each pair at the
+depth between its neighbours, a leftover branch detached as a tip), or any point to delete it;
+right-drag from one piece to another to connect them. Edits are kept in the browser until
+**Download corrected model**, with undo and redo. `tests/test_vessel_model_edits.mjs` pins the edits.
+
+**First draft (2026-10-03):** 961 points, 920 segments, 136 junctions, 222 tips, 55 KB. Seen before
+the owner's corrections: the main network is followed; the bright tissue edge down the left side is
+traced as a vessel; faint vessels in the lower right break into short pieces or are missed; a few
+junctions sit in small clusters where a vessel runs past a bright blob; crossings are not split
+(the crossing test in `trace_vessel_graph.py`, below, is not in this generator), so each X is a
+junction for the owner to split.
+
+## The graph tracer: the earlier draft route
 
 ```
 python3 analysis/trace_vessel_graph.py STACK.tif OUT_DIR --region Y0,X0,SIZE [--z-step UM | --flat]
@@ -183,6 +215,7 @@ remain.
 |---|---|---|
 | Flatten all slices into one maximum projection, then run the 2D pipeline | earlier plan | Kept as the baseline and shown beside every 3D view; loses length along z, fuses crossings at different depths, and can merge stacked vessels into one wide one. Revisit as the naive baseline once a 3D answer key exists. |
 | Look at the stack in 3D (ray-cast brightest + surface), by depth colour | owner, this page | First real stack published 2026-09-28 (`cd31_frontal_x20 r 1`, bin 2, spacing guessed); owner approved the view 2026-09-29 (settings above). |
+| A small straight-line model of the whole stack, corrected by the owner in the viewer | owner, 2026-10-03 | Built: draft for frontal r1 slices 1–12 ships with the site, waiting on the owner's corrections. Pairs of short paths between the same two junctions (a vessel split round a hole) collapse to one; without that and the 10-width network floor the draft had 1392 segments, mostly noise specks. Depth where no slice clears the growth level falls back to the brightest slice; before that, 453 of 1504 points piled up at slice 0. |
 | Full 3D pipeline: 3D threshold → 3D skeleton → graph → distance-map diameter | STAR Protocols 2020, VesselVio | Built as the draft tracer (above) to produce an answer key for the owner to correct, not as the measurement; scored only once marks exist. |
 | Normalise noise per plane for hysteresis | this session | Kept: the signal fades with depth. Alone it blew camera noise in the empty lower planes into junk edges (120 edges, traced to slice 30); skipping planes whose top 0.1% is within 1.5× of pure-noise level fixed it. |
 | Seed on the whole stack's noise, grow per plane | this session | Dropped: the stack-wide noise is set by the quiet lower planes, so seeds fired everywhere in the bright upper ones (506 edges). |

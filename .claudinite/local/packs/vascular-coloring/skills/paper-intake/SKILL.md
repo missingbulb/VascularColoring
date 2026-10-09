@@ -44,9 +44,9 @@ Anything that is only in an image and matters must be **transcribed into the dig
 
 `git mv` each real figure to `references/<slug>/figures/figN_<short-name>.png` (convert to PNG).
 Drop logos, glyphs and icons. Write `figures/README.md`: every figure **shown inline**
-(`![Figure 1](fig1_….png)`) with a description of each sub-panel, what the scale bars say, and
-**what you actually see in it** — including anything that will trip the pipeline up (surface
-vessels, drawn annotation lines, cross-sections rather than networks).
+as a Markdown image of its `figN_….png` file, with a description of each sub-panel, what the
+scale bars say, and **what you actually see in it** — including anything that will trip the
+pipeline up (surface vessels, drawn annotation lines, cross-sections rather than networks).
 
 ### 6. Crop the panels
 
@@ -106,7 +106,7 @@ Add the paper's row to [`references/README.md`](../../../../../../references/REA
 
 ```
 python3 analysis/measure_vessels.py                                   # new panels appear, µm sane
-node .claudinite/local/packs/vascular-coloring/pack.test.mjs          # checks still pass
+sh .claudinite/launch check --pack local/vascular-coloring            # checks still pass
 ```
 
 ## The rules that bite here
