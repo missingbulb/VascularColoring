@@ -51,3 +51,9 @@
   in the skill body, keeping only the trigger.
 - **Mechanism:** SKILL.md frontmatter `description` field.
 - **Actor:** claudinite-lifecycle/update task, running as work item #527.
+
+## 2026-10-09 · reworded · the inline-figure example is described, not spelled as link syntax
+- **Reason:** cn's selftest reads Markdown link syntax inside a code span as a real link, so the
+  example blocked every engine update with a missing-file failure.
+- **Actor:** @missingbulb (owner), re-adoption request.
+- **Model:** Claude.
