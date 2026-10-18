@@ -11,7 +11,8 @@ packs:
     - "git-github"
     - "research-project"
     - "claudinite-growth"
-    - "local/vascular-coloring"
+    - id: "vascular-coloring"
+      source: "local"
     - id: "claude-code-web-users-support"
       config:
         repo: "missingbulb/Shepherd"
@@ -26,8 +27,14 @@ packs:
     - "numpy-image-processing"
   sources:
     - "missingbulb/Shepherd"
+  manager:
+    repo: "missingbulb/Shepherd"
 tasks:
   routines:
     default:
       url: "https://api.anthropic.com/v1/claude_code/routines/trig_01Nsb7buSwcZrbJFTWKi6qAv/fire"
       tokenSecret: "CCR_ROUTINE_TOKEN"
+  merge:
+    "engine/update": "merge-safe-changes"
+  frequency:
+    "engine/update": "weekly"
