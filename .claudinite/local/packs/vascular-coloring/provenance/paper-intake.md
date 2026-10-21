@@ -57,3 +57,10 @@
   example blocked every engine update with a missing-file failure.
 - **Actor:** @missingbulb (owner), re-adoption request.
 - **Model:** Claude.
+
+## 2026-10-21 · reworded · the verify step runs the pinned cn, not the deleted launcher
+- **Reason:** engine update 1.61021.1 deletes the old launcher script, so step 10's checks command no
+  longer existed; it now runs `.claudinite/bin/cn`, which the setup package installs.
+- **Actor:** @missingbulb (owner), asking to finish the claudinite-ci.yml removal by hand.
+- **Model:** Claude.
+- **Landed:** #711.
