@@ -61,8 +61,6 @@ inventory, the µm/px per row, and the caveats that come with folding these into
 
 **Measure the drawn scale bar in pixels off the panel itself** and add the prefix to
 `SCALEBAR_PX` in `analysis/measure_vessels.py` (plus `SCALEBAR_UM` if the bar is not 50 µm).
-Never derive µm/px from a stated field-of-view, and never carry a number over from a
-neighbouring row.
 
 If the source image **states its own µm/px** (an ImageJ TIFF carries `unit=` and `XResolution`),
 use that instead and record it in `UMPP_DIRECT` with its provenance — acquisition metadata is
@@ -119,8 +117,6 @@ python3 analysis/measure_vessels.py                                   # new pane
 - **Say what is weak.** A calibration you half-trust, a panel type the metrics do not suit, a
   direction-of-change that contradicts another paper — all of it goes in the digest. The digests
   are read later by someone deciding what to believe.
-- **Different papers are never averaged together.** Species, model, marker and magnification all
-  differ; the rollup is grouped per paper for that reason.
 - **Prefer a same-image comparison to a table comparison.** If the paper ships code *and* an
   image, reimplement the method and run both on that image. A number from a summary table may not
   be the raw output of the method it describes.

@@ -64,3 +64,11 @@
 - **Actor:** @missingbulb (owner), asking to finish the claudinite-ci.yml removal by hand.
 - **Model:** Claude.
 - **Landed:** #711.
+
+## 2026-10-21 · weakened · Growth dedup: strip two canon-owned clauses from the paper-intake skill (#712)
+- **Reason:** "never carry a number over from a neighbouring row" restated research-project's "read off
+  the input itself, never infer it from a stated setting or borrow it from a neighbour", and the
+  "different papers are never averaged together" bullet restated its "never a mean spanning two
+  sources that differ in more than scale … Group the rollup by source"; the repo's own table
+  mechanics stayed.
+- **Actor:** claudinite/growth-dedup task, running as work item #712.
