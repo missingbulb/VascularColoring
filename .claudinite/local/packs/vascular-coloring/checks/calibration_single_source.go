@@ -45,7 +45,7 @@ func init() {
 }
 
 // pythonCode blanks out comments and string literals, keeping every newline and
-// every column so line numbers and the assignment shape survive. Handles ”' / """
+// every column so line numbers and the assignment shape survive. Handles ''' / """
 // blocks, single-quoted strings and escapes; a `#` inside a string is not a comment.
 func pythonCode(text string) string {
 	src := []rune(text)
