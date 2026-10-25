@@ -18,7 +18,7 @@ import (
 // Sibling of rendered-overlays-untracked, from the other side: that rule fires once
 // a render is already tracked (the damage), this one keeps the ignore entry that
 // stops it getting there. A newly added output directory is the real gap — it is
-// gitignored only if someone remembers, and nothing said so until now.
+// gitignored only if someone remembers.
 //
 // Parse rather than grep: an output directory is one the script actually creates
 // (`os.makedirs(...)`), resolved through the script's own `HERE` constant, with
