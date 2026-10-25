@@ -121,6 +121,10 @@ the MicroViewer shows it beside or over the stack and lets the owner correct it 
 corrected JSON. The corrected model is the first answer key; see
 [3D-STACKS.md](3D-STACKS.md#the-vessel-model-a-correctable-answer-key).
 
+Before that (2026-09-29 to 10-02), `trace_vessel_graph.py` drafted a vessel graph of one 220 µm
+region of frontal r1, with the crossing test (each slice segmented on its own, depth as fallback)
+that the model does not have yet; see `3D-STACKS.md`.
+
 ## Reproduce
 
 ```
