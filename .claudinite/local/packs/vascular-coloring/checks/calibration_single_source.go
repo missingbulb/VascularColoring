@@ -89,7 +89,7 @@ func pythonCode(text string) string {
 			i++
 			continue
 		}
-		if c == '#' { // to end of line
+		if c == '#' {
 			for i < len(src) && src[i] != '\n' {
 				out = append(out, ' ')
 				i++

@@ -37,12 +37,12 @@ ISLAND_WIDTHS = 4     # a lone piece shorter than 4 of its own widths is a speck
 # Two vessels cross rather than meet when their branches arrive at depths further apart than this
 # many times the branches' own point-to-point depth noise.
 CROSS_SEPARATION = 3.0
-MIN_DEPTH_NOISE_SLICES = 0.5
+MIN_DEPTH_NOISE_SLICES = 0.5   # slices; scale-dependent: a floor of half a slice on that noise
 STRAIGHT_THROUGH_COS = -0.5    # two branches leaving a node over 120° apart are one vessel
 # The lens blurs each vessel over neighbouring slices, so two crossing vessels touch in the slice
 # where their blurs overlap: a branch counts in a slice only near its own strongest slices.
 SLICE_PEAK_FRACTION = 0.5
-SLICE_TOLERANCE = 1            # slices; a branch peaking one slice off its neighbour still meets it   # scale-dependent: a floor of half a slice on that noise
+SLICE_TOLERANCE = 1            # slices; a branch peaking one slice off its neighbour still meets it
 Z_STEP_PLACEHOLDER_UM = 1.0  # the owner's approved guess until the lab supplies the real z-step
 
 
