@@ -1,8 +1,8 @@
 # vascular-coloring — this repo's own pack
 
 The **vessel-image quantification** domain this project works in: gP-CD31 (red) confocal panels
-measured for categorize / count / measure. A local pack — declared by hand as
-`local/vascular-coloring` in `.claudinite-settings.json`, never fingerprinted.
+measured for categorize / count / measure. A local pack — declared by hand in
+`.claudinite/settings.yaml` with `source: local`, never fingerprinted.
 
 It carries only the imaging-specific part: the research loop, ground-truth discipline and
 anti-overfitting stance are `research-project`'s, so reach for that pack for those.
