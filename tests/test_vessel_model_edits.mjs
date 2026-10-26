@@ -4,7 +4,12 @@ import assert from 'node:assert/strict';
 import * as Mo from '../microviewer/model.js';
 
 const base = (nodes, segments) => ({ format: Mo.FORMAT, source: 'acme.tif', slices: 4, size_px: [100, 100], um_per_px: 1,
-  nodes: nodes.map(([id, x, y, z]) => ({ id, x, y, z })), segments: segments.map(([a, b]) => ({ a, b })) });
+  nodes: nodes.map(([id, x, y, z]) => ({ id, x, y, z })),
+  segments: segments.map(([a, b, state, confidence]) => ({ a, b, ...(state && { state }), ...(confidence != null && { confidence }) })) });
+// a confirmed vessel 1-2-3 along y = 0, and a two-segment candidate 2-4-5 branching off its middle
+const branching = () => Mo.parse(base([[1, 0, 0, 0], [2, 10, 0, 0], [3, 20, 0, 0], [4, 10, 10, 0], [5, 10, 20, 0]],
+  [[1, 2, 'vessel', .9], [2, 3, 'vessel', .9], [2, 4, 'candidate', .4], [4, 5, 'candidate', .4]]));
+const states = (m) => m.segments.map((s) => `${Math.min(s.a, s.b)}-${Math.max(s.a, s.b)}:${s.state}`).sort();
 const pairs = (m) => m.segments.map(({ a, b }) => [Math.min(a, b), Math.max(a, b)].join('-')).sort();
 
 const tests = {
@@ -78,8 +83,51 @@ const tests = {
     const back = Mo.parse(Mo.toJSON(m));
     assert.deepEqual(pairs(back), ['1-2']); assert.deepEqual(back.nodes.get(2), m.nodes.get(2));
   },
+  'a file without states reads as confirmed vessels, and an unknown state is refused'() {
+    const m = Mo.parse(base([[1, 0, 0, 0], [2, 10, 0, 0]], [[1, 2]]));
+    assert.equal(m.segments[0].state, 'vessel');
+    assert.equal('confidence' in m.segments[0], false, 'a segment nobody scored stays unscored');
+    assert.throws(() => Mo.parse(base([[1, 0, 0, 0], [2, 10, 0, 0]], [[1, 2, 'maybe']])), Mo.ModelError);
+  },
+  'junctions and tips count confirmed vessels only; a candidate branch makes a pending junction'() {
+    const s = Mo.stats(branching());
+    assert.deepEqual([s.junctions, s.tips, s.pendingJunctions, s.segments], [0, 2, 1, 2]);
+  },
+  'approving a candidate accepts its whole vessel, and its branch point becomes a junction'() {
+    const m = branching(), o = Mo.review(m, 3, 'accepted');
+    assert.deepEqual(states(o), ['1-2:vessel', '2-3:vessel', '2-4:accepted', '4-5:accepted']);
+    assert.deepEqual(states(m), ['1-2:vessel', '2-3:vessel', '2-4:candidate', '4-5:candidate'], 'the model given stays unchanged');
+    const s = Mo.stats(o);
+    assert.deepEqual([s.junctions, s.tips, s.pendingJunctions], [1, 3, 0]);
+  },
+  'a review covers one vessel: it stops at a junction and leaves a neighbouring candidate alone'() {
+    // two candidates meeting a confirmed vessel at the same point: 2-4 and 2-6
+    const m = Mo.parse(base([[1, 0, 0, 0], [2, 10, 0, 0], [3, 20, 0, 0], [4, 10, 10, 0], [6, 10, -10, 0]],
+      [[1, 2, 'vessel'], [2, 3, 'vessel'], [2, 4, 'candidate'], [2, 6, 'candidate']]));
+    assert.deepEqual(states(Mo.review(m, 2, 'rejected')), ['1-2:vessel', '2-3:vessel', '2-4:rejected', '2-6:candidate']);
+    assert.equal(Mo.review(m, 0, 'rejected'), m, 'only a candidate is reviewed');
+  },
+  'a declined candidate stays in the file but is no part of the network'() {
+    const o = Mo.review(branching(), 2, 'rejected');
+    assert.deepEqual(states(o), ['1-2:vessel', '2-3:vessel', '2-4:rejected', '4-5:rejected']);
+    assert.deepEqual(Mo.neighbours(o, 2).sort(), [1, 3]);
+    assert.deepEqual(Mo.pieceCounts(o), { vessel: 1, candidate: 0, accepted: 0, rejected: 1 });
+    // with the rejected branch ignored, point 2 is a plain bend and can be straightened
+    const straight = Mo.removeBend(o, 2);
+    assert.deepEqual(states(straight), ['1-3:vessel', '2-4:rejected', '4-5:rejected']);
+    const back = Mo.parse(Mo.toJSON(o));
+    assert.deepEqual(states(back), states(o)); assert.equal(back.segments[2].confidence, .4);
+  },
+  'edits keep a segment\'s state: a bend point splits a candidate into two candidates'() {
+    const [o] = Mo.splitSegment(branching(), 3, .5);
+    assert.deepEqual(o.segments.filter((s) => s.state === 'candidate').length, 3);
+    assert.equal(Mo.piece(o, 2).length, 3, 'the split candidate is still one vessel');
+    const c = Mo.connect(branching(), { node: 1 }, { node: 5 });
+    assert.equal(c.segments.at(-1).state, 'vessel', 'a segment the owner draws is a vessel');
+    assert.equal('confidence' in c.segments.at(-1), false);
+  },
 };
 
 let n = 0;
 for (const [name, fn] of Object.entries(tests)) { fn(); n++; console.log('ok', name); }
-assert.equal(n, 11);
+assert.equal(n, 17);

@@ -15,6 +15,11 @@ Tracing is the owner's chosen "flat plus depth": each slice is put in its own no
 are flattened, the flat picture is thresholded and skeletonised, and every centerline point takes
 the depth (in slices) where its signal sits. Each traced vessel is then cut into the fewest straight
 segments that stay within half its own width of the centerline.
+
+Tracing runs on a fainter threshold than the one the draft trusts, so it also finds vessels too faint
+to be sure of. Those are kept as low-confidence "candidate" segments that the owner approves or
+declines in the viewer, instead of being dropped unseen. Junctions are never stored: they are the
+points where three or more confirmed segments meet.
 """
 import argparse, json, os
 import numpy as np
@@ -27,6 +32,8 @@ from skimage.morphology import skeletonize, remove_small_objects
 BACKGROUND_UM = 11.0   # haze varies over tens of µm; capillaries are ~2-6 µm wide (Stefanitsch digest)
 SMOOTH_UM = 0.55       # about the lateral resolution of a 20x objective
 SEED_SIGMA, GROW_SIGMA = 5.0, 2.5   # hysteresis, in each slice's own robust noise units
+CANDIDATE_SEED_SIGMA, CANDIDATE_GROW_SIGMA = 3.5, 2.0   # a fainter hysteresis finds the low-confidence vessels the owner reviews in the viewer
+CANDIDATE_BELOW = 0.5               # a faint trace with less than half its centerline in the confident mask is a candidate
 SIGNAL_OVER_NOISE = 1.5             # a slice counts only if its top 0.1% beats pure noise (3.09 sigma) by this
 MIN_OBJECT_UM2 = 20.0  # flattened specks; Rust et al. 2020 drop objects below the same area
 SPUR_WIDTHS = 2.0      # a side branch shorter than 2 parent widths is a wall bump (Murray floor 1.29, analysis/3D-STACKS.md)
@@ -40,7 +47,12 @@ ABOUT = ('status: draft as drawn by analysis/vessel_model.py, or corrected once 
          '3D MicroViewer; a draft is not ground truth. '
          'nodes: id, x and y in µm from the top-left corner of the image, z in slices (0 = the middle of the first '
          'slice; the spacing between slices is not recorded in the file). segments: straight lines between two '
-         'node ids. Points where two segments meet are bends along one vessel; three or more, a junction.')
+         'node ids, each with a state and a confidence. state: "vessel" (traced with confidence, or drawn by the owner), '
+         '"candidate" (too faint to be sure of, waiting for the owner to review), "accepted" or "rejected" (the owner\'s '
+         'verdict on a candidate; a rejected segment is kept as a recorded no and is not part of the network). '
+         'confidence: the vessel\'s median signal over the confident seed level, capped at 1; a ranking for review, not a '
+         'calibrated probability; absent on segments the owner drew. Points where two confirmed (vessel or accepted) '
+         'segments meet are bends along one vessel; three or more, a junction.')
 
 
 def read_cd31(path, channel):
@@ -73,16 +85,20 @@ def noise_units(vol, um):
 
 
 def segment(z, keep, um):
-    """The flattened mask, its skeleton, the distance map in px, and the depth (slices) of each pixel."""
-    mask = apply_hysteresis_threshold(z[keep].max(axis=0), GROW_SIGMA, SEED_SIGMA)
-    mask = ndi.binary_closing(mask, np.ones((3, 3)))
-    mask = remove_small_objects(mask, max_size=int(MIN_OBJECT_UM2 / um ** 2))
+    """The confident and the faint-seeded masks, the depth (slices) of each pixel, and the flattened
+    signal in noise units."""
+    flat = z[keep].max(axis=0)
+
+    def mask_at(grow, seed):
+        m = ndi.binary_closing(apply_hysteresis_threshold(flat, grow, seed), np.ones((3, 3)))
+        return remove_small_objects(m, max_size=int(MIN_OBJECT_UM2 / um ** 2))
+    confident, mask = mask_at(GROW_SIGMA, SEED_SIGMA), mask_at(CANDIDATE_GROW_SIGMA, CANDIDATE_SEED_SIGMA)
     zk = ndi.gaussian_filter(z[keep], (0, 2 * SMOOTH_UM / um, 2 * SMOOTH_UM / um))
     w = np.clip(zk - GROW_SIGMA, 0, None)
     slices = np.flatnonzero(keep)
     # where the blurred signal clears the growth level nowhere, the brightest slice stands in
     depth = np.where(w.sum(0) > 0, (w * slices[:, None, None]).sum(0) / (w.sum(0) + 1e-9), slices[zk.argmax(0)])
-    return skeletonize(mask), ndi.distance_transform_edt(mask), depth
+    return confident, mask, depth, flat
 
 
 NB = [(dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]
@@ -218,11 +234,16 @@ def straighten(p, tol):
     return sorted(keep)
 
 
+def trace(mask):
+    """The cleaned skeleton graph of a mask, and its distance map in px."""
+    dist = ndi.distance_transform_edt(mask)
+    pos, edges = skeleton_graph(skeletonize(mask))
+    return pos, clean(pos, edges, dist), dist
+
+
 def model(vol, um, source, z_step):
     z, keep = noise_units(vol, um)
-    skel, dist, depth = segment(z, keep, um)
-    pos, edges = skeleton_graph(skel)
-    edges = clean(pos, edges, dist)
+    confident, faint, depth, flat = segment(z, keep, um)
     nodes, segs, ids = [], [], {}
 
     def node(key, y, x, d):
@@ -231,34 +252,66 @@ def model(vol, um, source, z_step):
             nodes.append({'id': ids[key], 'x': round((float(x) + .5) * um, 2), 'y': round((float(y) + .5) * um, 2), 'z': round(float(d), 2)})
         return ids[key]
 
-    for ei, (a, b, p) in enumerate(edges):
-        w = 2 * float(dist[p[:, 0], p[:, 1]].mean())
-        d = depth[p[:, 0], p[:, 1]]
-        d = ndi.median_filter(d, size=max(int(DEPTH_SMOOTH_WIDTHS * w) | 1, 3), mode='nearest')
-        pts = np.column_stack([p, d * 1.0])
-        idx = straighten(pts, max(STRAIGHT_WIDTHS * w, 1.0))
-        chain = []
-        for k in idx:
-            if k == 0:
-                chain.append(('n', a))
-            elif k == len(p) - 1:
-                chain.append(('n', b))
-            else:
-                chain.append(node(('p', ei, k), p[k, 0], p[k, 1], d[k]))
-        out = []
-        for c in chain:
-            if isinstance(c, tuple):   # a junction or tip sits at the median depth its edges arrive at
-                n = c[1]
-                arrive = [depth[tuple(q[0] if np.linalg.norm(q[0] - pos[n]) < np.linalg.norm(q[-1] - pos[n]) else q[-1])]
-                          for e0, e1, q in edges if n in (e0, e1)]
-                out.append(node(('n', n), *pos[n], float(np.median(arrive))))
-            else:
-                out.append(c)
-        segs += [{'a': u, 'b': v} for u, v in zip(out[:-1], out[1:]) if u != v]
+    def on_vessel(y, x, tol):
+        """The point of a confident segment within tol px of (y, x), splitting the segment there; or None."""
+        best = None
+        for i, s in enumerate(segs):
+            if s['state'] != 'vessel':
+                continue
+            A, B = nodes[s['a'] - 1], nodes[s['b'] - 1]
+            a = np.array([A['y'], A['x']]) / um - .5; ab = np.array([B['y'], B['x']]) / um - .5 - a
+            t = float(np.clip(((np.array([y, x]) - a) @ ab) / max(ab @ ab, 1e-12), 0, 1))
+            d = float(np.linalg.norm(a + t * ab - (y, x)))
+            if d <= tol and (best is None or d < best[0]):
+                best = (d, i, t, float(np.linalg.norm(ab)), a + t * ab)
+        if best is None:
+            return None
+        _, i, t, L, (py, px) = best
+        s = segs[i]
+        if t * L < 1 or (1 - t) * L < 1:   # within a pixel of a point the vessel already has
+            return s['a'] if t < .5 else s['b']
+        A, B = nodes[s['a'] - 1], nodes[s['b'] - 1]
+        n = node(('on', len(nodes)), py, px, A['z'] + (B['z'] - A['z']) * t)
+        segs[i:i + 1] = [{**s, 'b': n}, {**s, 'a': n}]
+        return n
+
+    snapped = {}
+
+    def emit(tag, pos, edges, dist, state, snap):
+        for ei, (a, b, p) in enumerate(edges):
+            w = 2 * float(dist[p[:, 0], p[:, 1]].mean())
+            d = depth[p[:, 0], p[:, 1]]
+            d = ndi.median_filter(d, size=max(int(DEPTH_SMOOTH_WIDTHS * w) | 1, 3), mode='nearest')
+            pts = np.column_stack([p, d * 1.0])
+            idx = straighten(pts, max(STRAIGHT_WIDTHS * w, 1.0))
+            out = []
+            for k in idx:
+                if k in (0, len(p) - 1):   # a junction or tip sits at the median depth its edges arrive at
+                    n = a if k == 0 else b
+                    if snap and (tag, n) not in snapped:
+                        snapped[tag, n] = confident[tuple(p[k])] and on_vessel(*p[k], max(w, 2.0))
+                    at = snap and snapped[tag, n]
+                    if not at:
+                        arrive = [depth[tuple(q[0] if np.linalg.norm(q[0] - pos[n]) < np.linalg.norm(q[-1] - pos[n]) else q[-1])]
+                                  for e0, e1, q in edges if n in (e0, e1)]
+                        at = node((tag, n), *pos[n], float(np.median(arrive)))
+                    out.append(at)
+                else:
+                    out.append(node((tag, ei, k), p[k, 0], p[k, 1], d[k]))
+            # the vessel's median signal against the confident seed level: a ranking, not a calibrated probability
+            conf = round(min(float(np.median(flat[p[:, 0], p[:, 1]])) / SEED_SIGMA, 1.0), 2)
+            segs.extend({'a': u, 'b': v, 'state': state, 'confidence': conf} for u, v in zip(out[:-1], out[1:]) if u != v)
+
+    pos, edges, dist = trace(confident)
+    emit('v', pos, edges, dist, 'vessel', False)
+    # the faint trace adds only what the confident one does not already hold; where it reaches a
+    # confident vessel it joins it, so the two are one network
+    pos, edges, dist = trace(faint)
+    edges = [e for e in edges if float(confident[e[2][:, 0], e[2][:, 1]].mean()) < CANDIDATE_BELOW]
+    emit('c', pos, edges, dist, 'candidate', True)
     Z, H, W = vol.shape
     return {'format': FORMAT, '_about': ABOUT, 'status': 'draft', 'source': source, 'slices': int(Z), 'size_px': [int(W), int(H)],
             'um_per_px': um, 'z_step_um': z_step, 'nodes': nodes, 'segments': segs}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
@@ -269,9 +322,10 @@ def main():
     m = model(vol, um, os.path.basename(a.stack), z_step)
     with open(a.out, 'w') as f:
         json.dump(m, f, separators=(',', ':'))
-    junctions = sum(1 for v in np.bincount([s[k] for s in m['segments'] for k in 'ab']) if v >= 3)
-    print(f"{len(m['nodes'])} points, {len(m['segments'])} straight segments, {junctions} junctions, "
-          f"{os.path.getsize(a.out) / 1024:.0f} KB")
+    sure = [s for s in m['segments'] if s['state'] == 'vessel']
+    junctions = sum(1 for v in np.bincount([s[k] for s in sure for k in 'ab']) if v >= 3)
+    print(f"{len(m['nodes'])} points, {len(sure)} straight segments, {junctions} junctions, "
+          f"{len(m['segments']) - len(sure)} low-confidence segments to review, {os.path.getsize(a.out) / 1024:.0f} KB")
 
 
 if __name__ == '__main__':

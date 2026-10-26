@@ -329,19 +329,24 @@ function bind() {
 // Drag to rotate, shift-drag or right-drag to pan, wheel or pinch to zoom, on any canvas that shows
 // the stack's camera. grab(e), when given, sees each press first and may take that pointer over by
 // returning {move(e), up(e), cancel()}.
-export function controls(cv, grab) {
-  const pts = new Map(), own = new Map();
+// grab(e) may take a pointer over for its own drag; click(e) hears a left press that let go where it began.
+const CLICK_PX = 4;
+export function controls(cv, grab, click) {
+  const pts = new Map(), own = new Map(), down = new Map();
   let last = null;
   cv.addEventListener('pointerdown', (e) => {
     cv.setPointerCapture(e.pointerId);
     const g = grab && !pts.size ? grab(e) : null;
     if (g) { own.set(e.pointerId, g); return; }
+    if (e.button === 0 && !pts.size) down.set(e.pointerId, [e.clientX, e.clientY]); else down.clear();
     pts.set(e.pointerId, [e.clientX, e.clientY]); S.dragging = true; last = null;
   });
   const end = (e) => {
     const g = own.get(e.pointerId);
     if (g) { own.delete(e.pointerId); if (e.type === 'pointerup') g.up(e); else g.cancel?.(); return; }
+    const d = down.get(e.pointerId); down.delete(e.pointerId);
     pts.delete(e.pointerId); if (!pts.size) { S.dragging = false; dirty = true; } last = null;
+    if (click && d && e.type === 'pointerup' && Math.hypot(e.clientX - d[0], e.clientY - d[1]) < CLICK_PX) click(e);
   };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   cv.addEventListener('pointermove', (e) => {

@@ -34,6 +34,7 @@ h1 { font: 600 22px/1.2 var(--cond); margin: 0; letter-spacing: .01em; text-wrap
 .stage .tag.mark { color: var(--mark); }
 .col { display: flex; flex-direction: column; gap: 8px; }
 #ctx { position: fixed; right: auto; top: 0; left: 0; }
+#ctx .note { padding: 4px 10px; }
 #gl:active { cursor: grabbing; }
 #hud { pointer-events: none; }
 .hint { position: absolute; left: 10px; bottom: 8px; font: 11px var(--mono); color: var(--muted); pointer-events: none; }

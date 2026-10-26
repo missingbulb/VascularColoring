@@ -108,7 +108,15 @@ each slice in its own noise units, flattened, hysteresis 5σ / 2.5σ, skeletonis
 parent widths, specks under 4 widths and networks adding up to under 10 widths dropped, each
 centerline point placed at the depth where its signal sits (median over 2 widths along the
 vessel), then each vessel cut into the fewest straight segments that stay within half its width of
-the centerline. A point where two segments meet is a bend; three or more, a junction.
+the centerline. Each segment carries a `state` and a `confidence`. The tracing above makes the
+`vessel` segments. A second, fainter tracing (hysteresis 3.5σ / 2.0σ, same cleaning) adds whatever
+lies mostly outside the confident mask as `candidate` segments, joined onto a confident vessel where
+they reach one; the confident part is exactly what the single tracing drew. `confidence` is the
+vessel's median signal over the 5σ seed, capped at 1: a ranking for review, not a calibrated
+probability. The owner turns a candidate into `accepted` or `rejected`; a rejected one stays in the
+file as a recorded no. Junctions are never stored: a point where two confirmed (`vessel` or
+`accepted`) segments meet is a bend, three or more a junction, so accepting a candidate is what
+makes its branch point a junction.
 
 The draft for `cd31_frontal_x20_r_1_slices1-12` ships with the MicroViewer (`microviewer/models/`):
 once that stack is open, **Load the draft model for this stack** brings it in. **Side by side** shows
@@ -117,7 +125,9 @@ magenta over the stack. On the model: drag a point to move it (in the plane of t
 tilted view moves it in depth too); right-click a segment to delete it or add a bend, a junction to
 split it into vessels that cross (branches paired off straightest-through first, each pair at the
 depth between its neighbours, a leftover branch detached as a tip), or any point to delete it;
-right-drag from one piece to another to connect them. Edits are kept in the browser until
+right-drag from one piece to another to connect them. Candidates are drawn dashed, can be hidden,
+and a click on one approves or declines its whole vessel (junction to junction; A or D while
+pointing at it). Edits are kept in the browser until
 **Download corrected model**, with undo and redo. `tests/test_vessel_model_edits.mjs` pins the edits.
 
 **First draft (2026-10-03):** 961 points, 920 segments, 136 junctions, 222 tips, 55 KB. Seen before
@@ -126,6 +136,12 @@ traced as a vessel; faint vessels in the lower right break into short pieces or 
 junctions sit in small clusters where a vessel runs past a bright blob; crossings are not split
 (the crossing test in `trace_vessel_graph.py`, below, is not in this generator), so each X is a
 junction for the owner to split.
+
+**Low-confidence candidates (2026-10-26):** the same confident draft (961 points, 136 junctions,
+unchanged), plus 743 candidate segments in 161 vessels that would add up to 72 junctions, 165 KB.
+Seen before review: a few candidates bridge gaps in a confident vessel, which is what the review is
+for; most are short curls in the speckled lower half that are probably noise. Their thresholds are
+a first guess, untuned against any review.
 
 ## The graph tracer: the earlier draft route
 
