@@ -127,8 +127,9 @@ file as a recorded no. Junctions are never stored: a point where two confirmed (
 `accepted`) segments meet is a bend, three or more a junction, so accepting a candidate is what
 makes its branch point a junction.
 
-The draft for `cd31_frontal_x20_r_1_slices1-12` ships with the MicroViewer (`microviewer/models/`):
-once that stack is open, **Load the draft model for this stack** brings it in. **Side by side** shows
+Drafts for all four trimmed stacks ship with the MicroViewer (`microviewer/models/`), and opening
+one of those stacks loads its draft (the name is matched without case, spaces or punctuation, so a
+Drive copy finds it too); **Reload the draft model for this stack** starts over from it. **Side by side** shows
 the stack and the model in two views that turn and zoom together; **Overlay** draws the model in
 magenta over the stack. On the model: drag a point to move it (in the plane of the screen, so a
 tilted view moves it in depth too); right-click a segment to delete it or add a bend, a junction to
