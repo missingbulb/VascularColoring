@@ -1,12 +1,13 @@
 // Reads a multi-page TIFF z-stack into its pages and the facts it records about itself: how the pages
 // split into channels and slices (ImageJ hyperstack or OME-XML description; otherwise every page is a
-// slice), the pixel size and the slice spacing. Strips only, uncompressed, LZW, Deflate or PackBits,
+// slice), the pixel size, the slice spacing, and, from the note this project writes into a stack it
+// cut from a larger one, the channel's name and the slices it was cut from. Strips only, uncompressed, LZW, Deflate or PackBits,
 // 8/16/32-bit samples; anything else is refused with a message naming what the file uses.
 
 const TAG = {
   256: 'width', 257: 'height', 258: 'bits', 259: 'compression', 262: 'photometric', 270: 'description',
   273: 'stripOffsets', 277: 'spp', 278: 'rowsPerStrip', 279: 'stripByteCounts', 282: 'xRes', 284: 'planar',
-  296: 'resUnit', 317: 'predictor', 322: 'tileWidth', 339: 'sampleFormat',
+  296: 'resUnit', 317: 'predictor', 322: 'tileWidth', 339: 'sampleFormat', 50838: 'ijCounts', 50839: 'ijData',
 };
 const TYPE_SIZE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 16: 8 };
 const COMPRESSION = { 1: 'none', 5: 'lzw', 8: 'deflate', 32946: 'deflate', 32773: 'packbits' };
@@ -74,9 +75,29 @@ function layoutFrom(desc, pages, spp) {
   return out;
 }
 
+// ImageJ's binary metadata: a header of (type, count) entries, then each entry's bytes in that order,
+// sized by ijCounts; text is UTF-16 in the header's byte order ('IJIJ' big-endian, 'JIJI' little)
+function imagejInfo(t) {
+  const counts = t.ijCounts, b = t.ijData && Uint8Array.from(t.ijData);
+  if (!counts || !b || b.length < 4) return null;
+  const word = (o) => String.fromCharCode(...b.subarray(o, o + 4)), be = word(0) === 'IJIJ';
+  if (!be && word(0) !== 'JIJI') return null;
+  const dv = new DataView(b.buffer);
+  let k = 1, off = counts[0];
+  for (let h = 4; h + 8 <= counts[0]; h += 8) {
+    const type = be ? word(h) : [...word(h)].reverse().join(''), n = dv.getUint32(h + 4, !be);
+    if (type === 'info') return new TextDecoder(be ? 'utf-16be' : 'utf-16le').decode(b.subarray(off, off + counts[k]));
+    for (let i = 0; i < n; i++) off += counts[k++] ?? 0;
+  }
+  return null;
+}
+
+// e.g. 'CD31 channel (ch2) of "<source file>", slices 1-12 of 30, pixels unchanged'
+const CUT_NOTE = /^(.+?) channel \(ch\d+\) of "([^"]+)", slices (\d+)-(\d+) of (\d+)/;
+
 const MICRONS_PER = { micron: 1, um: 1, 'µm': 1, 'µm': 1, nm: 1e-3, mm: 1e3, cm: 1e4 };
 
-// Opens the stack: {width, height, channels, slices, frames, bits, umPerPx, zStep, names, layout, page(c, z)}.
+// Opens the stack: {width, height, channels, slices, frames, bits, umPerPx, zStep, names, origin, layout, page(c, z)}.
 // page(c, z) decodes one plane of the first time point to a typed array of width*height samples.
 export function openTiff(buf) {
   const { le, ifds } = readIfds(buf);
@@ -107,6 +128,9 @@ export function openTiff(buf) {
     const per = unit && MICRONS_PER[unit.replace(/\\u00B5/i, 'µ')];
     if (per) umPerPx = per / first.xRes[0];
   }
+  const cut = CUT_NOTE.exec(imagejInfo(first) || '');
+  const origin = cut ? { file: cut[2], first: +cut[3], last: +cut[4], of: +cut[5] } : null;
+  const names = L.names ?? (cut && L.channels === 1 ? [cut[1]] : null);
   const C = L.channels, Z = L.slices, perChannel = spp > 1 ? 1 : C;
   // the page holding channel c of slice z at the first time point, in the stack's own dimension order
   const pageIndex = (c, z) => {
@@ -124,7 +148,7 @@ export function openTiff(buf) {
     return out;
   }
   return { width, height, channels: C, slices: Z, frames: L.frames, bits, umPerPx, zStep: L.zStep,
-    names: L.names, layout: L.source, compression: comp, page };
+    names, origin, layout: L.source, compression: comp, page };
 }
 
 async function decodePage(buf, le, t, { width, height, spp, bits, fmt, comp }) {

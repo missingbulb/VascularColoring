@@ -94,6 +94,21 @@ def refused(name, write, says):
     print(f'ok  {name} is refused')
 
 
+TRIM_NOTE = 'CD31 channel (ch2) of "4.2.26.sld - cd31_frontal_x20 r 1.tif", slices 1-12 of 30, pixels unchanged'
+BIOFORMATS_INFO = ' Series 0 Name = cd31_frontal_x20 r 1\n cd31_frontal_x20 r 1 SizeC = 2\nLocation = D:\\gal\\4.2.26.sld\n'
+
+
+def noted(name, a, write, names, origin):
+    """What the file's ImageJ Info note says the stack is: its channel's name and where it was cut from."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, 'stack.tif')
+        write(path, a)
+        r = read(path)
+    assert r['names'] == names, (name, r['names'])
+    assert r['origin'] == origin, (name, r['origin'])
+    print(f'ok  {name}')
+
+
 def truncated(path):
     imagej()(path, drawn(np.uint16))
     with open(path, 'r+b') as f:
@@ -109,6 +124,14 @@ def main():
     check('plain pages, LZW', a8[:, :1], pages('tiff_lzw'), 'pages')
     check('OME, Deflate with prediction', a16, ome(compression='zlib', predictor=True), 'OME')
     check('plain pages, PackBits', a8[:, :1], pages('packbits'), 'pages')
+    cut = {'file': '4.2.26.sld - cd31_frontal_x20 r 1.tif', 'first': 1, 'last': 12, 'of': 30}
+    one = a16[:, 1]
+    noted('trimmed stack note', one, imagej(metadata={'axes': 'ZYX', 'Info': TRIM_NOTE}), ['CD31'], cut)
+    noted('trimmed stack note, big-endian', one.astype('>u2'),
+          imagej(byteorder='>', metadata={'axes': 'ZYX', 'Info': TRIM_NOTE}), ['CD31'], cut)
+    noted('trim note on two channels names neither', a16, imagej(metadata={'Info': TRIM_NOTE}), None, cut)
+    noted('Bio-Formats Info dump', a16, imagej(metadata={'Info': BIOFORMATS_INFO}), None, None)
+    noted('no Info', a16, imagej(), None, None)
     refused('not a TIFF', lambda p: open(p, 'wb').write(b'\x89PNG\r\n\x1a\n' + bytes(64)), 'not a TIFF')
     refused('a tiled TIFF', lambda p: tifffile.imwrite(p, a16[:, 0], tile=(16, 16)), 'tiled')
     refused('a TIFF cut short', truncated, 'cut short')
