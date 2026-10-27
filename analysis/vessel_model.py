@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Draft a straight-line vessel model of a whole CD31 stack, for the owner to correct in the viewer.
+"""Draft a curved vessel model of a whole CD31 stack, for the owner to correct in the viewer.
 
-The model is a few hundred KB of JSON instead of a stack of pictures: points in 3D joined by straight
-segments, with the same number of slices as the stack it was drawn from. It is a DRAFT answer key:
+The model is about a hundred KB of JSON instead of a stack of pictures: junctions and tips in 3D
+joined by smooth curves, with the same number of slices as the stack it was drawn from. It is a DRAFT answer key:
 the owner checks it against the stack in the 3D MicroViewer (side by side or overlaid), corrects it
 there, and only the corrected model is ground truth.
 
@@ -13,13 +13,20 @@ channel 1 there, data/README.md).
 
 Tracing is the owner's chosen "flat plus depth": each slice is put in its own noise units, the slices
 are flattened, the flat picture is thresholded and skeletonised, and every centerline point takes
-the depth (in slices) where its signal sits. Each traced vessel is then cut into the fewest straight
-segments that stay within half its own width of the centerline.
+the depth (in slices) where its signal sits. Each traced vessel between two junctions or tips then
+becomes a curve through the fewest points on it that keep the curve within half the vessel's width
+of its centerline, each point carrying the vessel's radius there.
+
+Tracing runs on a fainter threshold than the one the draft trusts, so it also finds vessels too faint
+to be sure of. Those are kept as low-confidence "candidate" segments that the owner approves or
+declines in the viewer, instead of being dropped unseen. Junctions are never stored: they are the
+points where three or more confirmed segments meet.
 """
 import argparse, json, os
 import numpy as np
 import tifffile
 from scipy import ndimage as ndi
+from scipy.spatial import cKDTree
 from skimage.filters import apply_hysteresis_threshold
 from skimage.morphology import skeletonize, remove_small_objects
 
@@ -27,20 +34,35 @@ from skimage.morphology import skeletonize, remove_small_objects
 BACKGROUND_UM = 11.0   # haze varies over tens of µm; capillaries are ~2-6 µm wide (Stefanitsch digest)
 SMOOTH_UM = 0.55       # about the lateral resolution of a 20x objective
 SEED_SIGMA, GROW_SIGMA = 5.0, 2.5   # hysteresis, in each slice's own robust noise units
+CANDIDATE_SEED_SIGMA, CANDIDATE_GROW_SIGMA = 3.5, 2.0   # a fainter hysteresis finds the low-confidence vessels the owner reviews in the viewer
+CANDIDATE_BELOW = 0.5               # a faint trace with less than half its centerline in the confident mask is a candidate
 SIGNAL_OVER_NOISE = 1.5             # a slice counts only if its top 0.1% beats pure noise (3.09 sigma) by this
 MIN_OBJECT_UM2 = 20.0  # flattened specks; Rust et al. 2020 drop objects below the same area
 SPUR_WIDTHS = 2.0      # a side branch shorter than 2 parent widths is a wall bump (Murray floor 1.29, analysis/3D-STACKS.md)
 ISLAND_WIDTHS = 4.0    # a lone piece shorter than 4 of its own widths is a speck
 NETWORK_WIDTHS = 10.0  # a connected piece whose vessels add up to less than 10 widths is noise, not network
-STRAIGHT_WIDTHS = 0.5  # a segment may stray from the centerline by half the vessel's width
+STRAIGHT_WIDTHS = 0.5  # an edge's curve may stray from the centerline by half the vessel's width
+AXIAL_HALF_SLICES = 2.0   # a capillary spans 4-6 slices through depth at half its peak (measured on three stacks, analysis/3D-STACKS.md)
+THROUGH_DEG = 60.0     # ASSUMPTION: a branch leaving a junction within 60° of straight on continues the vessel; fails where a trunk turns sharply at a split
 DEPTH_SMOOTH_WIDTHS = 2.0  # the per-pixel depth is noisy on faint vessels: median along the path over this span
 
-FORMAT = 'vessel-model/1'
+FORMAT = 'vessel-model/2'
 ABOUT = ('status: draft as drawn by analysis/vessel_model.py, or corrected once the owner has edited it in the '
          '3D MicroViewer; a draft is not ground truth. '
-         'nodes: id, x and y in µm from the top-left corner of the image, z in slices (0 = the middle of the first '
-         'slice; the spacing between slices is not recorded in the file). segments: straight lines between two '
-         'node ids. Points where two segments meet are bends along one vessel; three or more, a junction.')
+         'nodes: the junctions and tips only, each with id, x and y in µm from the top-left corner of the image, z in '
+         'slices (0 = the middle of the first slice; the spacing between slices is z_step_um, null while unknown, and '
+         'then lengths in 3D are left out rather than guessed), and r, the vessel\'s radius there in µm. A tip on the '
+         'image border is a vessel cut off by the frame, not a vessel end. '
+         'edges: each a smooth curve from node a to node b through its via points in order, a centripetal Catmull-Rom '
+         'over x, y and z as stored, with the radius running between the points that carry it. vessel: which edges '
+         'are one vessel running on through its junctions (the extractor\'s guess, for the owner to correct). '
+         'state: "vessel" (traced with confidence, or drawn by the owner), "candidate" (too faint to be sure of, '
+         'waiting for the owner to review), "accepted" or "rejected" (the owner\'s verdict on a candidate; a rejected '
+         'edge is kept as a recorded no and is not part of the network). confidence: the vessel\'s median signal over '
+         'the confident seed level, capped at 1; a ranking for review, not a calibrated probability; absent on edges '
+         'the owner drew. A junction is where three or more confirmed (vessel or accepted) edges meet. '
+         'reviewed_regions: boxes the owner has checked completely; outside them a missing vessel is not annotated, '
+         'not absent.')
 
 
 def read_cd31(path, channel):
@@ -73,16 +95,20 @@ def noise_units(vol, um):
 
 
 def segment(z, keep, um):
-    """The flattened mask, its skeleton, the distance map in px, and the depth (slices) of each pixel."""
-    mask = apply_hysteresis_threshold(z[keep].max(axis=0), GROW_SIGMA, SEED_SIGMA)
-    mask = ndi.binary_closing(mask, np.ones((3, 3)))
-    mask = remove_small_objects(mask, max_size=int(MIN_OBJECT_UM2 / um ** 2))
+    """The confident and the faint-seeded masks, the depth (slices) of each pixel, and the flattened
+    signal in noise units."""
+    flat = z[keep].max(axis=0)
+
+    def mask_at(grow, seed):
+        m = ndi.binary_closing(apply_hysteresis_threshold(flat, grow, seed), np.ones((3, 3)))
+        return remove_small_objects(m, max_size=int(MIN_OBJECT_UM2 / um ** 2))
+    confident, mask = mask_at(GROW_SIGMA, SEED_SIGMA), mask_at(CANDIDATE_GROW_SIGMA, CANDIDATE_SEED_SIGMA)
     zk = ndi.gaussian_filter(z[keep], (0, 2 * SMOOTH_UM / um, 2 * SMOOTH_UM / um))
     w = np.clip(zk - GROW_SIGMA, 0, None)
     slices = np.flatnonzero(keep)
     # where the blurred signal clears the growth level nowhere, the brightest slice stands in
     depth = np.where(w.sum(0) > 0, (w * slices[:, None, None]).sum(0) / (w.sum(0) + 1e-9), slices[zk.argmax(0)])
-    return skeletonize(mask), ndi.distance_transform_edt(mask), depth
+    return confident, mask, depth, flat
 
 
 NB = [(dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]
@@ -199,65 +225,195 @@ def clean(pos, edges, dist):
     return [e for e in E.values() if total[find(e[0])] >= NETWORK_WIDTHS * max(wsum[find(e[0])] / max(total[find(e[0])], 1e-9), 1)]
 
 
-def straighten(p, tol):
-    """Indices of the fewest points of path p (N, 3) whose straight segments stay within tol of it."""
-    keep = {0, len(p) - 1}
-    stack = [(0, len(p) - 1)]
-    while stack:
-        i, j = stack.pop()
-        if j <= i + 1:
-            continue
-        a, b = p[i], p[j]
-        ab = b - a
-        t = np.clip(((p[i + 1:j] - a) @ ab) / max(ab @ ab, 1e-12), 0, 1)
-        d = np.linalg.norm(p[i + 1:j] - (a + t[:, None] * ab), axis=1)
+def catmull_rom(P0, P1, P2, P3, t):
+    """Points at t (array, 0..1) between P1 and P2 of a centripetal Catmull-Rom through P0..P3
+    (Barry and Goldman's form); the viewer draws the same curve."""
+    P = [np.asarray(q, float) for q in (P0, P1, P2, P3)]
+    d = lambda p, q: max(float(np.linalg.norm(p - q)) ** .5, 1e-6)
+    t0, t1 = 0.0, d(P[0], P[1]); t2 = t1 + d(P[1], P[2]); t3 = t2 + d(P[2], P[3])
+    u = (t1 + (t2 - t1) * np.asarray(t, float))[:, None]
+    lerp = lambda p, q, ta, tb: ((tb - u) * p + (u - ta) * q) / (tb - ta)
+    A1, A2, A3 = lerp(P[0], P[1], t0, t1), lerp(P[1], P[2], t1, t2), lerp(P[2], P[3], t2, t3)
+    return lerp(lerp(A1, A2, t0, t2), lerp(A2, A3, t1, t3), t1, t2)
+
+
+def curve(pts, step):
+    """Samples of the curve through pts (K, 3) in order, its ends continued straight, about step apart."""
+    ext = np.vstack([2 * pts[0] - pts[1], pts, 2 * pts[-1] - pts[-2]])
+    out = []
+    for k in range(len(pts) - 1):
+        n = max(int(np.ceil(1.5 * np.linalg.norm(pts[k + 1] - pts[k]) / step)), 4)
+        out.append(catmull_rom(*ext[k:k + 4], np.linspace(0, 1, n, endpoint=False)))
+    return np.vstack(out + [pts[-1:]])
+
+
+def fit_curve(p, tol):
+    """Indices of the fewest points of path p (N, 3) that a curve through them keeps within tol of
+    every path point: start from the two ends, and add the path point the curve strays furthest
+    from until none strays more than tol."""
+    keep = [0, len(p) - 1]
+    while True:
+        c = curve(p[keep], tol / 4)
+        d = np.min(np.linalg.norm(p[:, None, :] - c[None, :, :], axis=2), axis=1)
         k = int(np.argmax(d))
-        if d[k] > tol:
-            m = i + 1 + k
-            keep.add(m); stack += [(i, m), (m, j)]
-    return sorted(keep)
+        if d[k] <= tol or k in keep:
+            return keep
+        keep = sorted(keep + [k])
+
+
+def trace(mask):
+    """The cleaned skeleton graph of a mask, and its distance map in px."""
+    dist = ndi.distance_transform_edt(mask)
+    pos, edges = skeleton_graph(skeletonize(mask))
+    return pos, clean(pos, edges, dist), dist
 
 
 def model(vol, um, source, z_step):
     z, keep = noise_units(vol, um)
-    skel, dist, depth = segment(z, keep, um)
-    pos, edges = skeleton_graph(skel)
-    edges = clean(pos, edges, dist)
-    nodes, segs, ids = [], [], {}
+    confident, faint, depth, flat = segment(z, keep, um)
+    where, E = {}, []   # node key -> (y px, x px, z slices); edges as pixel paths between node keys
 
-    def node(key, y, x, d):
-        if key not in ids:
-            ids[key] = len(nodes) + 1
-            nodes.append({'id': ids[key], 'x': round((float(x) + .5) * um, 2), 'y': round((float(y) + .5) * um, 2), 'z': round(float(d), 2)})
-        return ids[key]
+    def add(tag, pos, edges, dist, state):
+        for a, b, p in edges:
+            rad = dist[p[:, 0], p[:, 1]]
+            w = 2 * float(rad.mean())
+            d = ndi.median_filter(depth[p[:, 0], p[:, 1]], size=max(int(DEPTH_SMOOTH_WIDTHS * w) | 1, 3), mode='nearest')
+            # the vessel's median signal against the confident seed level: a ranking, not a calibrated probability
+            conf = round(min(float(np.median(flat[p[:, 0], p[:, 1]])) / SEED_SIGMA, 1.0), 2)
+            E.append({'a': (tag, a), 'b': (tag, b), 'p': p, 'd': d, 'rad': rad, 'w': w, 'state': state, 'conf': conf})
+        for n in {k for a, b, _ in edges for k in (a, b)}:   # a junction or tip sits at the median depth its edges arrive at
+            arrive = [depth[tuple(q[0] if np.linalg.norm(q[0] - pos[n]) < np.linalg.norm(q[-1] - pos[n]) else q[-1])]
+                      for e0, e1, q in edges if n in (e0, e1)]
+            where[tag, n] = (*pos[n], float(np.median(arrive)))
 
-    for ei, (a, b, p) in enumerate(edges):
-        w = 2 * float(dist[p[:, 0], p[:, 1]].mean())
-        d = depth[p[:, 0], p[:, 1]]
-        d = ndi.median_filter(d, size=max(int(DEPTH_SMOOTH_WIDTHS * w) | 1, 3), mode='nearest')
-        pts = np.column_stack([p, d * 1.0])
-        idx = straighten(pts, max(STRAIGHT_WIDTHS * w, 1.0))
-        chain = []
-        for k in idx:
-            if k == 0:
-                chain.append(('n', a))
-            elif k == len(p) - 1:
-                chain.append(('n', b))
-            else:
-                chain.append(node(('p', ei, k), p[k, 0], p[k, 1], d[k]))
-        out = []
-        for c in chain:
-            if isinstance(c, tuple):   # a junction or tip sits at the median depth its edges arrive at
-                n = c[1]
-                arrive = [depth[tuple(q[0] if np.linalg.norm(q[0] - pos[n]) < np.linalg.norm(q[-1] - pos[n]) else q[-1])]
-                          for e0, e1, q in edges if n in (e0, e1)]
-                out.append(node(('n', n), *pos[n], float(np.median(arrive))))
-            else:
-                out.append(c)
-        segs += [{'a': u, 'b': v} for u, v in zip(out[:-1], out[1:]) if u != v]
-    Z, H, W = vol.shape
+    pos, edges, dist = trace(confident)
+    add('v', pos, edges, dist, 'vessel')
+    sure = len(E)
+    # the faint trace adds only what the confident one does not already hold; where it reaches a
+    # confident vessel it joins it, so the two are one network
+    pos, edges, dist = trace(faint)
+    add('c', pos, [e for e in edges if float(confident[e[2][:, 0], e[2][:, 1]].mean()) < CANDIDATE_BELOW], dist, 'candidate')
+    snap_candidates(E, sure, where, confident)
+    return curves(E, where, um, vol.shape, source, z_step)
+
+
+def snap_candidates(E, sure, where, confident):
+    """Each candidate end that lies on a confident vessel is moved onto it: onto the vessel's own
+    junction or tip within a pixel of it, or onto a new point that splits the vessel there."""
+    pix = np.vstack([e['p'] for e in E[:sure]]) if sure else np.zeros((0, 2))
+    owner = np.concatenate([np.column_stack([np.full(len(e['p']), i), np.arange(len(e['p']))]) for i, e in enumerate(E[:sure])]) if sure else None
+    tree = cKDTree(pix) if sure else None
+    to, splits = {}, {}
+    for e in E[sure:]:
+        for end, k in (('a', 0), ('b', -1)):
+            n = e[end]
+            if n in to or not sure or not confident[tuple(e['p'][k])]:
+                continue
+            dd, j = tree.query(e['p'][k])
+            if dd > max(e['w'], 2.0):
+                continue
+            i, at = owner[j]
+            L = len(E[i]['p'])
+            to[n] = ('node', E[i]['a']) if at <= 1 else ('node', E[i]['b']) if at >= L - 2 else ('split', int(i), int(at))
+            if to[n][0] == 'split':
+                splits.setdefault(int(i), set()).add(int(at))
+    # split points within a pixel of each other along one vessel are one point
+    rep = {}
+    for i, ks in splits.items():
+        last = None
+        for k in sorted(ks):
+            if last is None or k - last > 1:
+                last = k
+            rep[i, k] = last
+    pieces = {}
+    for i in splits:
+        e, ks = E[i], sorted(set(rep[i, k] for k in splits[i]))
+        cuts, keys = [0] + ks + [len(e['p']) - 1], [e['a']] + [('s', i, k) for k in ks] + [e['b']]
+        for k in ks:
+            where['s', i, k] = (*e['p'][k], float(e['d'][k]))
+        pieces[i] = [{**e, 'a': keys[q], 'b': keys[q + 1], 'p': e['p'][cuts[q]:cuts[q + 1] + 1], 'd': e['d'][cuts[q]:cuts[q + 1] + 1],
+                      'rad': e['rad'][cuts[q]:cuts[q + 1] + 1]} for q in range(len(ks) + 1)]
+    for e in E[sure:]:
+        for end in 'ab':
+            t = to.get(e[end])
+            if t:
+                e[end] = t[1] if t[0] == 'node' else ('s', t[1], rep[t[1], t[2]])
+    E[:] = [q for i, e in enumerate(E) for q in pieces.get(i, [e])]
+
+
+def curves(E, where, um, shape, source, z_step):
+    """The vessel-model/2 file: junctions and tips, and each edge as the fewest on-vessel points a
+    curve through them needs to stay within half the vessel's width of its centerline."""
+    ids, nodes = {}, []
+    xyz = lambda y, x, d: np.array([(float(x) + .5) * um, (float(y) + .5) * um, float(d)])
+    end_r = {}
+
+    def r_at(e, k):
+        h = max(int(e['w']), 1)
+        return round(float(np.median(e['rad'][max(k - h, 0):k + h + 1])) * um, 2)
+
+    out = []
+    for e in E:
+        # the pixel path steps in stairs and its depth is noisy: neither is a bend of the vessel
+        w = max(e['w'], 1.0)
+        yx = ndi.gaussian_filter1d(e['p'].astype(float), max(STRAIGHT_WIDTHS * w, 1.0), axis=0, mode='nearest')
+        d = ndi.gaussian_filter1d(e['d'].astype(float), DEPTH_SMOOTH_WIDTHS / 2 * w, mode='nearest')
+        P = np.column_stack([(yx[:, 1] + .5) * um, (yx[:, 0] + .5) * um, d])
+        P[0], P[-1] = xyz(*where[e['a']]), xyz(*where[e['b']])
+        if len(P) < 2 or (e['a'] == e['b'] and len(P) < 4):
+            continue
+        # a curve strays when it leaves the vessel sideways by half its width, or in depth by half
+        # the depth a vessel spans: depth is scaled so that both read as the same tolerance
+        tol = max(STRAIGHT_WIDTHS * e['w'], 1.0) * um
+        keep = fit_curve(P * [1, 1, tol / AXIAL_HALF_SLICES], tol)
+        if e['a'] == e['b'] and len(keep) < 4:   # a loop needs two points of its own to stay a loop
+            continue
+        for end, k in (('a', 0), ('b', len(P) - 1)):
+            end_r.setdefault(e[end], []).append(r_at(e, k))
+        via = [{'x': round(P[k, 0], 2), 'y': round(P[k, 1], 2), 'z': round(P[k, 2], 2), 'r': r_at(e, k)} for k in keep[1:-1]]
+        out.append({'e': e, 'via': via, 'P': P})
+    for o in out:
+        for end in 'ab':
+            n = o['e'][end]
+            if n not in ids:
+                ids[n] = len(nodes) + 1
+                x, y, d = xyz(*where[n])
+                nodes.append({'id': ids[n], 'x': round(x, 2), 'y': round(y, 2), 'z': round(d, 2), 'r': round(float(np.median(end_r[n])), 2)})
+    vessel = vessel_ids(out, ids)
+    edges = [{'id': k + 1, 'a': ids[o['e']['a']], 'b': ids[o['e']['b']], 'vessel': vessel[k], 'state': o['e']['state'],
+              'confidence': o['e']['conf'], 'via': o['via']} for k, o in enumerate(out)]
+    Z, H, W = shape
     return {'format': FORMAT, '_about': ABOUT, 'status': 'draft', 'source': source, 'slices': int(Z), 'size_px': [int(W), int(H)],
-            'um_per_px': um, 'z_step_um': z_step, 'nodes': nodes, 'segments': segs}
+            'um_per_px': um, 'z_step_um': z_step, 'nodes': nodes, 'edges': edges, 'reviewed_regions': []}
+
+
+def vessel_ids(out, ids):
+    """One id per vessel: at each junction the two branches of one state that run most nearly
+    straight on through it, within THROUGH_DEG of straight, continue one vessel."""
+    root = list(range(len(out)))
+    def find(i):
+        while root[i] != i:
+            root[i] = root[root[i]]; i = root[i]
+        return i
+    at = {}
+    for k, o in enumerate(out):
+        P, w = o['P'], max(o['e']['w'], 1.0)
+        reach = min(max(int(2 * w), 2), len(P) - 1)   # the direction a branch leaves in, two widths out
+        for end, a, b in (('a', P[0], P[reach]), ('b', P[-1], P[-1 - reach])):
+            v = (b - a)[:2]
+            at.setdefault(ids[o['e'][end]], []).append((k, v / (np.linalg.norm(v) or 1)))
+    for arms in at.values():
+        free = list(arms)
+        while True:
+            pairs = [(float(p[1] @ q[1]), x, y) for x, p in enumerate(free) for y, q in enumerate(free)
+                     if x < y and p[0] != q[0] and out[p[0]]['e']['state'] == out[q[0]]['e']['state']]
+            if not pairs or min(pairs)[0] > -np.cos(np.radians(THROUGH_DEG)):
+                break
+            _, x, y = min(pairs)
+            root[find(free[x][0])] = find(free[y][0])
+            free = [f for z, f in enumerate(free) if z not in (x, y)]
+    first = {}
+    return [first.setdefault(find(k), len(first) + 1) for k in range(len(out))]
 
 
 def main():
@@ -269,9 +425,11 @@ def main():
     m = model(vol, um, os.path.basename(a.stack), z_step)
     with open(a.out, 'w') as f:
         json.dump(m, f, separators=(',', ':'))
-    junctions = sum(1 for v in np.bincount([s[k] for s in m['segments'] for k in 'ab']) if v >= 3)
-    print(f"{len(m['nodes'])} points, {len(m['segments'])} straight segments, {junctions} junctions, "
-          f"{os.path.getsize(a.out) / 1024:.0f} KB")
+    sure = [e for e in m['edges'] if e['state'] == 'vessel']
+    junctions = sum(1 for v in np.bincount([e[k] for e in sure for k in 'ab']) if v >= 3)
+    print(f"{len(m['nodes'])} junctions and tips, {len(sure)} curved vessel edges through "
+          f"{sum(len(e['via']) for e in sure)} curve points, {junctions} junctions, {len(set(e['vessel'] for e in sure))} vessels, "
+          f"{len(m['edges']) - len(sure)} low-confidence edges to review, {os.path.getsize(a.out) / 1024:.0f} KB")
 
 
 if __name__ == '__main__':

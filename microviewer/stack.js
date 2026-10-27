@@ -17,7 +17,7 @@ export async function buildVolumes(stack, { bin = binFor(stack.width, stack.heig
   const meta = {
     shape: [Z, Y, X], bin, channels: [],
     um_per_px: stack.umPerPx ? stack.umPerPx * bin : null,
-    z_step_um: stack.zStep, frames: stack.frames, layout: stack.layout, bits: stack.bits,
+    z_step_um: stack.zStep, frames: stack.frames, layout: stack.layout, bits: stack.bits, origin: stack.origin,
   };
   const vols = [];
   for (let c = 0; c < C; c++) {

@@ -15,4 +15,4 @@ const planes = [];
 for (let c = 0; c < s.channels; c++) for (let z = 0; z < s.slices; z++) planes.push(Array.from(await s.page(c, z)));
 const { meta, vols } = await buildVolumes(s, { bin: +(process.argv[3] || 1) });
 console.log(JSON.stringify({ width: s.width, height: s.height, channels: s.channels, slices: s.slices, frames: s.frames,
-  umPerPx: s.umPerPx, zStep: s.zStep, layout: s.layout, names: s.names, planes, meta, vols: vols.map((v) => Array.from(v)) }));
+  umPerPx: s.umPerPx, zStep: s.zStep, layout: s.layout, names: s.names, origin: s.origin, planes, meta, vols: vols.map((v) => Array.from(v)) }));

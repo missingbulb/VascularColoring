@@ -1,6 +1,7 @@
 // The vessel model beside or over the stack, in the stack's own camera, and the owner's corrections to
 // it: drag a point to move it, right-click a segment or a point to delete it or split a junction,
-// right-drag from one piece to another to connect them. The corrected model downloads as JSON.
+// right-drag from one piece to another to connect them, click a dashed low-confidence vessel to
+// approve or decline it. The corrected model downloads as JSON.
 import * as V from './viewer.js';
 import * as Mo from './model.js';
 
@@ -13,7 +14,7 @@ const PICK_POINT_PX = 9, PICK_SEGMENT_PX = 6, DRAG_PX = 5;
 const OVERLAY = '#ff4fd8';
 
 let model = null, loaded = null, history = [], future = [], edits = 0, savedKey = null;
-let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null;
+let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage: edits live until the page closes */ } },
@@ -36,13 +37,28 @@ function fromWorld(p) {
 let cv = null, view = null;   // the canvas the model is drawn on, and its last projection
 function project() {
   const W = cv.clientWidth, H = cv.clientHeight, vp = V.camera(W / H), pts = new Map();
-  for (const n of model.nodes.values()) {
-    const v = V.M.xf(vp, toWorld(n));
-    if (v[3] > 0) pts.set(n.id, [(v[0] / v[3] + 1) / 2 * W, (1 - v[1] / v[3]) / 2 * H, v[3], v[2] / v[3]]);
-  }
-  return { vp, W, H, pts };
+  const at = (p) => { const v = V.M.xf(vp, toWorld(p)); return v[3] > 0 ? [(v[0] / v[3] + 1) / 2 * W, (1 - v[1] / v[3]) / 2 * H, v[3], v[2] / v[3]] : null; };
+  for (const n of model.nodes.values()) { const q = at(n); if (q) pts.set(n.id, q); }
+  // each segment's stretch of its edge's curve, on screen
+  const curves = new Map();
+  model.segments.forEach((s, i) => {
+    if (!pts.has(s.a) || !pts.has(s.b)) return;
+    const c = samples(i).map(at);
+    if (c.every(Boolean)) curves.set(i, c);
+  });
+  return { vp, W, H, pts, curves };
 }
-const inSlab = (n) => n.z >= V.S.z0 - .5 && n.z <= V.S.z1 + .5;
+const SAMPLES = 8, sampled = new WeakMap();
+function samples(i) {
+  let c = sampled.get(model);
+  if (!c) sampled.set(model, (c = []));
+  return (c[i] ??= Mo.sampleSegment(model, i, SAMPLES));
+}
+const inSlab = (n) => n.z >= V.S.z0 - .5 && n.z <= V.S.z1 + .5 && V.inClip(toWorld(n));
+// declined candidates are never drawn; the rest are, unless the owner has hidden the low-confidence ones
+const visible = (s) => Mo.live(s) && (showCandidates || s.state !== 'candidate');
+const shown = (s) => visible(s) && (inSlab(model.nodes.get(s.a)) || inSlab(model.nodes.get(s.b)));
+const isCandidate = (h) => h?.segment != null && model.segments[h.segment]?.state === 'candidate';
 
 function draw() {
   if (!model || mode === 'off' || !V.meta || !cv.clientWidth) return;
@@ -51,7 +67,9 @@ function draw() {
   const c = cv.getContext('2d'); c.scale(dpr, dpr);
   if (mode === 'side') { c.fillStyle = '#000'; c.fillRect(0, 0, cv.clientWidth, cv.clientHeight); }
   view = project();
-  const { pts } = view, Z = slices(), deg = Mo.degrees(model);
+  const { pts } = view, Z = slices(), deg = Mo.degrees(model), seen = Mo.degrees(model, visible);
+  const all = Mo.degrees(model, Mo.live), cand = Mo.degrees(model, (s) => s.state === 'candidate');
+  const hot = new Set(isCandidate(hover) ? Mo.piece(model, hover.segment) : hover?.segment != null ? [hover.segment] : []);
   const span = Math.max(V.S.z1 + 1 - V.S.z0, 1);
   const colour = (z) => {
     if (mode === 'overlay') return OVERLAY;
@@ -60,28 +78,34 @@ function draw() {
     return `rgb(${t.map((v) => Math.round(v * 255)).join(',')})`;
   };
   // far segments first, so nearer vessels draw over the ones they pass in front of
-  const order = model.segments.map((s, i) => i).filter((i) => {
-    const s = model.segments[i];
-    return pts.has(s.a) && pts.has(s.b) && (inSlab(model.nodes.get(s.a)) || inSlab(model.nodes.get(s.b)));
-  });
+  const order = model.segments.map((s, i) => i).filter((i) => view.curves.has(i) && shown(model.segments[i]));
   order.sort((i, j) => (pts.get(model.segments[j].a)[2] + pts.get(model.segments[j].b)[2]) - (pts.get(model.segments[i].a)[2] + pts.get(model.segments[i].b)[2]));
   c.lineCap = 'round';
   for (const i of order) {
-    const s = model.segments[i], a = pts.get(s.a), b = pts.get(s.b);
-    const hot = hover?.segment === i;
-    c.strokeStyle = hot ? '#fff' : colour((model.nodes.get(s.a).z + model.nodes.get(s.b).z) / 2);
+    const s = model.segments[i], line = view.curves.get(i), lit = hot.has(i);
+    // a low-confidence vessel is dashed in the same colours, so depth still reads along it
+    const unsure = s.state === 'candidate';
+    c.setLineDash(unsure ? [4, 4] : []);
+    c.strokeStyle = lit ? '#fff' : colour((model.nodes.get(s.a).z + model.nodes.get(s.b).z) / 2);
     // over the stack the lines stay thin and let the signal under them show through
-    c.globalAlpha = mode === 'overlay' && !hot ? .7 : 1;
-    c.lineWidth = hot ? 3 : mode === 'overlay' ? 1.1 : 1.5;
-    c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+    c.globalAlpha = lit ? 1 : (mode === 'overlay' ? .7 : 1) * (unsure ? .8 : 1);
+    c.lineWidth = lit ? 3 : mode === 'overlay' ? 1.1 : 1.5;
+    c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
   }
-  c.globalAlpha = 1;
+  c.setLineDash([]); c.globalAlpha = 1;
   for (const n of model.nodes.values()) {
-    const p = pts.get(n.id); if (!p || !inSlab(n)) continue;
+    const p = pts.get(n.id), v = seen.get(n.id) || 0; if (!p || !v || !inSlab(n)) continue;
     const d = deg.get(n.id) || 0, hot = hover?.node === n.id;
     c.beginPath();
-    if (d >= 3) { c.arc(p[0], p[1], hot ? 6 : 4, 0, 2 * Math.PI); c.strokeStyle = hot ? '#fff' : mode === 'overlay' ? OVERLAY : 'rgba(255,255,255,.85)'; c.lineWidth = hot ? 2 : 1.2; c.stroke(); }
-    else { c.arc(p[0], p[1], hot ? 4.5 : (d === 1 ? 2.2 : 1.6) * (mode === 'overlay' ? .7 : 1), 0, 2 * Math.PI); c.fillStyle = hot ? '#fff' : colour(n.z); c.fill(); }
+    // a junction is where three confirmed vessels meet; one that waits on a candidate's review is dashed
+    if (v >= 3) {
+      c.setLineDash(d >= 3 || hot ? [] : [2, 2]);
+      c.arc(p[0], p[1], hot ? 6 : 4, 0, 2 * Math.PI); c.strokeStyle = hot ? '#fff' : mode === 'overlay' ? OVERLAY : 'rgba(255,255,255,.85)'; c.lineWidth = hot ? 2 : 1.2; c.stroke();
+      c.setLineDash([]);
+    } else if (hot || all.get(n.id) !== cand.get(n.id)) {
+      // a candidate's own points are left undrawn, so it reads as a dashed line and not as a row of dots
+      c.arc(p[0], p[1], hot ? 4.5 : (v === 1 ? 2.2 : 1.6) * (mode === 'overlay' ? .7 : 1), 0, 2 * Math.PI); c.fillStyle = hot ? '#fff' : colour(n.z); c.fill();
+    }
   }
   if (rubber) {
     c.setLineDash([5, 4]); c.strokeStyle = '#fff'; c.lineWidth = 1.5;
@@ -94,31 +118,33 @@ function draw() {
 }
 
 // what is under the pointer: {node: id} or {segment: i, t} (t along the segment, from its first point)
-function pick(e) {
+function pick(e, segmentsOnly = false) {
   if (!view) return null;
   const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   let best = null, bd = PICK_POINT_PX;
-  for (const [id, p] of view.pts) {
-    if (!inSlab(model.nodes.get(id))) continue;
+  const on = Mo.degrees(model, visible);
+  if (!segmentsOnly) for (const [id, p] of view.pts) {
+    if (!on.get(id) || !inSlab(model.nodes.get(id))) continue;
     const d = Math.hypot(p[0] - x, p[1] - y);
     if (d < bd) { bd = d; best = { node: id }; }
   }
   if (best) return best;
   bd = PICK_SEGMENT_PX;
-  model.segments.forEach((s, i) => {
-    const a = view.pts.get(s.a), b = view.pts.get(s.b);
-    if (!a || !b || !(inSlab(model.nodes.get(s.a)) || inSlab(model.nodes.get(s.b)))) return;
-    const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
-    const t = Math.min(Math.max(((x - a[0]) * dx + (y - a[1]) * dy) / L, 0), 1);
-    const d = Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
-    if (d < bd) { bd = d; best = { segment: i, t: Math.min(Math.max(t, .02), .98) }; }
-  });
+  for (const [i, line] of view.curves) {
+    if (!shown(model.segments[i])) continue;
+    for (let k = 0; k < line.length - 1; k++) {
+      const a = line[k], b = line[k + 1], dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
+      const u = Math.min(Math.max(((x - a[0]) * dx + (y - a[1]) * dy) / L, 0), 1);
+      const d = Math.hypot(a[0] + u * dx - x, a[1] + u * dy - y);
+      if (d < bd) { bd = d; best = { segment: i, t: Math.min(Math.max((k + u) / (line.length - 1), .02), .98) }; }
+    }
+  }
   return best;
 }
 const screenOf = (h) => {
   if (h.node != null) return view.pts.get(h.node).slice(0, 2);
-  const s = model.segments[h.segment], a = view.pts.get(s.a), b = view.pts.get(s.b);
-  return [a[0] + (b[0] - a[0]) * h.t, a[1] + (b[1] - a[1]) * h.t];
+  const line = view.curves.get(h.segment), f = h.t * (line.length - 1), k = Math.min(Math.floor(f), line.length - 2), u = f - k;
+  return [line[k][0] + (line[k + 1][0] - line[k][0]) * u, line[k][1] + (line[k + 1][1] - line[k][1]) * u];
 };
 
 // ---------- edits ----------
@@ -152,7 +178,7 @@ function grab(e) {
         if (!moved) { moved = true; history.push(base); future = []; edits++; }
         model = next; V.redraw();
       },
-      up() { if (moved) changed(); },
+      up(ev) { if (moved) changed(); else clicked(ev); },
       cancel() { if (moved) changed(); },
     };
   }
@@ -182,27 +208,61 @@ function grab(e) {
   return null;
 }
 
+// A left click on a dashed vessel asks for its verdict.
+function clicked(e) {
+  if (!model || mode === 'off') return;
+  const h = pick(e, true);
+  if (isCandidate(h)) openMenu(h, e.clientX, e.clientY);
+}
+
 function openMenu(h, x, y) {
   const items = [];
   const zScale = V.S.zs;   // µm per slice, as the view draws it
+  if (isCandidate(h)) {
+    const c = model.segments[h.segment].confidence;
+    items.push(['Approve this vessel (A)', () => Mo.review(model, h.segment, 'accepted')]);
+    items.push(['Decline this vessel (D)', () => Mo.review(model, h.segment, 'rejected')]);
+    if (c != null) items.push([`low confidence: ${c.toFixed(2)}`, null]);
+  }
   if (h.segment != null) {
     items.push(['Delete this segment', () => Mo.deleteSegment(model, h.segment)]);
-    items.push(['Add a bend point here', () => Mo.splitSegment(model, h.segment, h.t)[0]]);
+    items.push(['Add a curve point here', () => Mo.splitSegment(model, h.segment, h.t)[0]]);
   } else {
     const d = Mo.degrees(model).get(h.node) || 0;
-    if (d >= 3) items.push(['Wrong junction: these vessels cross, split them', () => Mo.splitJunction(model, h.node, zScale)]);
-    if (d === 2) items.push(['Remove this bend (straight line through)', () => Mo.removeBend(model, h.node)]);
+    if (d >= 3) {
+      items.push(['Look at it from the side: crossing or split?', () => { lookAt(h.node); return model; }]);
+      items.push(['Wrong junction: these vessels cross, split them', () => Mo.splitJunction(model, h.node, zScale)]);
+    }
+    if (d === 2) items.push(['Remove this curve point (smoother curve)', () => Mo.removeBend(model, h.node)]);
     items.push([d === 1 ? 'Delete this tip and its segment' : 'Delete this point and its segments', () => Mo.deleteNode(model, h.node)]);
   }
   const m = $('ctx');
   m.replaceChildren(...items.map(([label, fn]) => {
+    if (!fn) { const p = document.createElement('div'); p.className = 'note'; p.textContent = label; return p; }
     const b = document.createElement('button'); b.type = 'button'; b.className = 'item'; b.textContent = label;
-    b.onclick = () => { closeMenu(); apply(fn()); };
+    b.onclick = () => { closeMenu(); apply(fn()); V.redraw(); };
     return b;
   }));
   m.hidden = false;
   m.style.left = `${Math.min(x, innerWidth - m.offsetWidth - 8)}px`; m.style.top = `${Math.min(y, innerHeight - m.offsetHeight - 8)}px`;
   hover = h; V.redraw();
+}
+// The junction from the side, cut out of the stack: two vessels that only cross sit apart in depth.
+// The view looks across the straightest pair of branches through it, the vessel running on.
+const LOOK_RADII = 8, LOOK_MIN_UM = 10;
+function lookAt(id) {
+  const N = model.nodes.get(id), w = toWorld(N), nb = Mo.neighbours(model, id).map((k) => toWorld(model.nodes.get(k)));
+  const dir = nb.map((q) => { const v = [q[0] - w[0], q[1] - w[1]], l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l]; });
+  let best = [0, 1, 2];
+  for (let i = 0; i < dir.length; i++) for (let j = i + 1; j < dir.length; j++) {
+    const c = dir[i][0] * dir[j][0] + dir[i][1] * dir[j][1];
+    if (c < best[2]) best = [i, j, c];
+  }
+  const along = Math.atan2(dir[best[0]][1] - dir[best[1]][1], dir[best[0]][0] - dir[best[1]][0]);
+  const um = Math.max(LOOK_RADII * (N.r || 0), LOOK_MIN_UM);
+  V.focus(w, um / (model.size_px[0] * model.um_per_px) * 2 * V.half[0], along);
+  if (mode === 'side') setMode('overlay');
+  msg('Showing this junction from the side. Top, Tilted, Side or Front shows the whole stack again.');
 }
 function closeMenu() { if (!$('ctx').hidden) { $('ctx').hidden = true; hover = null; V.redraw(); } }
 
@@ -217,16 +277,18 @@ function setMode(m) {
   if (m === 'overlay') $('stage').append(cv); else $('stage-model').prepend(cv);
   cv.hidden = m === 'off' || !model;
   $('stage-hint').textContent = m === 'overlay' && model
-    ? 'drag a point: move it · right-click: delete or split · right-drag between pieces: connect · drag elsewhere: rotate'
+    ? 'drag a point: move it · click a dashed vessel: approve or decline · right-click: delete or split · right-drag between pieces: connect · drag elsewhere: rotate'
     : 'drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom';
   V.redraw();
 }
 
 function facts() {
   if (!model) return;
-  const s = Mo.stats(model);
+  const s = Mo.stats(model), v = Mo.pieceCounts(model);
   $('model-facts').textContent = `${model.status === 'corrected' ? 'Corrected' : 'Draft'} model of ${model.source}: ` +
-    `${s.segments} straight segments, ${s.junctions} junctions, ${s.tips} tips, ${model.slices} slices. ` +
+    `${v.vessel + v.accepted} vessel edges, ${s.junctions} junctions, ${s.tips} tips, ${model.slices} slices. ` +
+    (v.candidate || v.accepted || v.rejected ? `${v.candidate} low-confidence vessel${v.candidate === 1 ? '' : 's'} to review` +
+      `${s.pendingJunctions ? ` (they would add up to ${s.pendingJunctions} junctions)` : ''}, ${v.accepted} approved, ${v.rejected} declined. ` : '') +
     (edits ? `${edits} edit${edits === 1 ? '' : 's'} so far, kept in this browser until you download.` : 'No edits yet.');
   $('m-undo').disabled = !history.length; $('m-redo').disabled = !future.length; $('m-reset').disabled = !edits;
 }
@@ -250,6 +312,7 @@ function open(text, name) {
   }
   if (V.meta && m.slices !== slices()) msg(`This model has ${m.slices} slices and the stack has ${slices()}: they are probably not the same stack.`, true);
   $('model-on').hidden = false;
+  $('m-candidates-row').hidden = !model.segments.some((s) => s.state !== 'vessel');
   setMode(mode === 'off' ? 'side' : mode);
   facts();
 }
@@ -286,7 +349,7 @@ export function init() {
   if (ready) return; ready = true;
   cv = $('mcv');
   V.onDraw(draw);
-  V.controls(cv, grab);
+  V.controls(cv, grab, clicked);
   cv.addEventListener('pointermove', (e) => {
     if (!model || e.buttons || rubber) return;
     const h = pick(e), same = JSON.stringify(h) === JSON.stringify(hover);
@@ -303,6 +366,7 @@ export function init() {
     try { const r = await fetch(`models/${d.file}`); if (!r.ok) throw new Error(r.status); open(await r.text(), d.file); }
     catch (err) { msg(`Could not load the draft (${err.message}).`, true); }
   };
+  $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; V.redraw(); };
   $('m-undo').onclick = undo; $('m-redo').onclick = redo;
   $('m-reset').onclick = () => { if (!edits || !confirm(`Discard all ${edits} edits and go back to the model as loaded?`)) return;
     store.del(savedKey); model = loaded; history = []; future = []; edits = 0; msg(''); changed(); };
@@ -310,6 +374,10 @@ export function init() {
   document.addEventListener('keydown', (e) => {
     if (!model || e.target.closest('input, textarea')) return;
     if (e.key === 'Escape') closeMenu();
+    const k0 = e.key.toLowerCase();
+    if (!(e.ctrlKey || e.metaKey || e.altKey) && (k0 === 'a' || k0 === 'd') && isCandidate(hover)) {
+      const h = hover; closeMenu(); hover = null; apply(Mo.review(model, h.segment, k0 === 'a' ? 'accepted' : 'rejected')); return;
+    }
     if (!(e.ctrlKey || e.metaKey)) return;
     const k = e.key.toLowerCase();
     if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }

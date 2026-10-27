@@ -1,59 +1,187 @@
-// A vessel model: points in 3D joined by straight segments, the format analysis/vessel_model.py
-// writes. x and y are µm from the image's top-left corner, z is in slices. Everything here is plain
-// data in, data out, so the edits can be tested without a browser.
+// A vessel model: junctions and tips joined by smooth curves, the format analysis/vessel_model.py
+// writes (vessel-model/2). Each edge is a centripetal Catmull-Rom curve from node a to node b through
+// its "via" points, which sit on the vessel. x, y and r (radius) are µm from the image's top-left
+// corner, z is in slices. Everything here is plain data in, data out, so the edits can be tested
+// without a browser.
+//
+// In memory the model is points joined by segments: an edge's via points are points where only that
+// edge passes, so moving a point drags the curve, adding one adds a bend, and removing one lets the
+// curve run smoother. Writing the model back collapses each run of such points into one edge again.
+//
+// Each edge has a state. "vessel" is drawn by the extractor with confidence, or by the owner;
+// "candidate" is a low-confidence vessel the extractor kept for the owner to review, which becomes
+// "accepted" or "rejected". A rejected edge stays in the file as a recorded "no", but is no part
+// of the network: junctions, tips and every edit see only the others. Junctions and tips are counted
+// over confirmed vessels only, so a candidate turns a point into a junction once it is accepted.
 
-export const FORMAT = 'vessel-model/1';
+export const FORMAT = 'vessel-model/2';
+const FORMATS = ['vessel-model/1', FORMAT];
+
+export const STATES = ['vessel', 'candidate', 'accepted', 'rejected'];
+const CONFIRMED = new Set(['vessel', 'accepted']);
+export const confirmed = (s) => CONFIRMED.has(s.state);
+export const live = (s) => s.state !== 'rejected';
 
 export class ModelError extends Error {}
 
 // Checks a parsed JSON file and returns the model with ids made consistent: every segment names two
-// existing, different points, no segment is listed twice, and no point is left unconnected.
+// existing, different points, no segment is listed twice, and no point is left unconnected. Reads
+// the straight-segment vessel-model/1 files too.
 export function parse(j) {
-  if (!j || j.format !== FORMAT) throw new ModelError(`it is not a vessel model (expected format "${FORMAT}")`);
+  if (!j || !FORMATS.includes(j.format)) throw new ModelError(`it is not a vessel model (expected format "${FORMAT}")`);
   for (const k of ['slices', 'um_per_px']) if (!(j[k] > 0)) throw new ModelError(`it has no "${k}"`);
   if (!Array.isArray(j.size_px) || j.size_px.length !== 2) throw new ModelError('it has no "size_px"');
-  if (!Array.isArray(j.nodes) || !Array.isArray(j.segments)) throw new ModelError('it has no "nodes" or "segments"');
-  const m = { ...j, nodes: new Map(), segments: [] };
+  const v2 = j.format === FORMAT, list = v2 ? j.edges : j.segments;
+  if (!Array.isArray(j.nodes) || !Array.isArray(list)) throw new ModelError(`it has no "nodes" or "${v2 ? 'edges' : 'segments'}"`);
+  const { nodes: _n, segments: _s, edges: _e, ...rest } = j;
+  const m = { ...rest, format: FORMAT, nodes: new Map(), segments: [] };
   for (const n of j.nodes) {
     if (![n.x, n.y, n.z].every(Number.isFinite)) throw new ModelError(`point ${n.id} has no position`);
-    m.nodes.set(n.id, { id: n.id, x: n.x, y: n.y, z: n.z });
+    m.nodes.set(n.id, pt(n.id, n));
   }
+  let next = newId(m);
   const seen = new Set();
-  for (const s of j.segments) {
-    if (!m.nodes.has(s.a) || !m.nodes.has(s.b)) throw new ModelError(`a segment names a point that does not exist (${s.a}–${s.b})`);
-    const k = key(s.a, s.b);
-    if (s.a !== s.b && !seen.has(k)) { seen.add(k); m.segments.push({ a: s.a, b: s.b }); }
+  for (const s of list) {
+    if (!m.nodes.has(s.a) || !m.nodes.has(s.b)) throw new ModelError(`${v2 ? 'an edge' : 'a segment'} names a point that does not exist (${s.a}–${s.b})`);
+    // a file written before segments had a state holds only the extractor's confident vessels
+    const state = s.state ?? 'vessel';
+    if (!STATES.includes(state)) throw new ModelError(`${v2 ? 'an edge' : 'a segment'} has the unknown state "${state}" (${s.a}–${s.b})`);
+    const ids = [s.a];
+    for (const p of (v2 && s.via) || []) {
+      if (![p.x, p.y, p.z].every(Number.isFinite)) throw new ModelError(`a curve point on edge ${s.a}–${s.b} has no position`);
+      m.nodes.set(next, pt(next, p)); ids.push(next++);
+    }
+    ids.push(s.b);
+    for (let i = 1; i < ids.length; i++) {
+      const k = key(ids[i - 1], ids[i]);
+      if (ids[i - 1] !== ids[i] && !seen.has(k)) { seen.add(k); m.segments.push(seg(ids[i - 1], ids[i], { state, confidence: s.confidence, vessel: s.vessel })); }
+    }
   }
   prune(m);
   return m;
 }
 
 const key = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+// a radius the file does not give stays unknown rather than zero
+const pt = (id, p) => (Number.isFinite(p.r) ? { id, x: p.x, y: p.y, z: p.z, r: p.r } : { id, x: p.x, y: p.y, z: p.z });
+// confidence is the extractor's score and vessel its guess at which branch continues a trunk; a
+// segment the owner drew has neither, and stays without them
+const seg = (a, b, { state, confidence, vessel }) => ({ a, b, state, ...(confidence != null && { confidence }), ...(vessel != null && { vessel }) });
+const sameEdge = (p, q) => p.state === q.state && p.confidence === q.confidence && p.vessel === q.vessel;
+
+// The segments at each point, rejected ones included, since a recorded "no" keeps its own ends.
+function incidence(m) {
+  const inc = new Map();
+  m.segments.forEach((s, i) => { for (const n of [s.a, s.b]) { if (!inc.has(n)) inc.set(n, []); inc.get(n).push(i); } });
+  return inc;
+}
+// A point inside one edge: exactly two segments meet there, and they belong to the same edge.
+function throughPoint(m, inc, id) {
+  const l = inc.get(id);
+  return l?.length === 2 && l[0] !== l[1] && sameEdge(m.segments[l[0]], m.segments[l[1]]) ? l : null;
+}
+
+// The model's edges: each a run of segments between points that are not inside one edge, as the
+// ordered point ids from a to b.
+export function edges(m) {
+  const inc = incidence(m), used = new Set(), out = [];
+  const other = (s, n) => (s.a === n ? s.b : s.a);
+  m.segments.forEach((s, i) => {
+    if (used.has(i)) return;
+    used.add(i);
+    const ids = [s.a, s.b], segs = [i];
+    for (const forward of [true, false]) {
+      for (;;) {
+        const end = forward ? ids.at(-1) : ids[0], l = throughPoint(m, inc, end);
+        const j = l && l.find((k) => !used.has(k));
+        if (j == null) break;
+        used.add(j);
+        if (forward) { ids.push(other(m.segments[j], end)); segs.push(j); } else { ids.unshift(other(m.segments[j], end)); segs.unshift(j); }
+      }
+    }
+    out.push({ ids, segments: segs, ...m.segments[i] });
+  });
+  return out;
+}
 
 export function toJSON(m, extra = {}) {
   const { nodes, segments, ...rest } = m;
-  return { ...rest, ...extra, nodes: [...nodes.values()], segments: segments.map(({ a, b }) => ({ a, b })) };
+  const es = edges(m), ends = new Set(es.flatMap((e) => [e.ids[0], e.ids.at(-1)]));
+  const at = (id) => { const { id: _, ...p } = nodes.get(id); return p; };
+  return { ...rest, ...extra, format: FORMAT,
+    nodes: [...nodes.values()].filter((n) => ends.has(n.id)),
+    edges: es.map((e, k) => ({ id: k + 1, a: e.ids[0], b: e.ids.at(-1), ...(e.vessel != null && { vessel: e.vessel }), state: e.state,
+      ...(e.confidence != null && { confidence: e.confidence }), via: e.ids.slice(1, -1).map(at) })) };
 }
+
+// ---------- the curve ----------
+// For each segment, the points either side of it along its edge (null at an edge's end), cached
+// per model since a model is never changed in place.
+const around = new WeakMap();
+function neighbourhood(m) {
+  if (around.has(m)) return around.get(m);
+  const inc = incidence(m), out = m.segments.map((s, i) => {
+    const beyond = (n) => { const l = throughPoint(m, inc, n); if (!l) return null; const t = m.segments[l[0] === i ? l[1] : l[0]]; return t.a === n ? t.b : t.a; };
+    return [beyond(s.a), beyond(s.b)];
+  });
+  around.set(m, out);
+  return out;
+}
+
+// The point at t (0..1) along segment i's stretch of its curve: centripetal Catmull-Rom through the
+// segment's ends and the points either side, with an edge's end continued straight past itself.
+export function curvePoint(m, i, t) {
+  const s = m.segments[i], [pa, pb] = neighbourhood(m)[i];
+  const P1 = m.nodes.get(s.a), P2 = m.nodes.get(s.b);
+  const mirror = (p, q) => ({ x: 2 * p.x - q.x, y: 2 * p.y - q.y, z: 2 * p.z - q.z });
+  const P0 = pa != null ? m.nodes.get(pa) : mirror(P1, P2), P3 = pb != null ? m.nodes.get(pb) : mirror(P2, P1);
+  const out = catmullRom(P0, P1, P2, P3, t);
+  if (Number.isFinite(P1.r) && Number.isFinite(P2.r)) out.r = P1.r + (P2.r - P1.r) * t;
+  return out;
+}
+
+// Centripetal Catmull-Rom between P1 and P2 (Barry and Goldman's form), over x, y and z as stored.
+export function catmullRom(P0, P1, P2, P3, t) {
+  const P = [P0, P1, P2, P3].map((p) => [p.x, p.y, p.z]);
+  const d = (a, b) => Math.max(Math.sqrt(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])), 1e-6);
+  const t0 = 0, t1 = d(P[0], P[1]), t2 = t1 + d(P[1], P[2]), t3 = t2 + d(P[2], P[3]);
+  const u = t1 + (t2 - t1) * t;
+  const lerp = (a, b, ta, tb) => a.map((v, k) => ((tb - u) * v + (u - ta) * b[k]) / (tb - ta));
+  const A1 = lerp(P[0], P[1], t0, t1), A2 = lerp(P[1], P[2], t1, t2), A3 = lerp(P[2], P[3], t2, t3);
+  const B1 = lerp(A1, A2, t0, t2), B2 = lerp(A2, A3, t1, t3), C = lerp(B1, B2, t1, t2);
+  return { x: C[0], y: C[1], z: C[2] };
+}
+
+// n + 1 points along segment i's stretch of curve, ends included.
+export const sampleSegment = (m, i, n) => Array.from({ length: n + 1 }, (_, k) => curvePoint(m, i, k / n));
 
 export const clone = (m) => ({ ...m, nodes: new Map([...m.nodes].map(([k, n]) => [k, { ...n }])), segments: m.segments.map((s) => ({ ...s })) });
 
-export function degrees(m) {
+// How many segments meet at each point: confirmed vessels by default, or those `which` picks.
+export function degrees(m, which = confirmed) {
   const d = new Map();
-  for (const { a, b } of m.segments) { d.set(a, (d.get(a) || 0) + 1); d.set(b, (d.get(b) || 0) + 1); }
+  for (const s of m.segments) if (which(s)) { d.set(s.a, (d.get(s.a) || 0) + 1); d.set(s.b, (d.get(s.b) || 0) + 1); }
   return d;
 }
-export const neighbours = (m, id) => m.segments.filter((s) => s.a === id || s.b === id).map((s) => (s.a === id ? s.b : s.a));
+export const neighbours = (m, id) => m.segments.filter((s) => live(s) && (s.a === id || s.b === id)).map((s) => (s.a === id ? s.b : s.a));
+const between = (m, a, b) => m.segments.find((s) => live(s) && key(s.a, s.b) === key(a, b));
 
 function prune(m) {
-  const d = degrees(m);
+  const d = degrees(m, () => true);
   for (const id of [...m.nodes.keys()]) if (!d.get(id)) m.nodes.delete(id);
 }
 function newId(m) { let k = 0; for (const id of m.nodes.keys()) if (id > k) k = id; return k + 1; }
-function addNode(m, p) { const id = newId(m); m.nodes.set(id, { id, x: p.x, y: p.y, z: p.z }); return id; }
-function link(m, a, b) {
-  if (a === b || m.segments.some((s) => key(s.a, s.b) === key(a, b))) return false;
-  m.segments.push({ a, b }); return true;
+function addNode(m, p) { const id = newId(m); m.nodes.set(id, pt(id, p)); return id; }
+const DRAWN = { state: 'vessel' };
+function link(m, a, b, like = DRAWN) {
+  if (a === b) return false;
+  const old = m.segments.findIndex((s) => key(s.a, s.b) === key(a, b));
+  if (old >= 0 && live(m.segments[old])) return false;
+  if (old >= 0) m.segments.splice(old, 1);   // drawn again where a rejected candidate lay: the owner has changed their mind
+  m.segments.push(seg(a, b, like)); return true;
 }
+// the less certain of two segments' states, for a segment that replaces both
+const merged = (p, q) => (p.state === 'candidate' ? p : q.state === 'candidate' ? q : confirmed(p) ? p : q);
 
 // Each edit returns a new model and leaves the one it was given unchanged, so undo is a list of models.
 
@@ -66,24 +194,26 @@ export function deleteSegment(m, i) {
 }
 
 export function deleteNode(m, id) {
-  const o = clone(m); o.segments = o.segments.filter((s) => s.a !== id && s.b !== id); prune(o); return o;
+  const o = clone(m); o.segments = o.segments.filter((s) => !live(s) || (s.a !== id && s.b !== id)); prune(o); return o;
 }
 
-// A bend point taken out: its two neighbours are joined by one straight segment.
+// A curve point taken out: the curve runs on from one neighbour to the other.
 export function removeBend(m, id) {
   const nb = neighbours(m, id);
   if (nb.length !== 2) return m;
+  const like = merged(between(m, id, nb[0]), between(m, id, nb[1]));
   const o = deleteNode(m, id);
   for (const n of nb) if (!o.nodes.has(n)) o.nodes.set(n, { ...m.nodes.get(n) });
-  link(o, nb[0], nb[1]);
+  link(o, nb[0], nb[1], like);
   return o;
 }
 
-// A point placed on segment i at fraction t from its first end; returns [model, new point id].
+// A point placed on the curve of segment i at fraction t from its first end, so the curve keeps its
+// shape until the point is moved; returns [model, new point id].
 export function splitSegment(m, i, t) {
-  const o = clone(m), s = o.segments[i], A = o.nodes.get(s.a), B = o.nodes.get(s.b);
-  const id = addNode(o, { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t, z: A.z + (B.z - A.z) * t });
-  o.segments.splice(i, 1, { a: s.a, b: id }, { a: id, b: s.b });
+  const o = clone(m), s = o.segments[i];
+  const id = addNode(o, curvePoint(m, i, t));
+  o.segments.splice(i, 1, seg(s.a, id, s), seg(id, s.b, s));
   return [o, id];
 }
 
@@ -106,16 +236,19 @@ export function splitJunction(m, id, zScale = 1) {
     groups.push([best[0], best[1]]); left.delete(best[0]); left.delete(best[1]);
   }
   for (const i of left) groups.push([i]);
+  const like = nb.map((k) => between(m, id, k));
   const o = clone(m);
-  o.segments = o.segments.filter((s) => s.a !== id && s.b !== id);
-  o.nodes.delete(id);
+  o.segments = o.segments.filter((s) => !live(s) || (s.a !== id && s.b !== id));
+  if (!o.segments.some((s) => s.a === id || s.b === id)) o.nodes.delete(id);
   for (const g of groups) {
     const ps = g.map((i) => m.nodes.get(nb[i]));
     const p = g.length === 2
       ? { x: N.x, y: N.y, z: (ps[0].z + ps[1].z) / 2 }
       : { x: N.x + (ps[0].x - N.x) * .25, y: N.y + (ps[0].y - N.y) * .25, z: N.z + (ps[0].z - N.z) * .25 };
+    if (Number.isFinite(N.r)) p.r = N.r;
     const nid = addNode(o, p);
-    for (const i of g) { if (!o.nodes.has(nb[i])) o.nodes.set(nb[i], { ...m.nodes.get(nb[i]) }); link(o, nid, nb[i]); }
+    // the pair is one vessel running through
+    for (const i of g) { if (!o.nodes.has(nb[i])) o.nodes.set(nb[i], { ...m.nodes.get(nb[i]) }); link(o, nid, nb[i], { ...like[i], vessel: like[g[0]].vessel }); }
   }
   return o;
 }
@@ -134,9 +267,41 @@ export function connect(m, from, to) {
   return link(o, ids[0], ids[1]) ? o : m;
 }
 
+// The segments of the one vessel segment i belongs to, as far as its state runs: it continues
+// through points where only it and one other segment meet, and stops at a junction, a tip, or where
+// a segment in another state takes over.
+export function piece(m, i) {
+  const state = m.segments[i].state, d = degrees(m, (t) => live(t) || t.state === state), out = new Set([i]), todo = [i];
+  while (todo.length) {
+    const s = m.segments[todo.pop()];
+    for (const n of [s.a, s.b]) {
+      if (d.get(n) !== 2) continue;
+      const j = m.segments.findIndex((t, k) => !out.has(k) && t.state === state && (t.a === n || t.b === n));
+      if (j >= 0) { out.add(j); todo.push(j); }
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+// The owner's verdict on a candidate: the whole vessel it belongs to is accepted or rejected.
+export function review(m, i, verdict) {
+  if (m.segments[i]?.state !== 'candidate' || !['accepted', 'rejected'].includes(verdict)) return m;
+  const o = clone(m);
+  for (const k of piece(m, i)) o.segments[k].state = verdict;
+  return o;
+}
+
+// How many vessels (junction to junction, not segments between curve points) are in each state.
+export function pieceCounts(m) {
+  const n = Object.fromEntries(STATES.map((s) => [s, 0])), seen = new Set();
+  m.segments.forEach((s, i) => { if (seen.has(i)) return; for (const k of piece(m, i)) seen.add(k); n[s.state]++; });
+  return n;
+}
+
 export function stats(m) {
-  const d = degrees(m);
-  let junctions = 0, tips = 0;
+  const d = degrees(m), all = degrees(m, live);
+  let junctions = 0, tips = 0, pending = 0;
   for (const v of d.values()) { if (v >= 3) junctions++; else if (v === 1) tips++; }
-  return { points: m.nodes.size, segments: m.segments.length, junctions, tips };
+  for (const [id, v] of all) if (v >= 3 && !((d.get(id) || 0) >= 3)) pending++;
+  return { points: m.nodes.size, segments: m.segments.filter(confirmed).length, junctions, tips, pendingJunctions: pending };
 }

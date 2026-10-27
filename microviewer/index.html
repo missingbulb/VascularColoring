@@ -47,7 +47,7 @@
     </div>
     <div class="stage" id="stage-model" hidden>
       <canvas id="mcv"></canvas>
-      <div class="hint">drag a point: move it · right-click: delete or split · right-drag from one piece to another: connect them</div>
+      <div class="hint">drag a point: move it · click a dashed vessel: approve or decline · right-click: delete or split · right-drag from one piece to another: connect them</div>
       <div class="tag">Model</div>
     </div>
   </div>
@@ -65,6 +65,7 @@
           <button type="button" data-v="overlay" aria-pressed="false">Overlay</button>
           <button type="button" data-v="off" aria-pressed="false">Hide</button>
         </div>
+        <label class="check" id="m-candidates-row"><input type="checkbox" id="m-candidates" checked> Show low-confidence vessels (dashed)</label>
         <p class="note" id="model-facts"></p>
         <div class="views">
           <button type="button" id="m-undo">Undo</button>
