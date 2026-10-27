@@ -390,7 +390,8 @@ export function show(name, m, v) {
     `${meta.bin > 1 ? ` (shown binned ${meta.bin}×)` : ''}</span>` +
     `<span>${um ? um.toFixed(2) + ' µm/px (from the file)' : 'pixel size unknown'}</span>` +
     `<span class="${meta.z_step_um ? '' : 'guess'}">${meta.z_step_um ? 'slice spacing ' + meta.z_step_um + ' µm' : 'slice spacing unknown'}</span>` +
-    (meta.frames > 1 ? `<span class="guess">time point 1 of ${meta.frames}</span>` : '');
+    (meta.frames > 1 ? `<span class="guess">time point 1 of ${meta.frames}</span>` : '') +
+    (meta.origin ? `<span>${meta.channels.length === 1 ? esc(meta.channels[0].name) + ' channel, ' : ''}slices ${meta.origin.first}–${meta.origin.last} of ${meta.origin.of} in ${esc(meta.origin.file)}</span>` : '');
   uploadChannels();
   if (!bound) { bind(); bound = true; }
   sync(); flat();
