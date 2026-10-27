@@ -101,14 +101,23 @@ owner on the first stack from another region.
 python3 analysis/vessel_model.py STACK.tif OUT.json      # a CD31-only trimmed stack or a two-channel original
 ```
 
-The model is points in 3D joined by straight segments, with the stack's own number of slices: x and
-y in µm from the image's top-left corner, z in slices (the z-step is unknown), and `status` draft or
-corrected. Its `_about` field defines the rest. It is drawn the owner's chosen way, flat plus depth:
+The model (format `vessel-model/2`, agreed with the owner 2026-10-27) is the junctions and tips in
+3D joined by smooth curves, with the stack's own number of slices: x, y and the radius r in µm from
+the image's top-left corner, z in slices (the z-step is unknown, so 3D lengths are left out, never
+guessed), and `status` draft or corrected. Each edge runs from node `a` to node `b` through its
+`via` points, which sit on the vessel, as a centripetal Catmull-Rom curve; on-vessel points were
+chosen over Bézier handles, which float off the vessel at a depth that is hard to see. Each edge
+carries a `vessel` id, the extractor's guess at which branch continues a trunk through a junction
+(the straightest pair within 60° of straight on), for the owner to correct; and `reviewed_regions`
+are boxes the owner has checked completely, empty in a draft. Its `_about` field defines the rest. It is drawn the owner's chosen way, flat plus depth:
 each slice in its own noise units, flattened, hysteresis 5σ / 2.5σ, skeletonised, spurs under 2
 parent widths, specks under 4 widths and networks adding up to under 10 widths dropped, each
 centerline point placed at the depth where its signal sits (median over 2 widths along the
-vessel), then each vessel cut into the fewest straight segments that stay within half its width of
-the centerline. Each segment carries a `state` and a `confidence`. The tracing above makes the
+vessel), then each vessel between two junctions or tips fitted with the fewest via points that keep
+the curve within half its width of the centerline sideways and within 2 slices in depth (a capillary
+spans 4 to 6 slices at half its peak, measured on frontal r1, frontal r2 and CA1 r2), after the
+pixel path's stair steps and the depth's noise are smoothed out over half a width and one width.
+Each edge carries a `state` and a `confidence`. The tracing above makes the
 `vessel` segments. A second, fainter tracing (hysteresis 3.5σ / 2.0σ, same cleaning) adds whatever
 lies mostly outside the confident mask as `candidate` segments, joined onto a confident vessel where
 they reach one; the confident part is exactly what the single tracing drew. `confidence` is the
@@ -129,6 +138,14 @@ right-drag from one piece to another to connect them. Candidates are drawn dashe
 and a click on one approves or declines its whole vessel (junction to junction; A or D while
 pointing at it). Edits are kept in the browser until
 **Download corrected model**, with undo and redo. `tests/test_vessel_model_edits.mjs` pins the edits.
+In memory the viewer holds an edge's via points as points of their own, so moving a point drags the
+curve, **Add a curve point here** adds a bend, and removing one lets the curve run smoother; the
+download collapses them back into edges. It still reads `vessel-model/1` files and writes them out
+as `vessel-model/2`. A right-click on a junction also offers **Look at it from the side**: the stack
+is cut down to a box of 8 vessel radii (at least 10 µm) around the junction and seen level, across
+its straightest pair of branches, so two vessels that only cross sit apart in depth. It is a review
+aid, not a detector: closer than the 4 to 6 slices a vessel spans, two vessels touch from every
+angle. Any of the view buttons shows the whole stack again.
 
 **First draft (2026-10-03):** 961 points, 920 segments, 136 junctions, 222 tips, 55 KB. Seen before
 the owner's corrections: the main network is followed; the bright tissue edge down the left side is
@@ -142,6 +159,13 @@ unchanged), plus 743 candidate segments in 161 vessels that would add up to 72 j
 Seen before review: a few candidates bridge gaps in a confident vessel, which is what the review is
 for; most are short curls in the speckled lower half that are probably noise. Their thresholds are
 a first guess, untuned against any review.
+
+**Curves (2026-10-27):** the same 136 confident junctions and 222 tips on frontal r1, now as 358
+curved vessel edges through 381 via points where the straight draft needed 643 bend points, in 184
+vessel ids; 161 candidate vessels (69 pending junctions); 102 KB. Seen against the stack (outline
+over the brightest-over-depth picture, zoomed 3×): the curves follow the vessels as closely as the
+straight segments did, with fewer points. The tracing faults above are unchanged, since only the
+fit after tracing changed.
 
 ## The graph tracer: the earlier draft route
 

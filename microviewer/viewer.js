@@ -49,7 +49,7 @@ void main(){ vNdc = aPos; gl_Position = vec4(aPos, 0., 1.); }`;
 const FS = `#version 300 es
 precision highp float; precision highp sampler3D;
 uniform sampler3D uA; uniform sampler3D uB;
-uniform mat4 uInvVP; uniform vec3 uHalf; uniform vec2 uZc; uniform vec3 uTexel;
+uniform mat4 uInvVP; uniform vec3 uHalf; uniform vec2 uZc; uniform vec4 uClip; uniform vec3 uTexel;
 uniform int uMode; uniform int uChan; uniform int uDepth;
 uniform float uLo; uniform float uHi; uniform float uIso; uniform float uStep;
 in vec2 vNdc; out vec4 o;
@@ -69,7 +69,7 @@ void main(){
   vec4 a = uInvVP*vec4(vNdc,-1.,1.), b = uInvVP*vec4(vNdc,1.,1.);
   vec3 ro = a.xyz/a.w, rd = normalize(b.xyz/b.w - ro);
   rd = mix(rd, vec3(1e-6), vec3(equal(rd, vec3(0.))));
-  vec3 bmin = vec3(-uHalf.xy, uHalf.z*(1.-2.*uZc.y)), bmax = vec3(uHalf.xy, uHalf.z*(1.-2.*uZc.x));
+  vec3 bmin = vec3(uClip.xy, uHalf.z*(1.-2.*uZc.y)), bmax = vec3(uClip.zw, uHalf.z*(1.-2.*uZc.x));
   vec3 inv = 1./rd, t0 = (bmin-ro)*inv, t1 = (bmax-ro)*inv, tn = min(t0,t1), tf = max(t0,t1);
   float tN = max(max(tn.x,tn.y), max(tn.z,0.)), tF = min(min(tf.x,tf.y), tf.z);
   if (tF <= tN) { o = vec4(BG,1.); return; }
@@ -118,7 +118,7 @@ const LOOK = { lo: .63, hi: 1, iso: .35 };
 const CHANNEL_KEY = 'mv-channel';
 
 export const S = { mode: 0, chan: 0, overlay: 0, depth: 1, ...LOOK, z0: 0, z1: 0, zs: 1, slice: 0,
-            yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], dragging: false };
+            yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], clip: null, dragging: false };
 export let meta = null, half = [1, 1, .1];
 let vols = [], gl, U = {}, tex = [], dirty = true, bound = false;
 const drawers = [];
@@ -159,7 +159,7 @@ export function initGL() {
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
   gl.useProgram(prog);
-  for (const n of ['uA','uB','uInvVP','uHalf','uZc','uTexel','uMode','uChan','uDepth','uLo','uHi','uIso','uStep'])
+  for (const n of ['uA','uB','uInvVP','uHalf','uZc','uClip','uTexel','uMode','uChan','uDepth','uLo','uHi','uIso','uStep'])
     U[n] = gl.getUniformLocation(prog, n);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
@@ -197,6 +197,7 @@ function render() {
   gl.uniformMatrix4fv(U.uInvVP, false, new Float32Array(M.inv(vp)));
   gl.uniform3f(U.uHalf, ...half);
   gl.uniform2f(U.uZc, S.z0 / Z, (S.z1 + 1) / Z);
+  gl.uniform4f(U.uClip, ...(S.clip || [-half[0], -half[1], half[0], half[1]]));
   gl.uniform3f(U.uTexel, 1 / X, 1 / Y, 1 / Z);
   gl.uniform1i(U.uMode, S.mode); gl.uniform1i(U.uChan, showsOverlay() ? 2 : 0); gl.uniform1i(U.uDepth, S.depth);
   gl.uniform1f(U.uLo, S.lo); gl.uniform1f(U.uHi, S.hi); gl.uniform1f(U.uIso, S.iso);
@@ -317,7 +318,7 @@ function bind() {
   $('z1').addEventListener('input', (e) => { S.z1 = Math.max(+e.target.value, S.z0); e.target.value = S.z1; onFlat(); });
   $('zs').addEventListener('input', (e) => { S.zs = +e.target.value; sync(); });
   $('sl').addEventListener('input', (e) => { S.slice = +e.target.value; flat(); });
-  const view = (yaw, pitch) => () => { S.yaw = yaw; S.pitch = pitch; S.pan = [0, 0]; dirty = true; };
+  const view = (yaw, pitch) => () => { Object.assign(S, { yaw, pitch, pan: [0, 0], clip: null, dist: Math.max(S.dist, 2) }); dirty = true; };
   $('v-top').onclick = view(0, 0); $('v-tilt').onclick = view(-.5, -.6);
   $('v-side').onclick = view(Math.PI / 2, 0); $('v-front').onclick = view(0, Math.PI / 2 - .001);
 
@@ -330,7 +331,7 @@ function bind() {
 // the stack's camera. grab(e), when given, sees each press first and may take that pointer over by
 // returning {move(e), up(e), cancel()}.
 // grab(e) may take a pointer over for its own drag; click(e) hears a left press that let go where it began.
-const CLICK_PX = 4;
+const CLICK_PX = 4, MIN_DIST = .15;
 export function controls(cv, grab, click) {
   const pts = new Map(), own = new Map(), down = new Map();
   let last = null;
@@ -357,16 +358,31 @@ export function controls(cv, grab, click) {
     const dx = e.clientX - prev[0], dy = e.clientY - prev[1], k = 2.2 / cv.clientHeight;
     if (pts.size === 2) {
       const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      if (last) S.dist = Math.min(Math.max(S.dist * last / d, .6), 12);
+      if (last) S.dist = Math.min(Math.max(S.dist * last / d, MIN_DIST), 12);
       last = d; S.pan[0] -= dx * k * S.dist / 6; S.pan[1] += dy * k * S.dist / 6;
     } else if (e.shiftKey || e.buttons === 2) { S.pan[0] -= dx * k * S.dist / 3; S.pan[1] += dy * k * S.dist / 3; }
     else { S.yaw -= dx * .008; S.pitch = Math.min(Math.max(S.pitch + dy * .008, -Math.PI / 2 + .001), Math.PI / 2 - .001); }
     dirty = true;
   });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
-  cv.addEventListener('wheel', (e) => { e.preventDefault(); S.dist = Math.min(Math.max(S.dist * Math.exp(e.deltaY * .001), .6), 12); dirty = true; }, { passive: false });
+  cv.addEventListener('wheel', (e) => { e.preventDefault(); S.dist = Math.min(Math.max(S.dist * Math.exp(e.deltaY * .001), MIN_DIST), 12); dirty = true; }, { passive: false });
   new ResizeObserver(() => { dirty = true; }).observe(cv);
 }
+
+// A small box of the stack around a world point [x, y, z], seen from the side: the line of sight is
+// level and runs across the direction `along` (radians in the image plane), so whatever is above or
+// below the point in depth shows beside it. Any of the view buttons shows the whole stack again.
+export function focus(at, halfWidth, along) {
+  const h = Math.min(halfWidth, half[0], half[1]);
+  let p = along + Math.PI / 2;   // look across the vessel, from whichever side keeps the pitch level
+  p = Math.atan2(Math.sin(p), Math.cos(p)); if (p > Math.PI / 2) p -= Math.PI; if (p < -Math.PI / 2) p += Math.PI;
+  p = Math.min(Math.max(p, -Math.PI / 2 + .001), Math.PI / 2 - .001);
+  const up = [-Math.sin(p), Math.cos(p)];
+  Object.assign(S, { yaw: Math.PI / 2, pitch: p, clip: [at[0] - h, at[1] - h, at[0] + h, at[1] + h],
+    pan: [-at[2], up[0] * at[0] + up[1] * at[1]], dist: Math.max(MIN_DIST, h * 5) });
+  dirty = true;
+}
+export const inClip = (w) => !S.clip || (w[0] >= S.clip[0] && w[0] <= S.clip[2] && w[1] >= S.clip[1] && w[1] <= S.clip[3]);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -375,7 +391,7 @@ export function show(name, m, v) {
   initGL();
   meta = m; vols = v;
   const [Z, Y, X] = meta.shape;
-  Object.assign(S, { z0: 0, z1: Z - 1, yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0] });
+  Object.assign(S, { z0: 0, z1: Z - 1, yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], clip: null });
   let saved = null;
   try { saved = localStorage.getItem(CHANNEL_KEY); } catch { /* no storage */ }
   S.chan = saved != null && +saved < vols.length ? +saved : 0;

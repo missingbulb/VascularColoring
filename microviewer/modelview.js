@@ -37,13 +37,24 @@ function fromWorld(p) {
 let cv = null, view = null;   // the canvas the model is drawn on, and its last projection
 function project() {
   const W = cv.clientWidth, H = cv.clientHeight, vp = V.camera(W / H), pts = new Map();
-  for (const n of model.nodes.values()) {
-    const v = V.M.xf(vp, toWorld(n));
-    if (v[3] > 0) pts.set(n.id, [(v[0] / v[3] + 1) / 2 * W, (1 - v[1] / v[3]) / 2 * H, v[3], v[2] / v[3]]);
-  }
-  return { vp, W, H, pts };
+  const at = (p) => { const v = V.M.xf(vp, toWorld(p)); return v[3] > 0 ? [(v[0] / v[3] + 1) / 2 * W, (1 - v[1] / v[3]) / 2 * H, v[3], v[2] / v[3]] : null; };
+  for (const n of model.nodes.values()) { const q = at(n); if (q) pts.set(n.id, q); }
+  // each segment's stretch of its edge's curve, on screen
+  const curves = new Map();
+  model.segments.forEach((s, i) => {
+    if (!pts.has(s.a) || !pts.has(s.b)) return;
+    const c = samples(i).map(at);
+    if (c.every(Boolean)) curves.set(i, c);
+  });
+  return { vp, W, H, pts, curves };
 }
-const inSlab = (n) => n.z >= V.S.z0 - .5 && n.z <= V.S.z1 + .5;
+const SAMPLES = 8, sampled = new WeakMap();
+function samples(i) {
+  let c = sampled.get(model);
+  if (!c) sampled.set(model, (c = []));
+  return (c[i] ??= Mo.sampleSegment(model, i, SAMPLES));
+}
+const inSlab = (n) => n.z >= V.S.z0 - .5 && n.z <= V.S.z1 + .5 && V.inClip(toWorld(n));
 // declined candidates are never drawn; the rest are, unless the owner has hidden the low-confidence ones
 const visible = (s) => Mo.live(s) && (showCandidates || s.state !== 'candidate');
 const shown = (s) => visible(s) && (inSlab(model.nodes.get(s.a)) || inSlab(model.nodes.get(s.b)));
@@ -67,14 +78,11 @@ function draw() {
     return `rgb(${t.map((v) => Math.round(v * 255)).join(',')})`;
   };
   // far segments first, so nearer vessels draw over the ones they pass in front of
-  const order = model.segments.map((s, i) => i).filter((i) => {
-    const s = model.segments[i];
-    return pts.has(s.a) && pts.has(s.b) && shown(s);
-  });
+  const order = model.segments.map((s, i) => i).filter((i) => view.curves.has(i) && shown(model.segments[i]));
   order.sort((i, j) => (pts.get(model.segments[j].a)[2] + pts.get(model.segments[j].b)[2]) - (pts.get(model.segments[i].a)[2] + pts.get(model.segments[i].b)[2]));
   c.lineCap = 'round';
   for (const i of order) {
-    const s = model.segments[i], a = pts.get(s.a), b = pts.get(s.b), lit = hot.has(i);
+    const s = model.segments[i], line = view.curves.get(i), lit = hot.has(i);
     // a low-confidence vessel is dashed in the same colours, so depth still reads along it
     const unsure = s.state === 'candidate';
     c.setLineDash(unsure ? [4, 4] : []);
@@ -82,7 +90,7 @@ function draw() {
     // over the stack the lines stay thin and let the signal under them show through
     c.globalAlpha = lit ? 1 : (mode === 'overlay' ? .7 : 1) * (unsure ? .8 : 1);
     c.lineWidth = lit ? 3 : mode === 'overlay' ? 1.1 : 1.5;
-    c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+    c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
   }
   c.setLineDash([]); c.globalAlpha = 1;
   for (const n of model.nodes.values()) {
@@ -122,20 +130,21 @@ function pick(e, segmentsOnly = false) {
   }
   if (best) return best;
   bd = PICK_SEGMENT_PX;
-  model.segments.forEach((s, i) => {
-    const a = view.pts.get(s.a), b = view.pts.get(s.b);
-    if (!a || !b || !shown(s)) return;
-    const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
-    const t = Math.min(Math.max(((x - a[0]) * dx + (y - a[1]) * dy) / L, 0), 1);
-    const d = Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
-    if (d < bd) { bd = d; best = { segment: i, t: Math.min(Math.max(t, .02), .98) }; }
-  });
+  for (const [i, line] of view.curves) {
+    if (!shown(model.segments[i])) continue;
+    for (let k = 0; k < line.length - 1; k++) {
+      const a = line[k], b = line[k + 1], dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1;
+      const u = Math.min(Math.max(((x - a[0]) * dx + (y - a[1]) * dy) / L, 0), 1);
+      const d = Math.hypot(a[0] + u * dx - x, a[1] + u * dy - y);
+      if (d < bd) { bd = d; best = { segment: i, t: Math.min(Math.max((k + u) / (line.length - 1), .02), .98) }; }
+    }
+  }
   return best;
 }
 const screenOf = (h) => {
   if (h.node != null) return view.pts.get(h.node).slice(0, 2);
-  const s = model.segments[h.segment], a = view.pts.get(s.a), b = view.pts.get(s.b);
-  return [a[0] + (b[0] - a[0]) * h.t, a[1] + (b[1] - a[1]) * h.t];
+  const line = view.curves.get(h.segment), f = h.t * (line.length - 1), k = Math.min(Math.floor(f), line.length - 2), u = f - k;
+  return [line[k][0] + (line[k + 1][0] - line[k][0]) * u, line[k][1] + (line[k + 1][1] - line[k][1]) * u];
 };
 
 // ---------- edits ----------
@@ -217,23 +226,43 @@ function openMenu(h, x, y) {
   }
   if (h.segment != null) {
     items.push(['Delete this segment', () => Mo.deleteSegment(model, h.segment)]);
-    items.push(['Add a bend point here', () => Mo.splitSegment(model, h.segment, h.t)[0]]);
+    items.push(['Add a curve point here', () => Mo.splitSegment(model, h.segment, h.t)[0]]);
   } else {
     const d = Mo.degrees(model).get(h.node) || 0;
-    if (d >= 3) items.push(['Wrong junction: these vessels cross, split them', () => Mo.splitJunction(model, h.node, zScale)]);
-    if (d === 2) items.push(['Remove this bend (straight line through)', () => Mo.removeBend(model, h.node)]);
+    if (d >= 3) {
+      items.push(['Look at it from the side: crossing or split?', () => { lookAt(h.node); return model; }]);
+      items.push(['Wrong junction: these vessels cross, split them', () => Mo.splitJunction(model, h.node, zScale)]);
+    }
+    if (d === 2) items.push(['Remove this curve point (smoother curve)', () => Mo.removeBend(model, h.node)]);
     items.push([d === 1 ? 'Delete this tip and its segment' : 'Delete this point and its segments', () => Mo.deleteNode(model, h.node)]);
   }
   const m = $('ctx');
   m.replaceChildren(...items.map(([label, fn]) => {
     if (!fn) { const p = document.createElement('div'); p.className = 'note'; p.textContent = label; return p; }
     const b = document.createElement('button'); b.type = 'button'; b.className = 'item'; b.textContent = label;
-    b.onclick = () => { closeMenu(); apply(fn()); };
+    b.onclick = () => { closeMenu(); apply(fn()); V.redraw(); };
     return b;
   }));
   m.hidden = false;
   m.style.left = `${Math.min(x, innerWidth - m.offsetWidth - 8)}px`; m.style.top = `${Math.min(y, innerHeight - m.offsetHeight - 8)}px`;
   hover = h; V.redraw();
+}
+// The junction from the side, cut out of the stack: two vessels that only cross sit apart in depth.
+// The view looks across the straightest pair of branches through it, the vessel running on.
+const LOOK_RADII = 8, LOOK_MIN_UM = 10;
+function lookAt(id) {
+  const N = model.nodes.get(id), w = toWorld(N), nb = Mo.neighbours(model, id).map((k) => toWorld(model.nodes.get(k)));
+  const dir = nb.map((q) => { const v = [q[0] - w[0], q[1] - w[1]], l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l]; });
+  let best = [0, 1, 2];
+  for (let i = 0; i < dir.length; i++) for (let j = i + 1; j < dir.length; j++) {
+    const c = dir[i][0] * dir[j][0] + dir[i][1] * dir[j][1];
+    if (c < best[2]) best = [i, j, c];
+  }
+  const along = Math.atan2(dir[best[0]][1] - dir[best[1]][1], dir[best[0]][0] - dir[best[1]][0]);
+  const um = Math.max(LOOK_RADII * (N.r || 0), LOOK_MIN_UM);
+  V.focus(w, um / (model.size_px[0] * model.um_per_px) * 2 * V.half[0], along);
+  if (mode === 'side') setMode('overlay');
+  msg('Showing this junction from the side. Top, Tilted, Side or Front shows the whole stack again.');
 }
 function closeMenu() { if (!$('ctx').hidden) { $('ctx').hidden = true; hover = null; V.redraw(); } }
 
@@ -257,7 +286,7 @@ function facts() {
   if (!model) return;
   const s = Mo.stats(model), v = Mo.pieceCounts(model);
   $('model-facts').textContent = `${model.status === 'corrected' ? 'Corrected' : 'Draft'} model of ${model.source}: ` +
-    `${s.segments} straight segments, ${s.junctions} junctions, ${s.tips} tips, ${model.slices} slices. ` +
+    `${v.vessel + v.accepted} vessel edges, ${s.junctions} junctions, ${s.tips} tips, ${model.slices} slices. ` +
     (v.candidate || v.accepted || v.rejected ? `${v.candidate} low-confidence vessel${v.candidate === 1 ? '' : 's'} to review` +
       `${s.pendingJunctions ? ` (they would add up to ${s.pendingJunctions} junctions)` : ''}, ${v.accepted} approved, ${v.rejected} declined. ` : '') +
     (edits ? `${edits} edit${edits === 1 ? '' : 's'} so far, kept in this browser until you download.` : 'No edits yet.');

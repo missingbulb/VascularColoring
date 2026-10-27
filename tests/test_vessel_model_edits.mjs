@@ -1,15 +1,18 @@
 // The vessel-model edits the 3D MicroViewer offers, on small drawn models.
 // Run: node tests/test_vessel_model_edits.mjs
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as Mo from '../microviewer/model.js';
 
-const base = (nodes, segments) => ({ format: Mo.FORMAT, source: 'acme.tif', slices: 4, size_px: [100, 100], um_per_px: 1,
+const base = (nodes, segments) => ({ format: 'vessel-model/1', source: 'acme.tif', slices: 4, size_px: [100, 100], um_per_px: 1,
   nodes: nodes.map(([id, x, y, z]) => ({ id, x, y, z })),
   segments: segments.map(([a, b, state, confidence]) => ({ a, b, ...(state && { state }), ...(confidence != null && { confidence }) })) });
 // a confirmed vessel 1-2-3 along y = 0, and a two-segment candidate 2-4-5 branching off its middle
 const branching = () => Mo.parse(base([[1, 0, 0, 0], [2, 10, 0, 0], [3, 20, 0, 0], [4, 10, 10, 0], [5, 10, 20, 0]],
   [[1, 2, 'vessel', .9], [2, 3, 'vessel', .9], [2, 4, 'candidate', .4], [4, 5, 'candidate', .4]]));
 const states = (m) => m.segments.map((s) => `${Math.min(s.a, s.b)}-${Math.max(s.a, s.b)}:${s.state}`).sort();
+const SAMPLE = JSON.parse(readFileSync(new URL('./fixtures/format-v2-sample.vessels.json', import.meta.url)));
+const round = (v) => Math.round(v * 1e9) / 1e9;
 const pairs = (m) => m.segments.map(({ a, b }) => [Math.min(a, b), Math.max(a, b)].join('-')).sort();
 
 const tests = {
@@ -75,7 +78,7 @@ const tests = {
     const o = Mo.connect(m, { segment: 0, t: .5 }, { segment: 1, t: .25 });
     assert.equal(o.segments.length, 5);
     const added = [...o.nodes.values()].filter((n) => n.id > 4).sort((a, b) => a.y - b.y);
-    assert.deepEqual(added.map(({ x, y, z }) => [x, y, z]), [[5, 0, 1], [2.5, 20, 0]]);
+    assert.deepEqual(added.map(({ x, y, z }) => [x, y, z].map(round)), [[5, 0, 1], [2.5, 20, 0]]);
     assert.equal(Mo.stats(o).junctions, 2);
   },
   'toJSON round-trips through parse'() {
@@ -116,7 +119,8 @@ const tests = {
     const straight = Mo.removeBend(o, 2);
     assert.deepEqual(states(straight), ['1-3:vessel', '2-4:rejected', '4-5:rejected']);
     const back = Mo.parse(Mo.toJSON(o));
-    assert.deepEqual(states(back), states(o)); assert.equal(back.segments[2].confidence, .4);
+    assert.deepEqual(Mo.pieceCounts(back), Mo.pieceCounts(o));
+    assert.deepEqual(back.segments.filter((s) => s.state === 'rejected').map((s) => s.confidence), [.4, .4]);
   },
   'edits keep a segment\'s state: a bend point splits a candidate into two candidates'() {
     const [o] = Mo.splitSegment(branching(), 3, .5);
@@ -126,8 +130,53 @@ const tests = {
     assert.equal(c.segments.at(-1).state, 'vessel', 'a segment the owner draws is a vessel');
     assert.equal('confidence' in c.segments.at(-1), false);
   },
+  'a v2 file reads as points along curves and writes back as the same edges'() {
+    const m = Mo.parse(SAMPLE);
+    assert.equal(m.nodes.size, 6, 'four junctions and tips, and two curve points');
+    assert.equal(m.segments.length, 5);
+    assert.deepEqual([Mo.stats(m).junctions, Mo.stats(m).tips], [1, 3]);
+    const out = Mo.toJSON(m);
+    assert.equal(out.format, 'vessel-model/2'); assert.equal('segments' in out, false);
+    assert.deepEqual(out.nodes, SAMPLE.nodes);
+    assert.deepEqual(out.edges.map(({ a, b, vessel, via }) => ({ a, b, vessel, via })), SAMPLE.edges.map(({ a, b, vessel, via }) => ({ a, b, vessel, via })));
+    assert.deepEqual(out.reviewed_regions, SAMPLE.reviewed_regions);
+  },
+  'the curve passes through every point, and smoothly through a curve point'() {
+    const m = Mo.parse(SAMPLE), via = [...m.nodes.values()].find((n) => n.x === 126.1);
+    const [i, j] = m.segments.map((s, k) => k).filter((k) => [m.segments[k].a, m.segments[k].b].includes(via.id));
+    const end = (k, n) => Mo.curvePoint(m, k, m.segments[k].a === n ? 0 : 1);
+    for (const k of [i, j]) assert.deepEqual(['x', 'y', 'z'].map((c) => round(end(k, via.id)[c])), [via.x, via.y, via.z]);
+    // the direction leaving the curve point is the direction arriving at it
+    const near = (k, n, d) => Mo.curvePoint(m, k, m.segments[k].a === n ? d : 1 - d);
+    const a = near(i, via.id, 1e-4), b = near(j, via.id, 1e-4);
+    const va = [a.x - via.x, a.y - via.y], vb = [b.x - via.x, b.y - via.y];
+    const cos = (va[0] * vb[0] + va[1] * vb[1]) / Math.hypot(...va) / Math.hypot(...vb);
+    assert.ok(cos < -0.999, `the curve bends sharply at its curve point (cos ${cos})`);
+    assert.ok(Math.abs(Mo.curvePoint(m, i, .5).r - 3.05) < 1e-9, 'the radius runs between the points carrying it');
+  },
+  'a curve point added or removed keeps one edge, with one more or one fewer point'() {
+    const m = Mo.parse(SAMPLE), i = m.segments.findIndex((s) => s.a === 2 && s.b === 3);
+    const [o, id] = Mo.splitSegment(m, i, .5);
+    const e = Mo.toJSON(o).edges.find((x) => x.a === 2 && x.b === 3);
+    assert.equal(e.via.length, 1); assert.equal(e.vessel, 1);
+    assert.equal(Mo.toJSON(Mo.removeBend(o, id)).edges.find((x) => x.a === 2 && x.b === 3).via.length, 0);
+  },
+  'an edge ends where the state or the vessel changes, even where only two segments meet'() {
+    const m = Mo.parse(base([[1, 0, 0, 0], [2, 10, 0, 0], [3, 20, 0, 0], [4, 30, 0, 0], [5, 40, 0, 0]],
+      [[1, 2, 'vessel'], [2, 3, 'vessel'], [3, 4, 'candidate', .3], [4, 5, 'candidate', .3]]));
+    const out = Mo.toJSON(m);
+    assert.deepEqual(out.edges.map(({ a, b, state, via }) => [a, b, state, via.length]), [[1, 3, 'vessel', 1], [3, 5, 'candidate', 1]]);
+    assert.deepEqual(out.nodes.map((n) => n.id), [1, 3, 5]);
+  },
+  'splitting a crossing keeps each vessel running through as one vessel'() {
+    const m = Mo.parse({ ...SAMPLE, nodes: [{ id: 1, x: 50, y: 50, z: 1 }, { id: 2, x: 40, y: 50, z: 0 }, { id: 3, x: 60, y: 50, z: 0 }, { id: 4, x: 50, y: 40, z: 3 }, { id: 5, x: 50, y: 60, z: 3 }],
+      edges: [[1, 2, 7], [1, 3, 8], [1, 4, 9], [1, 5, 9]].map(([a, b, vessel], k) => ({ id: k + 1, a, b, vessel, via: [] })) });
+    const out = Mo.toJSON(Mo.splitJunction(m, 1));
+    assert.equal(out.edges.length, 2, 'two vessels, each one edge through its own crossing point');
+    assert.deepEqual(out.edges.map((e) => e.via.length), [1, 1]);
+  },
 };
 
 let n = 0;
 for (const [name, fn] of Object.entries(tests)) { fn(); n++; console.log('ok', name); }
-assert.equal(n, 17);
+assert.equal(n, 22);
