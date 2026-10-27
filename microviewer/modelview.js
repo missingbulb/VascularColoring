@@ -332,13 +332,23 @@ export function openFile(f) {
   f.text().then((t) => open(t, f.name), () => msg(`Could not read ${f.name}.`, true));
 }
 
-// Called whenever a stack opens: offers the draft model drawn for it, if the site carries one.
+// A stack's name as a download or a Drive copy may spell it: case, spaces and punctuation aside.
+const same = (a, b) => { const k = (s) => String(s).toLowerCase().replace(/\.tiff?$/, '').replace(/[^a-z0-9]/g, ''); return k(a) === k(b); };
+const draftFor = (name) => drafts.find((x) => same(x.source, name));
+
+// Called whenever a stack opens: brings in the draft model drawn for it, if the site carries one.
 export function stackOpened(name) {
   stackName = name;
   model = null; loaded = null; history = []; future = []; edits = 0; savedKey = null;
   $('model-on').hidden = true; msg(''); setMode(mode);
-  const d = drafts.find((x) => x.source === name);
-  $('model-draft').hidden = !d;
+  $('model-draft').hidden = !draftFor(name);
+  if (draftFor(name)) loadDraft();
+}
+async function loadDraft() {
+  const d = draftFor(stackName); if (!d) return;
+  msg('Loading the draft…');
+  try { const r = await fetch(`models/${d.file}`); if (!r.ok) throw new Error(r.status); open(await r.text(), d.file); }
+  catch (err) { msg(`Could not load the draft (${err.message}).`, true); }
 }
 
 // The model as it stands and where each of its points was last drawn, for scripts driving the page.
@@ -360,12 +370,7 @@ export function init() {
   $('model-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.v); });
   $('model-load').onclick = () => $('model-file').click();
   $('model-file').onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; };
-  $('model-draft').onclick = async () => {
-    const d = drafts.find((x) => x.source === stackName); if (!d) return;
-    msg('Loading the draft…');
-    try { const r = await fetch(`models/${d.file}`); if (!r.ok) throw new Error(r.status); open(await r.text(), d.file); }
-    catch (err) { msg(`Could not load the draft (${err.message}).`, true); }
-  };
+  $('model-draft').onclick = loadDraft;
   $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; V.redraw(); };
   $('m-undo').onclick = undo; $('m-redo').onclick = redo;
   $('m-reset').onclick = () => { if (!edits || !confirm(`Discard all ${edits} edits and go back to the model as loaded?`)) return;
@@ -386,6 +391,6 @@ export function init() {
   document.addEventListener('pointerdown', (e) => { if (!$('ctx').contains(e.target) && e.target !== cv) closeMenu(); });
   fetch(MODELS).then((r) => (r.ok ? r.json() : [])).then((list) => {
     drafts = Array.isArray(list) ? list : [];
-    if (stackName) $('model-draft').hidden = !drafts.some((x) => x.source === stackName);
+    if (stackName && !model) { $('model-draft').hidden = !draftFor(stackName); loadDraft(); }
   }).catch(() => { /* no drafts shipped with this copy of the site */ });
 }
