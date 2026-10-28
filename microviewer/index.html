@@ -5,152 +5,204 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3D MicroViewer</title>
 <meta name="description" content="Open a confocal z-stack in the browser and turn it in 3D.">
+<meta name="version" id="site-version" title="version 0.11027.28">
 <link rel="icon" href="data:,">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <link rel="stylesheet" href="style.css">
+<script>
+  // before the first paint, so a light-mode user never sees a dark flash
+  try { const t = localStorage.getItem("mv-theme"); if (t) document.documentElement.dataset.theme = t; } catch { /* no storage */ }
+</script>
 </head>
 <body>
 <header>
   <h1>3D MicroViewer</h1>
-  <div class="facts" id="facts"></div>
-  <span class="grow"></span>
-  <div class="split" id="load">
-    <button type="button" id="load-main" class="primary">Load stack</button><details id="load-menu"><summary aria-label="Where to load from"></summary>
-      <div class="pop">
-        <button type="button" class="item" data-src="local">From this computer</button>
-        <button type="button" class="item" data-src="drive">From Google Drive</button>
-      </div>
-    </details>
-  </div>
-  <input id="file" type="file" accept=".tif,.tiff" hidden>
+  <button type="button" id="theme" class="icon" title="Switch between dark and light" aria-label="Switch between dark and light">
+    <svg class="sun" viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+    <svg class="moon" viewBox="0 0 24 24" width="18" height="18"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+  </button>
 </header>
 
-<section id="empty">
-  <h2>Open a z-stack</h2>
-  <p>Load a multi-page TIFF: an ImageJ hyperstack, an OME-TIFF, or plain pages stacked in depth. Drop it anywhere on this page, or use Load stack.</p>
-  <p class="hint-text">The file is read in this browser and never leaves it. The 3D view needs WebGL2.</p>
-  <div id="progress" hidden><span id="progress-text"></span><div id="progress-bar"><i></i></div></div>
-  <p id="empty-msg" class="err" role="alert"></p>
-</section>
-
-<section id="viewer" hidden>
-<p class="lede">Each slice of the stack is placed at its depth. Drag to turn the stack; the view opens looking straight down, as the microscope does, which is the same picture as flattening every slice into one. Tilt it to see which crossings are real junctions and which are structures passing over each other at different depths.</p>
-
-<div class="layout">
-  <div class="stages" id="stages">
-    <div class="stage" id="stage">
-      <canvas id="gl"></canvas>
-      <canvas id="hud"></canvas>
-      <div class="hint" id="stage-hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
-      <div class="tag" id="tag-stack" hidden>Stack</div>
-    </div>
-    <div class="stage" id="stage-model" hidden>
-      <canvas id="mcv"></canvas>
-      <div class="hint">drag a point: move it · click a dashed vessel: approve or decline · right-click: delete or split · right-drag from one piece to another: connect them</div>
-      <div class="tag">Model</div>
-    </div>
-  </div>
-  <aside>
-    <fieldset id="model-set">
-      <legend>Vessel model</legend>
-      <div class="views">
-        <button type="button" id="model-draft" hidden>Reload the draft model for this stack</button>
-        <button type="button" id="model-load">Load a model file</button>
-      </div>
-      <input id="model-file" type="file" accept=".json,application/json" hidden>
-      <div id="model-on" class="col" hidden>
-        <div class="seg" id="model-mode">
-          <button type="button" data-v="side" aria-pressed="true">Side by side</button>
-          <button type="button" data-v="overlay" aria-pressed="false">Overlay</button>
-          <button type="button" data-v="off" aria-pressed="false">Hide</button>
+<div id="layout">
+  <aside id="left">
+    <section class="box" id="stack-box">
+      <div class="sec-head">
+        <h2>Stack</h2>
+        <div class="split" id="load">
+          <button type="button" id="load-main" class="primary">Load</button><details class="menu" id="load-menu"><summary class="primary" aria-label="Where to load from"></summary>
+            <div class="pop right">
+              <button type="button" class="item" data-src="local">From this computer</button>
+              <button type="button" class="item" data-src="drive">From Google Drive</button>
+            </div>
+          </details>
         </div>
-        <label class="check" id="m-candidates-row"><input type="checkbox" id="m-candidates" checked> Show low-confidence vessels (dashed)</label>
-        <p class="note" id="model-facts"></p>
-        <div class="views">
-          <button type="button" id="m-undo">Undo</button>
-          <button type="button" id="m-redo">Redo</button>
-          <button type="button" id="m-reset">Discard edits</button>
+        <input id="file" type="file" accept=".tif,.tiff" hidden>
+      </div>
+      <div class="facts" id="facts"><span class="dim">No stack loaded</span></div>
+      <details class="fold">
+        <summary>How it works</summary>
+        <p class="hint">Each slice of the stack is placed at its depth. Drag to turn the stack; the view opens looking straight down, as the microscope does, which is the same picture as flattening every slice into one. Tilt it to see which crossings are real junctions and which are structures passing over each other at different depths.</p>
+        <p class="hint">The file is read in this browser and never leaves it. The 3D view needs WebGL2.</p>
+      </details>
+    </section>
+
+    <section class="box foldable" id="chan-box">
+      <div class="sec-head"><h2>Channel</h2></div>
+      <div class="col">
+        <div id="chan-set"><div class="seg" id="chan"></div></div>
+        <label class="check" id="overlay-row"><input type="checkbox" id="overlay"> Add <span id="overlay-name"></span> in blue</label>
+        <label class="check"><input type="checkbox" id="depth" checked> Colour by depth</label>
+      </div>
+    </section>
+
+    <section class="box foldable" id="render-box">
+      <div class="sec-head"><h2>Render</h2></div>
+      <div class="col">
+        <div class="seg" id="mode">
+          <button type="button" data-v="0" aria-pressed="true">Brightest</button>
+          <button type="button" data-v="1" aria-pressed="false">Surface</button>
         </div>
-        <button type="button" class="primary" id="m-save">Download corrected model</button>
+        <p class="note" id="mode-note">Each ray shows the brightest point it passes through.</p>
       </div>
-      <p class="note" id="model-msg"></p>
-    </fieldset>
-    <fieldset>
-      <legend>Render</legend>
-      <div class="seg" id="mode">
-        <button type="button" data-v="0" aria-pressed="true">Brightest</button>
-        <button type="button" data-v="1" aria-pressed="false">Surface</button>
+    </section>
+
+    <section class="box foldable" id="bright-box">
+      <div class="sec-head"><h2>Brightness</h2></div>
+      <div class="col">
+        <label class="row">Black point <output id="lo-o"></output><input type="range" id="lo" min="0" max="1" step="0.005" value="0.63"></label>
+        <label class="row">White point <output id="hi-o"></output><input type="range" id="hi" min="0" max="1" step="0.005" value="1"></label>
+        <label class="row" id="iso-row">Surface level <output id="iso-o"></output><input type="range" id="iso" min="0" max="1" step="0.005" value="0.35"></label>
       </div>
-      <p class="note" id="mode-note">Each ray shows the brightest point it passes through.</p>
-    </fieldset>
-    <fieldset>
-      <legend>Channel</legend>
-      <div id="chan-set"><div class="seg" id="chan"></div></div>
-      <label class="check" id="overlay-row"><input type="checkbox" id="overlay"> Add <span id="overlay-name"></span> in blue</label>
-      <label class="check"><input type="checkbox" id="depth" checked> Colour by depth</label>
-    </fieldset>
-    <fieldset>
-      <legend>Brightness</legend>
-      <label class="row">Black point <output id="lo-o"></output><input type="range" id="lo" min="0" max="1" step="0.005" value="0.63"></label>
-      <label class="row">White point <output id="hi-o"></output><input type="range" id="hi" min="0" max="1" step="0.005" value="1"></label>
-      <label class="row" id="iso-row">Surface level <output id="iso-o"></output><input type="range" id="iso" min="0" max="1" step="0.005" value="0.35"></label>
-    </fieldset>
-    <fieldset>
-      <legend>Depth</legend>
-      <label class="row">Show slices from <output id="z0-o"></output><input type="range" id="z0" min="0" max="1" step="1" value="0"></label>
-      <label class="row">to <output id="z1-o"></output><input type="range" id="z1" min="0" max="1" step="1" value="1"></label>
-      <label class="row">Spacing between slices <output id="zs-o"></output><input type="range" id="zs" min="0.25" max="10" step="0.05" value="1"></label>
-      <p class="note warn" id="zs-note"></p>
-    </fieldset>
-    <fieldset>
-      <legend>Look from</legend>
-      <div class="views">
+    </section>
+
+    <section class="box foldable" id="depth-box">
+      <div class="sec-head"><h2>Depth</h2></div>
+      <div class="col">
+        <label class="row">Show slices from <output id="z0-o"></output><input type="range" id="z0" min="0" max="1" step="1" value="0"></label>
+        <label class="row">to <output id="z1-o"></output><input type="range" id="z1" min="0" max="1" step="1" value="1"></label>
+        <label class="row">Spacing between slices <output id="zs-o"></output><input type="range" id="zs" min="0.25" max="10" step="0.05" value="1"></label>
+        <p class="note warn" id="zs-note"></p>
+      </div>
+    </section>
+  </aside>
+  <div class="gutter" id="gutter-left" title="Drag to resize; double-click to reset"></div>
+
+  <main id="view" data-view="3d">
+    <div class="toolbar">
+      <div class="tabs" role="tablist" aria-label="View">
+        <button type="button" role="tab" data-view="3d" class="on" aria-selected="true">3D</button>
+        <button type="button" role="tab" data-view="flat" aria-selected="false">Flattened</button>
+        <button type="button" role="tab" data-view="depth" aria-selected="false">Depth profile</button>
+      </div>
+      <span class="grow"></span>
+      <div class="for-3d views" role="group" aria-label="Look from">
+        <span class="dim">Look from</span>
         <button type="button" id="v-top">Top</button>
         <button type="button" id="v-tilt">Tilted</button>
         <button type="button" id="v-side">Side</button>
         <button type="button" id="v-front">Front</button>
       </div>
-    </fieldset>
+    </div>
+    <div id="busy" hidden><span class="spin big"></span><div id="progress-text"></div><div id="progress-bar"><i></i></div></div>
+
+    <div id="empty">
+      <h2>Open a z-stack</h2>
+      <p>Load a multi-page TIFF: an ImageJ hyperstack, an OME-TIFF, or plain pages stacked in depth. Drop it anywhere on this page, or use Load.</p>
+      <p class="hint">The file is read in this browser and never leaves it. The 3D view needs WebGL2.</p>
+      <p id="empty-msg" class="err" role="alert"></p>
+    </div>
+
+    <div id="viewer" hidden>
+      <section class="pane" data-pane="3d">
+        <div class="stages" id="stages">
+          <div class="stage" id="stage">
+            <canvas id="gl"></canvas>
+            <canvas id="hud"></canvas>
+            <div class="hint-over" id="stage-hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
+            <div class="tag" id="tag-stack" hidden>Stack</div>
+          </div>
+          <div class="stage" id="stage-model" hidden>
+            <canvas id="mcv"></canvas>
+            <div class="hint-over">drag a point: move it · click a dashed vessel: approve or decline · right-click: delete or split · right-drag from one piece to another: connect them</div>
+            <div class="tag">Model</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane" data-pane="flat" hidden>
+        <div class="flat">
+          <div>
+            <canvas id="flat-all"></canvas>
+            <div class="cap" id="cap-all">All shown slices, brightest value per pixel</div>
+          </div>
+          <div>
+            <canvas id="flat-one"></canvas>
+            <label class="row">Single slice <output id="sl-o"></output><input type="range" id="sl" min="0" max="1" step="1" value="0"></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane depth" data-pane="depth" hidden>
+        <svg id="spark" viewBox="0 0 1100 170" role="img" aria-label="Per-slice brightness"></svg>
+        <div class="legend"><span class="brightest">━ brightest 1% of pixels</span><span>━ median pixel (background)</span><span class="slice">┆ single slice shown in Flattened</span></div>
+        <div id="depth-legend" hidden>
+          <div class="legend-bar"></div>
+          <div class="legend-ends"><span>first slice</span><span>depth colour</span><span>last slice</span></div>
+        </div>
+        <p class="note">Every channel is scaled by one brightness window over the whole stack, never per slice, so signal that fades with depth still looks faded.</p>
+      </section>
+    </div>
+  </main>
+  <div class="gutter" id="gutter-right" title="Drag to resize; double-click to reset"></div>
+
+  <aside id="right">
+    <section class="box" id="model-set">
+      <div class="sec-head"><h2>Vessel model</h2></div>
+      <div class="col">
+        <div class="views">
+          <button type="button" id="model-draft" hidden>Reload the draft model for this stack</button>
+          <button type="button" id="model-load">Load a model file</button>
+        </div>
+        <input id="model-file" type="file" accept=".json,application/json" hidden>
+        <div id="model-on" class="col" hidden>
+          <div class="seg" id="model-mode">
+            <button type="button" data-v="side" aria-pressed="true">Side by side</button>
+            <button type="button" data-v="overlay" aria-pressed="false">Overlay</button>
+            <button type="button" data-v="off" aria-pressed="false">Hide</button>
+          </div>
+          <label class="check" id="m-candidates-row"><input type="checkbox" id="m-candidates" checked> Show low-confidence vessels (dashed)</label>
+          <p class="note" id="model-facts"></p>
+          <div class="views">
+            <button type="button" id="m-undo">Undo</button>
+            <button type="button" id="m-redo">Redo</button>
+            <button type="button" id="m-reset">Discard edits</button>
+          </div>
+          <button type="button" class="primary" id="m-save">Download corrected model</button>
+        </div>
+        <p class="note" id="model-msg"></p>
+      </div>
+    </section>
   </aside>
 </div>
 
-<h2>Flattened against one slice</h2>
-<div class="flat">
-  <div>
-    <canvas id="flat-all"></canvas>
-    <div class="cap" id="cap-all">All shown slices, brightest value per pixel</div>
-  </div>
-  <div>
-    <canvas id="flat-one"></canvas>
-    <label class="row" style="margin-top:6px">Single slice <output id="sl-o"></output><input type="range" id="sl" min="0" max="1" step="1" value="0"></label>
-  </div>
-</div>
-
-<h2>Signal through the depth</h2>
-<div class="depth">
-  <svg id="spark" viewBox="0 0 1100 170" role="img" aria-label="Per-slice brightness"></svg>
-  <div class="facts"><span style="color:#e8b04a">━ brightest 1% of pixels</span><span>━ median pixel (background)</span><span style="color:#4fd1d9">┆ single slice shown above</span></div>
-  <div id="depth-legend" hidden>
-    <div class="legend-bar"></div>
-    <div class="legend-ends"><span>first slice</span><span>depth colour</span><span>last slice</span></div>
-  </div>
-  <p class="note">Every channel is scaled by one brightness window over the whole stack, never per slice, so signal that fades with depth still looks faded.</p>
-</div>
-</section>
-
-<footer class="hint-text" id="version" title="version 0.11027.28">3D MicroViewer</footer>
+<footer id="statusbar">
+  <span id="sb-file" class="sb-seg">No stack</span>
+  <span id="sb-counts" class="sb-seg"></span>
+  <span class="grow"></span>
+  <span class="spin" id="spin"></span><span id="status">Ready</span>
+  <button type="button" id="sb-version" title="This page's version"></button>
+</footer>
 
 <dialog id="drive-dlg">
   <form method="dialog">
     <h2>Load from Google Drive</h2>
-    <p class="hint-text">Paste the link of a stack or a folder shared as "Anyone with the link".</p>
+    <p class="hint">Paste the link of a stack or a folder shared as "Anyone with the link".</p>
     <div class="drive-row"><input id="drive-link" type="text" placeholder="https://drive.google.com/…" autocomplete="off"><button id="drive-go" class="primary" type="button">Open</button></div>
     <div id="drive-path"></div>
     <div id="drive-list"></div>
-    <div class="drive-row end"><span id="drive-msg" class="hint-text"></span><button value="close">Close</button></div>
+    <div class="drive-row end"><span id="drive-msg" class="hint"></span><button value="close">Close</button></div>
   </form>
 </dialog>
+<div id="notice" role="alertdialog" aria-labelledby="notice-text" hidden><p id="notice-text"></p><button id="notice-ok" class="primary" type="button">OK</button></div>
 <div id="ctx" class="pop" role="menu" hidden></div>
 <script src="config.js"></script>
 <script type="module" src="app.js"></script>
