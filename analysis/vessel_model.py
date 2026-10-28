@@ -17,6 +17,10 @@ the depth (in slices) where its signal sits. Each traced vessel between two junc
 becomes a curve through the fewest points on it that keep the curve within half the vessel's width
 of its centerline, each point carrying the vessel's radius there.
 
+A vessel takes up its width: two junctions whose discs overlap are one junction, and a branch is
+measured from the edge of the junction it leaves. Where junctions still crowd far more densely than
+the stack's own mean, the area is marked for the owner as probably traced wrong.
+
 Tracing runs on a fainter threshold than the one the draft trusts, so it also finds vessels too faint
 to be sure of. Those are kept as low-confidence "candidate" segments that the owner approves or
 declines in the viewer, instead of being dropped unseen. Junctions are never stored: they are the
@@ -27,6 +31,7 @@ import numpy as np
 import tifffile
 from scipy import ndimage as ndi
 from scipy.spatial import cKDTree
+from scipy.stats import poisson
 from skimage.filters import apply_hysteresis_threshold
 from skimage.morphology import skeletonize, remove_small_objects
 
@@ -45,6 +50,8 @@ STRAIGHT_WIDTHS = 0.5  # an edge's curve may stray from the centerline by half t
 AXIAL_HALF_SLICES = 2.0   # a capillary spans 4-6 slices through depth at half its peak (measured on three stacks, analysis/3D-STACKS.md)
 THROUGH_DEG = 60.0     # ASSUMPTION: a branch leaving a junction within 60° of straight on continues the vessel; fails where a trunk turns sharply at a split
 DEPTH_SMOOTH_WIDTHS = 2.0  # the per-pixel depth is noisy on faint vessels: median along the path over this span
+DENSE_WIDTHS = 5.0     # junctions are counted within 5 typical vessel widths of each junction
+DENSE_P = 1e-3         # a count this unlikely at the stack's own mean junction density marks a knot the tracing likely got wrong
 
 FORMAT = 'vessel-model/2'
 ABOUT = ('status: draft as drawn by analysis/vessel_model.py, or corrected once the owner has edited it in the '
@@ -62,7 +69,9 @@ ABOUT = ('status: draft as drawn by analysis/vessel_model.py, or corrected once 
          'the confident seed level, capped at 1; a ranking for review, not a calibrated probability; absent on edges '
          'the owner drew. A junction is where three or more confirmed (vessel or accepted) edges meet. '
          'reviewed_regions: boxes the owner has checked completely; outside them a missing vessel is not annotated, '
-         'not absent.')
+         'not absent. dense_regions: boxes (x0, y0, x1, y1 in µm) where the extractor found far more junctions than the '
+         'stack\'s own mean density makes likely (junctions found, and expected at that density), a hint that the '
+         'tracing went wrong there; the viewer does not update them as the model is edited.')
 
 
 def read_cd31(path, channel):
@@ -179,6 +188,14 @@ def clean(pos, edges, dist):
                 return
 
     width = lambda p: 2 * float(dist[p[:, 0], p[:, 1]].mean())
+    reach = lambda n: float(dist[tuple(np.round(pos[n]).astype(int))])
+
+    def merge(j):
+        """Edge j's two ends become one point, midway, and the edge goes."""
+        a, b, _ = E.pop(j)
+        pos[a] = (pos[a] + pos[b]) / 2
+        for k, e in E.items():
+            E[k] = [a if e[0] == b else e[0], a if e[1] == b else e[1], e[2]]
     changed = True
     while changed:
         changed = False
@@ -195,11 +212,17 @@ def clean(pos, edges, dist):
             if ends == 1 and a != b:
                 junc = a if deg[b] == 1 else b
                 parent = [width(q) for k, (c, d, q) in E.items() if k != j and junc in (c, d)]
-                if parent and L < SPUR_WIDTHS * max(float(np.median(parent)), 1):
+                # the part of a spur inside its junction's own width is the junction, not the branch
+                if parent and L - reach(junc) < SPUR_WIDTHS * max(float(np.median(parent)), 1):
                     if junc not in spurs or L < spurs[junc][1]:
                         spurs[junc] = (j, L)
         for j, _ in spurs.values():
             del E[j]; changed = True
+        # a vessel has the width it was traced with: two points whose discs overlap sit inside one
+        # vessel, so the edge between them is the skeleton's stair inside a wide vessel, not a vessel
+        for j, (a, b, p) in sorted(E.items(), key=lambda kv: plen(kv[1][2])):
+            if a != b and j in E and E[j][:2] == [a, b] and plen(p) < reach(a) + reach(b):
+                merge(j); changed = True
         # two short paths between the same two junctions are one vessel the skeleton split around a hole
         pairs = {}
         for j, (a, b, p) in E.items():
@@ -294,6 +317,7 @@ def model(vol, um, source, z_step):
     pos, edges, dist = trace(faint)
     add('c', pos, [e for e in edges if float(confident[e[2][:, 0], e[2][:, 1]].mean()) < CANDIDATE_BELOW], dist, 'candidate')
     snap_candidates(E, sure, where, confident)
+    prune_candidates(E)
     return curves(E, where, um, vol.shape, source, z_step)
 
 
@@ -341,6 +365,21 @@ def snap_candidates(E, sure, where, confident):
     E[:] = [q for i, e in enumerate(E) for q in pieces.get(i, [e])]
 
 
+def prune_candidates(E):
+    """The confident trace takes the middle out of many faint ones, leaving stubs: a candidate that
+    ends in nothing and is shorter than a spur, or touches nothing and is shorter than an island, goes."""
+    while True:
+        deg = {}
+        for e in E:
+            for n in (e['a'], e['b']):
+                deg[n] = deg.get(n, 0) + 1
+        drop = [i for i, e in enumerate(E) if e['state'] == 'candidate' and e['a'] != e['b']
+                and plen(e['p']) < {0: 0, 1: SPUR_WIDTHS, 2: ISLAND_WIDTHS}[(deg[e['a']] == 1) + (deg[e['b']] == 1)] * max(e['w'], 1)]
+        if not drop:
+            return
+        E[:] = [e for i, e in enumerate(E) if i not in set(drop)]
+
+
 def curves(E, where, um, shape, source, z_step):
     """The vessel-model/2 file: junctions and tips, and each edge as the fewest on-vessel points a
     curve through them needs to stay within half the vessel's width of its centerline."""
@@ -383,8 +422,46 @@ def curves(E, where, um, shape, source, z_step):
     edges = [{'id': k + 1, 'a': ids[o['e']['a']], 'b': ids[o['e']['b']], 'vessel': vessel[k], 'state': o['e']['state'],
               'confidence': o['e']['conf'], 'via': o['via']} for k, o in enumerate(out)]
     Z, H, W = shape
+    dense = dense_regions(nodes, edges, W * H * um * um)
     return {'format': FORMAT, '_about': ABOUT, 'status': 'draft', 'source': source, 'slices': int(Z), 'size_px': [int(W), int(H)],
-            'um_per_px': um, 'z_step_um': z_step, 'nodes': nodes, 'edges': edges, 'reviewed_regions': []}
+            'um_per_px': um, 'z_step_um': z_step, 'nodes': nodes, 'edges': edges, 'reviewed_regions': [],
+            'dense_regions': dense}
+
+
+def dense_regions(nodes, edges, area):
+    """Boxes (µm) around knots of junctions far denser than the stack's own: around each junction,
+    the junctions within DENSE_WIDTHS typical widths are counted, and a count the stack's mean
+    density makes less likely than DENSE_P marks it; marked junctions within reach of each other
+    make one box."""
+    sure = [e for e in edges if e['state'] == 'vessel']
+    deg = np.bincount([e[k] for e in sure for k in 'ab'], minlength=len(nodes) + 1)
+    J = np.array([[n['x'], n['y']] for n in nodes if deg[n['id']] >= 3])
+    if len(J) < 2:
+        return []
+    R = DENSE_WIDTHS * 2 * float(np.median([n['r'] for n in nodes if deg[n['id']]] or [1.0]))
+    tree = cKDTree(J)
+    count = np.array([len(tree.query_ball_point(p, R)) - 1 for p in J])
+    mu = len(J) / area * np.pi * R * R
+    marked = np.flatnonzero(poisson.sf(count - 1, mu) < DENSE_P)
+    root = {i: i for i in marked}
+    def find(i):
+        while root[i] != i:
+            i = root[i]
+        return i
+    for i in marked:
+        for j in tree.query_ball_point(J[i], R):
+            if j in root:
+                root[find(j)] = find(i)
+    groups = {}
+    for i in marked:
+        groups.setdefault(find(i), set()).update(j for j in tree.query_ball_point(J[i], R))
+    out = []
+    for g in groups.values():
+        P = J[sorted(g)]
+        (x0, y0), (x1, y1) = P.min(0) - R / 2, P.max(0) + R / 2
+        out.append({'x0': round(float(x0), 2), 'y0': round(float(y0), 2), 'x1': round(float(x1), 2), 'y1': round(float(y1), 2),
+                    'junctions': len(g), 'expected': round(len(J) / area * float((x1 - x0) * (y1 - y0)), 1)})
+    return out
 
 
 def vessel_ids(out, ids):

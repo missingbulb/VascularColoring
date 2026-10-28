@@ -12,9 +12,11 @@ const PICK_POINT_PX = 9, PICK_SEGMENT_PX = 6, DRAG_PX = 5;
 // The overlay draws the model in magenta: neither the depth colours nor the hot scale of the stack
 // carry it, so a line never vanishes into the signal it is laid over.
 const OVERLAY = '#ff4fd8';
+// knots of junctions the extractor marked as probably traced wrong, in amber: none of the other colours
+const DENSE = '#ffb020';
 
 let model = null, loaded = null, history = [], future = [], edits = 0, savedKey = null;
-let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true;
+let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true, showWidths = true;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage: edits live until the page closes */ } },
@@ -40,13 +42,23 @@ function project() {
   const at = (p) => { const v = V.M.xf(vp, toWorld(p)); return v[3] > 0 ? [(v[0] / v[3] + 1) / 2 * W, (1 - v[1] / v[3]) / 2 * H, v[3], v[2] / v[3]] : null; };
   for (const n of model.nodes.values()) { const q = at(n); if (q) pts.set(n.id, q); }
   // each segment's stretch of its edge's curve, on screen
-  const curves = new Map();
+  const curves = new Map(), widths = new Map();
   model.segments.forEach((s, i) => {
     if (!pts.has(s.a) || !pts.has(s.b)) return;
-    const c = samples(i).map(at);
-    if (c.every(Boolean)) curves.set(i, c);
+    const q = samples(i), c = q.map(at);
+    if (!c.every(Boolean)) return;
+    curves.set(i, c);
+    // a vessel's radius on screen: µm to pixels where the segment is, the larger of the two in-plane
+    // directions, since a tilt foreshortens only one of them
+    const mid = q[q.length >> 1], o = at(mid), dx = at({ ...mid, x: mid.x + 1 }), dy = at({ ...mid, y: mid.y + 1 });
+    if (o && dx && dy && q.every((p) => Number.isFinite(p.r))) {
+      const ppu = Math.max(Math.hypot(dx[0] - o[0], dx[1] - o[1]), Math.hypot(dy[0] - o[0], dy[1] - o[1]));
+      widths.set(i, q.map((p) => p.r * ppu));
+    }
   });
-  return { vp, W, H, pts, curves };
+  const boxes = (model.dense_regions || []).map((b) => [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]]
+    .map(([x, y]) => at({ x, y, z: (model.slices - 1) / 2 }))).filter((c) => c.every(Boolean));
+  return { vp, W, H, pts, curves, widths, boxes };
 }
 const SAMPLES = 8, sampled = new WeakMap();
 function samples(i) {
@@ -91,7 +103,23 @@ function draw() {
     c.globalAlpha = lit ? 1 : (mode === 'overlay' ? .7 : 1) * (unsure ? .8 : 1);
     c.lineWidth = lit ? 3 : mode === 'overlay' ? 1.1 : 1.5;
     c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
+    const r = showWidths && view.widths.get(i);
+    if (r) {
+      // the vessel's width as two slim edges either side of its centerline, never a fill over the signal
+      c.globalAlpha *= .5; c.lineWidth = 1;
+      for (const side of [1, -1]) {
+        c.beginPath();
+        line.forEach((q, k) => {
+          const a = line[Math.max(k - 1, 0)], b = line[Math.min(k + 1, line.length - 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+          const x = q[0] - side * (b[1] - a[1]) / len * r[k], y = q[1] + side * (b[0] - a[0]) / len * r[k];
+          if (k) c.lineTo(x, y); else c.moveTo(x, y);
+        });
+        c.stroke();
+      }
+    }
   }
+  c.globalAlpha = 1; c.setLineDash([6, 4]); c.strokeStyle = DENSE; c.lineWidth = 1.5;
+  for (const b of view.boxes) { c.beginPath(); b.forEach((q, k) => (k ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); c.stroke(); }
   c.setLineDash([]); c.globalAlpha = 1;
   for (const n of model.nodes.values()) {
     const p = pts.get(n.id), v = seen.get(n.id) || 0; if (!p || !v || !inSlab(n)) continue;
@@ -289,6 +317,8 @@ function facts() {
     `${v.vessel + v.accepted} vessel edges, ${s.junctions} junctions, ${s.tips} tips, ${model.slices} slices. ` +
     (v.candidate || v.accepted || v.rejected ? `${v.candidate} low-confidence vessel${v.candidate === 1 ? '' : 's'} to review` +
       `${s.pendingJunctions ? ` (they would add up to ${s.pendingJunctions} junctions)` : ''}, ${v.accepted} approved, ${v.rejected} declined. ` : '') +
+    (model.dense_regions?.length ? `${model.dense_regions.length} area${model.dense_regions.length === 1 ? '' : 's'} with far more junctions ` +
+      'than the rest of the stack, likely traced wrong, outlined in amber. ' : '') +
     (edits ? `${edits} edit${edits === 1 ? '' : 's'} so far, kept in this browser until you download.` : 'No edits yet.');
   $('m-undo').disabled = !history.length; $('m-redo').disabled = !future.length; $('m-reset').disabled = !edits;
 }
@@ -372,6 +402,7 @@ export function init() {
   $('model-file').onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; };
   $('model-draft').onclick = loadDraft;
   $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; V.redraw(); };
+  $('m-widths').onchange = (e) => { showWidths = e.target.checked; V.redraw(); };
   $('m-undo').onclick = undo; $('m-redo').onclick = redo;
   $('m-reset').onclick = () => { if (!edits || !confirm(`Discard all ${edits} edits and go back to the model as loaded?`)) return;
     store.del(savedKey); model = loaded; history = []; future = []; edits = 0; msg(''); changed(); };
