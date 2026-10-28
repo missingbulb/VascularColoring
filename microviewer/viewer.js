@@ -128,6 +128,8 @@ const drawers = [];
 // Other layers drawn in the same camera (the vessel model) register here and redraw with every frame.
 export const onDraw = (fn) => drawers.push(fn);
 export const redraw = () => { dirty = true; };
+// the shown channel's volume, slices of Y rows of X, for pictures drawn outside the 3D view
+export const volume = () => vols[S.chan];
 
 const other = () => (S.chan === 0 ? 1 : 0);
 const showsOverlay = () => S.overlay && vols.length === 2;
@@ -244,7 +246,7 @@ function hud(vp) {
   c.fillText(zt, Math.min(Math.max(zx + 6, 4), W - c.measureText(zt).width - 4), Math.min(Math.max(zy, 14), H - 24));
 }
 
-function lut2d(v, z, v2) {
+export function lut2d(v, z, v2) {
   const w = (x) => Math.min(Math.max((x / 255 - S.lo) / Math.max(S.hi - S.lo, 1e-4), 0), 1);
   const a = w(v);
   let r, g, b;
