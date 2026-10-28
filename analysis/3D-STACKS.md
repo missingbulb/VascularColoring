@@ -117,6 +117,13 @@ vessel), then each vessel between two junctions or tips fitted with the fewest v
 the curve within half its width of the centerline sideways and within 2 slices in depth (a capillary
 spans 4 to 6 slices at half its peak, measured on frontal r1, frontal r2 and CA1 r2), after the
 pixel path's stair steps and the depth's noise are smoothed out over half a width and one width.
+A vessel takes up its width (owner, 2026-10-28): two junctions whose discs (radius from the distance
+map) overlap are one junction, merged midway, and a spur is measured from the edge of the junction it
+leaves, not its centre. Faint candidate stubs left dangling once the confident trace has taken their
+middle (under 2 widths with one free end, under 4 with two) are dropped. Where junctions still crowd
+more than the stack's own mean density allows (a count within 5 typical widths with Poisson
+p < 0.001), the area goes into `dense_regions` as probably traced wrong, and the viewer outlines it in
+amber; nothing there is deleted.
 Each edge carries a `state` and a `confidence`. The tracing above makes the
 `vessel` segments. A second, fainter tracing (hysteresis 3.5σ / 2.0σ, same cleaning) adds whatever
 lies mostly outside the confident mask as `candidate` segments, joined onto a confident vessel where
@@ -197,6 +204,23 @@ vessel ids; 161 candidate vessels (69 pending junctions); 102 KB. Seen against t
 over the brightest-over-depth picture, zoomed 3×): the curves follow the vessels as closely as the
 straight segments did, with fewer points. The tracing faults above are unchanged, since only the
 fit after tracing changed.
+
+**Widths as extent (2026-10-28):** owner asked for widths that keep vessels apart, far fewer short
+vessels, and a flag on junction knots. Confident edges, junctions, share of edges under 10 µm, and
+pairs of vessels whose widths overlap without sharing a junction, before → after:
+
+| Stack | Edges | Junctions | Under 10 µm | Overlapping pairs | Centerline |
+|---|---|---|---|---|---|
+| frontal r1 | 358 → 236 | 136 → 78 | 32% → 7% | 36 → 0 | 9.7 → 9.3 mm |
+| frontal r2 | 858 → 491 | 335 → 178 | 47% → 16% | 309 → 12 | 14.6 → 13.8 mm |
+| CA1 r1 | 674 → 401 | 308 → 169 | 36% → 11% | 206 → 6 | 12.7 → 11.9 mm |
+| CA1 r2 | 1045 → 580 | 533 → 261 | 38% → 11% | 491 → 11 | 18.2 → 16.6 mm |
+
+Seen against the flattened stack: the strings of junctions along wide vessels and blobs become one
+junction per branch point, and the ladders of short edges inside them go, which is most of the 4–9%
+of centerline lost (it was counted twice). Still there: faint squiggles traced over speckle as lone
+pieces, a few small loops, and knots where crossing vessels tangle; the knot test marks 4 of these
+(CA1 r1 one, CA1 r2 two, frontal r2 one, frontal r1 none). Untuned against any owner review.
 
 ## The graph tracer: the earlier draft route
 
@@ -297,4 +321,7 @@ remain.
 | Crossing when branch depths differ, on the whole-edge depth scatter | this session | Dropped: long vessels dive slowly, so the scatter along a whole edge hid the central X; the point-to-point depth noise found it. |
 | Crossing on depth alone, no straight-through test | this session | Dropped: a Y whose third arm climbs through depth split into a false crossing. |
 | Per-slice detection merged across slices, to split fake junctions | owner, 2026-10-02 | Kept as the primary crossing test, depth as fallback (owner, 2026-10-02): 8 crossings, 4 shared with the depth test. Its one-slice tolerance stops a branch whose peak sits in one slice splitting from its neighbour peaking in the next. Without the half-peak filter, axial blur joins crossing vessels in the slice where both blur. The drawn-tube test needed an axial blur added: flat-topped tubes made every slice equally strong. |
+| Merge junctions whose discs overlap (width as extent) | owner, 2026-10-28 | Kept: removes the junction strings inside wide vessels and nearly all overlapping pairs. |
+| Flag dense junctions, against the stack's own mean density | owner, 2026-10-28 | Kept as a flag, not a filter: deleting or demoting the edges there would also hit dense real capillary beds; Poisson p < 0.001 within 5 widths marks 0–2 knots per stack. |
+| Drop lone pieces by confidence, to remove the faint squiggles | this session | Not done: lone squiggles score 0.6–0.8, but so does a tenth of the connected network, so no cut separates them. |
 | Estimate the z-step from the depth extent of round DAPI nuclei | this session | Not tried. Axial blur lengthens every nucleus along z, so it would overstate the spacing; only a cross-check for the lab's number, never a substitute. |
