@@ -2,8 +2,13 @@
 // it: drag a point to move it, right-click a segment or a point to delete it or split a junction,
 // right-drag from one piece to another to connect them, click a dashed low-confidence vessel to
 // approve or decline it. The corrected model downloads as JSON.
+//
+// The review narrows the stack to what the model accounts for: Detected keeps only the signal around
+// the model's vessels, to check and measure them; Missed keeps only the signal away from them, to find
+// vessels the extractor did not draw, which can then be drawn in a click at a time.
 import * as V from './viewer.js';
 import * as Mo from './model.js';
+import { coverage } from './coverage.js';
 
 const $ = (id) => document.getElementById(id);
 const MODELS = 'models/index.json';
@@ -15,6 +20,7 @@ const OVERLAY = '#ff4fd8';
 
 let model = null, loaded = null, history = [], future = [], edits = 0, savedKey = null;
 let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true;
+let review = 'all', reach = 2, maskKey = null, maskTimer = null, drawing = null;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage: edits live until the page closes */ } },
@@ -107,6 +113,17 @@ function draw() {
       c.arc(p[0], p[1], hot ? 4.5 : (v === 1 ? 2.2 : 1.6) * (mode === 'overlay' ? .7 : 1), 0, 2 * Math.PI); c.fillStyle = hot ? '#fff' : colour(n.z); c.fill();
     }
   }
+  const w = hover && (hover.node == null || pts.has(hover.node)) && hoverRadius(hover);
+  if (w) {
+    const [x, y] = screenOf(hover), t = `⌀ ${(2 * w).toFixed(1)} µm`;
+    c.font = '11px "IBM Plex Mono", monospace'; c.fillStyle = 'rgba(0,0,0,.6)';
+    c.fillRect(x + 8, y - 22, c.measureText(t).width + 8, 16); c.fillStyle = '#fff'; c.fillText(t, x + 12, y - 10);
+  }
+  if (drawing?.from && drawing.to) {
+    c.setLineDash([5, 4]); c.strokeStyle = '#fff'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(...screenOf(drawing.from)); c.lineTo(...drawing.to); c.stroke(); c.setLineDash([]);
+    if (drawing.from.point) { const [x, y] = screenOf(drawing.from); c.beginPath(); c.arc(x, y, 3, 0, 2 * Math.PI); c.fillStyle = '#fff'; c.fill(); }
+  }
   if (rubber) {
     c.setLineDash([5, 4]); c.strokeStyle = '#fff'; c.lineWidth = 1.5;
     c.beginPath(); c.moveTo(...rubber.from); c.lineTo(...rubber.to); c.stroke(); c.setLineDash([]);
@@ -141,7 +158,10 @@ function pick(e, segmentsOnly = false) {
   }
   return best;
 }
+// the vessel's radius in µm under a picked point or segment, when the model gives it
+const hoverRadius = (h) => (h.node != null ? model.nodes.get(h.node)?.r : model.segments[h.segment] ? Mo.curvePoint(model, h.segment, h.t).r : null);
 const screenOf = (h) => {
+  if (h.point) { const v = V.M.xf(view.vp, toWorld(h.point)); return [(v[0] / v[3] + 1) / 2 * view.W, (1 - v[1] / v[3]) / 2 * view.H]; }
   if (h.node != null) return view.pts.get(h.node).slice(0, 2);
   const line = view.curves.get(h.segment), f = h.t * (line.length - 1), k = Math.min(Math.floor(f), line.length - 2), u = f - k;
   return [line[k][0] + (line[k + 1][0] - line[k][0]) * u, line[k][1] + (line[k + 1][1] - line[k][1]) * u];
@@ -165,7 +185,7 @@ function changed() {
   if (savedKey) {
     if (edits) store.set(savedKey, { edits, model: Mo.toJSON(model) }); else store.del(savedKey);
   }
-  facts(); V.redraw();
+  facts(); refreshMask(); V.redraw();
 }
 function undo() { if (!history.length) return; future.push(model); model = history.pop(); edits--; changed(); }
 function redo() { if (!future.length) return; history.push(model); model = future.pop(); edits++; changed(); }
@@ -174,7 +194,7 @@ function grab(e) {
   if (!model || mode === 'off') return null;
   closeMenu();
   const h = pick(e);
-  if (e.button === 0 && !e.shiftKey && h?.node != null) {
+  if (e.button === 0 && !e.shiftKey && h?.node != null && !drawing) {
     const base = model, id = h.node, ndcZ = view.pts.get(id)[3];
     let moved = false;
     return {
@@ -219,6 +239,7 @@ function grab(e) {
 // A left click on a dashed vessel asks for its verdict.
 function clicked(e) {
   if (!model || mode === 'off') return;
+  if (drawing) return drawClick(e);
   const h = pick(e, true);
   if (isCandidate(h)) openMenu(h, e.clientX, e.clientY);
 }
@@ -285,6 +306,62 @@ export function frame(ids, marginUm = 10) {
 }
 function closeMenu() { if (!$('ctx').hidden) { $('ctx').hidden = true; hover = null; V.redraw(); } }
 
+// ---------- the review: detected or missed ----------
+function setReview(r) {
+  review = r;
+  for (const b of $('review-mode').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === r));
+  $('review-note').textContent = {
+    all: 'The whole stack.',
+    detected: 'Only the signal within reach of the model’s vessels: check them and measure their widths (hover a vessel).',
+    missed: 'Only the signal away from the model’s vessels: whatever bright line is left is a vessel the model does not have.',
+  }[r];
+  $('reach-row').hidden = r === 'all';
+  refreshMask(true);
+}
+// The mask follows the model, the vessels shown, the reach and the slice spacing, recomputed a moment
+// after the last change so a run of edits paints it once.
+function refreshMask(now) {
+  clearTimeout(maskTimer);
+  if (!V.meta) return;
+  if (!model || review === 'all') { maskKey = null; return V.setMask(null); }
+  const key = [model, showCandidates, reach, V.S.zs];
+  if (maskKey && key.every((v, k) => v === maskKey.key[k])) return V.setMask(maskKey.mask, review);
+  maskTimer = setTimeout(() => {
+    const mask = coverage(model, V.meta.shape, { zStepUm: V.S.zs, marginUm: reach, which: visible });
+    maskKey = { key, mask }; V.setMask(mask, review);
+  }, now ? 0 : 150);
+}
+
+// Drawing a missed vessel: each click places its next point, on an existing point or vessel when the
+// click lands on one, else at the brightest shown voxel under the pointer. Joining the network, Enter,
+// Escape or the button again ends it.
+function setDrawing(on) {
+  drawing = on ? { from: null, to: null } : null;
+  $('m-draw').textContent = on ? 'Finish drawing' : 'Draw a missed vessel';
+  $('m-draw').setAttribute('aria-pressed', String(!!on));
+  cv.classList.toggle('connecting', !!on);
+  if (on && mode !== 'overlay') setMode('overlay');
+  $('draw-note').textContent = on ? 'Click along the vessel, a point at a time; each point goes to the brightest spot under the pointer. Click an existing vessel, press Enter or Escape to end. Ctrl-Z takes back a point.' : '';
+  V.redraw();
+}
+function drawClick(e) {
+  const h = pick(e), r = cv.getBoundingClientRect();
+  let to = h;
+  if (!to) {
+    const w = V.brightestOnRay((e.clientX - r.left) / view.W * 2 - 1, 1 - (e.clientY - r.top) / view.H * 2, view.W / view.H);
+    if (!w) return;
+    to = { point: fromWorld(w) };
+  }
+  // an undo can take away the point the line was drawing from
+  if (drawing.from?.node != null && !model.nodes.has(drawing.from.node)) drawing.from = null;
+  if (!drawing.from) { drawing.from = to; return V.redraw(); }
+  const [next, id] = Mo.drawSegment(model, drawing.from, to);
+  if (id == null) return;
+  apply(next);
+  if (h) return setDrawing(false);
+  drawing.from = { node: id };
+}
+
 // ---------- loading, modes, saving ----------
 function setMode(m) {
   mode = m;
@@ -330,7 +407,8 @@ function open(text, name) {
     catch { store.del(savedKey); }
   }
   if (V.meta && m.slices !== slices()) msg(`This model has ${m.slices} slices and the stack has ${slices()}: they are probably not the same stack.`, true);
-  $('model-on').hidden = false;
+  $('model-on').hidden = false; $('review-box').hidden = false;
+  maskKey = null; refreshMask(true);
   $('m-candidates-row').hidden = !model.segments.some((s) => s.state !== 'vessel');
   setMode(mode === 'off' ? 'side' : mode);
   facts(); tell();
@@ -359,7 +437,10 @@ const draftFor = (name) => drafts.find((x) => same(x.source, name));
 export function stackOpened(name) {
   stackName = name;
   model = null; loaded = null; history = []; future = []; edits = 0; savedKey = null;
-  $('model-on').hidden = true; msg(''); setMode(mode); tell();
+  $('model-on').hidden = true; $('review-box').hidden = true; msg(''); setMode(mode);
+  if (drawing) setDrawing(false);
+  maskKey = null; refreshMask(true);
+  tell();
   $('model-draft').hidden = !draftFor(name);
   if (draftFor(name)) loadDraft();
 }
@@ -381,16 +462,23 @@ export function init() {
   V.controls(cv, grab, clicked);
   cv.addEventListener('pointermove', (e) => {
     if (!model || e.buttons || rubber) return;
+    if (drawing) { const r = cv.getBoundingClientRect(); drawing.to = [e.clientX - r.left, e.clientY - r.top]; }
     const h = pick(e), same = JSON.stringify(h) === JSON.stringify(hover);
     cv.classList.toggle('over-point', !!h);
-    if (!same && $('ctx').hidden) { hover = h; V.redraw(); }
+    if ((!same || drawing) && $('ctx').hidden) { hover = h; V.redraw(); }
   });
   cv.addEventListener('pointerleave', () => { if (hover && $('ctx').hidden) { hover = null; V.redraw(); } });
   $('model-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.v); });
   $('model-load').onclick = () => $('model-file').click();
   $('model-file').onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; };
   $('model-draft').onclick = loadDraft;
-  $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; V.redraw(); };
+  $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; refreshMask(); V.redraw(); };
+  $('review-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setReview(b.dataset.v); });
+  const reachOut = () => { $('reach-o').value = `${reach.toFixed(1)} µm`; };
+  $('reach').addEventListener('input', (e) => { reach = +e.target.value; reachOut(); refreshMask(); });
+  reachOut();
+  $('zs').addEventListener('input', () => refreshMask());
+  $('m-draw').onclick = () => setDrawing(!drawing);
   $('m-undo').onclick = undo; $('m-redo').onclick = redo;
   $('m-reset').onclick = () => { if (!edits || !confirm(`Discard all ${edits} edits and go back to the model as loaded?`)) return;
     store.del(savedKey); model = loaded; history = []; future = []; edits = 0; msg(''); changed(); };
@@ -398,6 +486,7 @@ export function init() {
   document.addEventListener('keydown', (e) => {
     if (!model || e.target.closest('input, textarea')) return;
     if (e.key === 'Escape') closeMenu();
+    if (drawing && (e.key === 'Escape' || e.key === 'Enter')) { setDrawing(false); return; }
     const k0 = e.key.toLowerCase();
     if (!(e.ctrlKey || e.metaKey || e.altKey) && (k0 === 'a' || k0 === 'd') && isCandidate(hover)) {
       const h = hover; closeMenu(); hover = null; apply(Mo.review(model, h.segment, k0 === 'a' ? 'accepted' : 'rejected')); return;

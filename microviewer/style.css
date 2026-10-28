@@ -114,6 +114,7 @@ label.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; }
 label.check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 .views { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .views button { padding: 4px 10px; font-size: 13px; }
+.views button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
 /* the view: a toolbar of tabs and the shown view's own tools, over the view itself */
 #view { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: var(--pad) 0;

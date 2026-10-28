@@ -175,8 +175,21 @@ const tests = {
     assert.equal(out.edges.length, 2, 'two vessels, each one edge through its own crossing point');
     assert.deepEqual(out.edges.map((e) => e.via.length), [1, 1]);
   },
+  'a missed vessel is drawn point by point, as one edge that joins the network where it ends'() {
+    const m = Mo.parse(base([[1, 0, 0, 0], [2, 20, 0, 0]], [[1, 2, 'vessel', .9]]));
+    let [o, id] = Mo.drawSegment(m, { point: { x: 10, y: 30, z: 1 } }, { point: { x: 10, y: 20, z: 1 } });
+    assert.equal(m.segments.length, 1, 'the model drawn on is unchanged');
+    [o, id] = Mo.drawSegment(o, { node: id }, { point: { x: 10, y: 10, z: 0 } });
+    [o] = Mo.drawSegment(o, { node: id }, { segment: 0, t: .5 });
+    const out = Mo.toJSON(o);
+    assert.equal(Mo.stats(o).junctions, 1, 'the drawn vessel meets the old one in a junction');
+    const drawn = out.edges.find((e) => e.via.length === 2);
+    assert.ok(drawn, 'the three drawn segments are one edge through two curve points');
+    assert.equal(drawn.state, 'vessel'); assert.equal(drawn.confidence, undefined);
+    assert.deepEqual(Mo.drawSegment(o, { node: 1 }, { node: 1 }), [o, null]);
+  },
 };
 
 let n = 0;
 for (const [name, fn] of Object.entries(tests)) { fn(); n++; console.log('ok', name); }
-assert.equal(n, 22);
+assert.equal(n, 23);

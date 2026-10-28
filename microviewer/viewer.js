@@ -48,9 +48,9 @@ in vec2 aPos; out vec2 vNdc;
 void main(){ vNdc = aPos; gl_Position = vec4(aPos, 0., 1.); }`;
 const FS = `#version 300 es
 precision highp float; precision highp sampler3D;
-uniform sampler3D uA; uniform sampler3D uB;
+uniform sampler3D uA; uniform sampler3D uB; uniform sampler3D uC;
 uniform mat4 uInvVP; uniform vec3 uHalf; uniform vec2 uZc; uniform vec4 uClip; uniform vec3 uTexel;
-uniform int uMode; uniform int uChan; uniform int uDepth;
+uniform int uMode; uniform int uChan; uniform int uDepth; uniform int uKeep;
 uniform float uLo; uniform float uHi; uniform float uIso; uniform float uStep;
 in vec2 vNdc; out vec4 o;
 const vec3 BG = vec3(0.);
@@ -64,7 +64,9 @@ vec3 turbo(float x){
 vec3 hot(float v){ return clamp(vec3(v*2.2, v*2.2-.9, v*3.2-2.2), 0., 1.); }
 vec3 blue(float v){ return clamp(vec3(v*.35, v*.6, v*1.4), 0., 1.); }
 float win(float v){ return clamp((v-uLo)/max(uHi-uLo,1e-4), 0., 1.); }
-float val(vec3 tc){ return texture(uA,tc).r; }
+// the review keeps the stack inside the model's vessels (1) or outside them (2), or all of it (0)
+float keep(vec3 tc){ if (uKeep == 0) return 1.; float k = smoothstep(.3, .7, texture(uC,tc).r); return uKeep == 1 ? k : 1. - k; }
+float val(vec3 tc){ return texture(uA,tc).r * keep(tc); }
 void main(){
   vec4 a = uInvVP*vec4(vNdc,-1.,1.), b = uInvVP*vec4(vNdc,1.,1.);
   vec3 ro = a.xyz/a.w, rd = normalize(b.xyz/b.w - ro);
@@ -79,9 +81,9 @@ void main(){
     for (int i = 0; i < 4096; i++) {
       float t = tN + (float(i)+jit)*uStep; if (t > tF) break;
       vec3 tc = toTc(ro + rd*t);
-      float va = texture(uA,tc).r;
+      float va = val(tc);
       if (va > mA) { mA = va; zA = tc.z; }
-      if (uChan == 2) mB = max(mB, texture(uB,tc).r);
+      if (uChan == 2) mB = max(mB, texture(uB,tc).r * keep(tc));
     }
     float zn = (zA - uZc.x) / max(uZc.y - uZc.x, 1e-4);
     vec3 c = uDepth==1 ? turbo(zn)*win(mA) : hot(win(mA));
@@ -120,7 +122,7 @@ const CHANNEL_KEY = 'mv-channel';
 export const S = { mode: 0, chan: 0, overlay: 0, depth: 1, ...LOOK, z0: 0, z1: 0, zs: 1, slice: 0,
             yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], clip: null, dragging: false };
 export let meta = null, half = [1, 1, .1];
-let vols = [], gl, U = {}, tex = [], dirty = true, bound = false;
+let vols = [], gl, U = {}, tex = [], dirty = true, bound = false, mask = null, keepSide = 0;
 const drawers = [];
 
 // Other layers drawn in the same camera (the vessel model) register here and redraw with every frame.
@@ -132,8 +134,7 @@ export const volume = () => vols[S.chan];
 const other = () => (S.chan === 0 ? 1 : 0);
 const showsOverlay = () => S.overlay && vols.length === 2;
 
-function texture(unit, data) {
-  const [Z, Y, X] = meta.shape;
+function texture(unit, data, [Z, Y, X] = meta.shape) {
   if (tex[unit]) gl.deleteTexture(tex[unit]);
   const t = (tex[unit] = gl.createTexture());
   gl.activeTexture(gl.TEXTURE0 + unit);
@@ -148,6 +149,16 @@ function uploadChannels() {
   texture(0, vols[S.chan]);
   texture(1, vols.length > 1 ? vols[other()] : vols[S.chan]);
 }
+const kept = (i) => (!keepSide ? 1 : (mask[i] > 127) === (keepSide === 1) ? 1 : 0);
+
+// What the review shows: a mask over the stack's voxels (255 where a vessel is) and which side of it
+// to keep, 'detected' or 'missed'; no mask, or 'all', shows the whole stack.
+export function setMask(m, side) {
+  mask = m && m.length === meta.shape.reduce((a, b) => a * b) ? m : null;
+  keepSide = mask ? ({ detected: 1, missed: 2 }[side] || 0) : 0;
+  texture(2, mask || new Uint8Array(1), mask ? meta.shape : [1, 1, 1]);
+  flat(); dirty = true;
+}
 
 // The 3D view needs WebGL2; the caller learns before reading a file whether it has it.
 export function initGL() {
@@ -161,13 +172,13 @@ export function initGL() {
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
   gl.useProgram(prog);
-  for (const n of ['uA','uB','uInvVP','uHalf','uZc','uClip','uTexel','uMode','uChan','uDepth','uLo','uHi','uIso','uStep'])
+  for (const n of ['uA','uB','uC','uInvVP','uHalf','uZc','uClip','uTexel','uMode','uChan','uDepth','uKeep','uLo','uHi','uIso','uStep'])
     U[n] = gl.getUniformLocation(prog, n);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(prog, 'aPos'); gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  gl.uniform1i(U.uA, 0); gl.uniform1i(U.uB, 1);
+  gl.uniform1i(U.uA, 0); gl.uniform1i(U.uB, 1); gl.uniform1i(U.uC, 2);
   return gl;
 }
 export const maxTextureSide = () => initGL().getParameter(gl.MAX_3D_TEXTURE_SIZE);
@@ -201,7 +212,7 @@ function render() {
   gl.uniform2f(U.uZc, S.z0 / Z, (S.z1 + 1) / Z);
   gl.uniform4f(U.uClip, ...(S.clip || [-half[0], -half[1], half[0], half[1]]));
   gl.uniform3f(U.uTexel, 1 / X, 1 / Y, 1 / Z);
-  gl.uniform1i(U.uMode, S.mode); gl.uniform1i(U.uChan, showsOverlay() ? 2 : 0); gl.uniform1i(U.uDepth, S.depth);
+  gl.uniform1i(U.uMode, S.mode); gl.uniform1i(U.uChan, showsOverlay() ? 2 : 0); gl.uniform1i(U.uDepth, S.depth); gl.uniform1i(U.uKeep, keepSide);
   gl.uniform1f(U.uLo, S.lo); gl.uniform1f(U.uHi, S.hi); gl.uniform1f(U.uIso, S.iso);
   gl.uniform1f(U.uStep, (2 * half[0] / X) * (S.dragging ? 1.6 : .7));
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -258,7 +269,10 @@ function flat() {
     const c = cv.getContext('2d'), img = c.createImageData(X, Y), d = img.data, n = X * Y;
     for (let i = 0; i < n; i++) {
       let m = -1, mz = 0, m2 = 0;
-      for (let z = z0; z <= z1; z++) { const v = A[z * n + i]; if (v > m) { m = v; mz = z; } if (B) m2 = Math.max(m2, B[z * n + i]); }
+      for (let z = z0; z <= z1; z++) {
+        const j = z * n + i, k = kept(j), v = A[j] * k;
+        if (v > m) { m = v; mz = z; } if (B) m2 = Math.max(m2, B[j] * k);
+      }
       const zn = z1 > z0 ? (mz - S.z0) / Math.max(S.z1 - S.z0, 1) : (S.slice - S.z0) / Math.max(S.z1 - S.z0, 1);
       const [r, g, b] = lut2d(m, zn, B ? m2 : null);
       d[4*i] = r; d[4*i+1] = g; d[4*i+2] = b; d[4*i+3] = 255;
@@ -384,6 +398,33 @@ export function focus(at, halfWidth, along) {
     pan: [-at[2], up[0] * at[0] + up[1] * at[1]], dist: Math.max(MIN_DIST, h * 5) });
   dirty = true;
 }
+// The brightest shown voxel on the line of sight through a point of a canvas (ndc -1..1) of aspect
+// asp, as the Brightest render finds it: the world point under the pointer in depth, or null.
+export function brightestOnRay(nx, ny, asp) {
+  const iv = M.inv(camera(asp)), [Z, Y, X] = meta.shape;
+  const a = M.xf(iv, [nx, ny, -1]), b = M.xf(iv, [nx, ny, 1]);
+  const ro = a.slice(0, 3).map((v) => v / a[3]), far = b.slice(0, 3).map((v) => v / b[3]);
+  const rd = far.map((v, k) => v - ro[k]), l = Math.hypot(...rd); for (let k = 0; k < 3; k++) rd[k] = rd[k] / l || 1e-6;
+  const c = S.clip || [-half[0], -half[1], half[0], half[1]];
+  const lo = [c[0], c[1], half[2] * (1 - 2 * (S.z1 + 1) / Z)], hi = [c[2], c[3], half[2] * (1 - 2 * S.z0 / Z)];
+  let tN = 0, tF = Infinity;
+  for (let k = 0; k < 3; k++) {
+    const t0 = (lo[k] - ro[k]) / rd[k], t1 = (hi[k] - ro[k]) / rd[k];
+    tN = Math.max(tN, Math.min(t0, t1)); tF = Math.min(tF, Math.max(t0, t1));
+  }
+  if (!(tF > tN)) return null;
+  const A = vols[S.chan], step = half[0] / X;
+  let best = -1, at = null;
+  for (let t = tN; t <= tF; t += step) {
+    const p = ro.map((v, k) => v + rd[k] * t);
+    const x = Math.min(X - 1, Math.floor((p[0] / half[0] + 1) / 2 * X)), y = Math.min(Y - 1, Math.floor((1 - p[1] / half[1]) / 2 * Y));
+    const z = Math.min(Z - 1, Math.floor((1 - p[2] / half[2]) / 2 * Z));
+    if (x < 0 || y < 0 || z < 0) continue;
+    const i = (z * Y + y) * X + x, v = A[i] * kept(i);
+    if (v > best) { best = v; at = p; }
+  }
+  return at;
+}
 export const inClip = (w) => !S.clip || (w[0] >= S.clip[0] && w[0] <= S.clip[2] && w[1] >= S.clip[1] && w[1] <= S.clip[3]);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -416,6 +457,7 @@ export function show(name, m, v) {
     (meta.frames > 1 ? `<span class="guess">time point 1 of ${meta.frames}</span>` : '') +
     (meta.origin ? `<span>${meta.channels.length === 1 ? esc(meta.channels[0].name) + ' channel, ' : ''}slices ${meta.origin.first}–${meta.origin.last} of ${meta.origin.of} in ${esc(meta.origin.file)}</span>` : '');
   uploadChannels();
+  mask = null; keepSide = 0; texture(2, new Uint8Array(1), [1, 1, 1]);
   if (!bound) { bind(); bound = true; }
   sync(); flat();
 }
