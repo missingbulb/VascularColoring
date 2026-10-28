@@ -254,17 +254,26 @@ export function splitJunction(m, id, zScale = 1) {
 }
 
 // Two parts of one vessel joined. Each end is {node: id} or {segment: i, t}, a point on a segment.
-export function connect(m, from, to) {
-  let o = m, ids = [];
+export const connect = (m, from, to) => join(m, from, to)[0];
+
+// A vessel the extractor missed, drawn a segment at a time: from one end to the next, where an end
+// may also be {point: {x, y, z}}, a new point in the open. Returns [model, id of the point drawn to],
+// or the model unchanged and null when the two ends are one point or already joined.
+export const drawSegment = (m, from, to) => { const [o, ids] = join(m, from, to); return o === m ? [m, null] : [o, ids[1]]; };
+
+function join(m, from, to) {
+  let o = m;
+  const ids = [];
   // split the later-listed segment first so the earlier index stays valid
   const ends = [from, to].map((e, k) => ({ ...e, k })).sort((p, q) => (q.segment ?? -1) - (p.segment ?? -1));
   for (const e of ends) {
     if (e.node != null) { ids[e.k] = e.node; continue; }
+    if (e.point) { if (o === m) o = clone(m); ids[e.k] = addNode(o, e.point); continue; }
     [o, ids[e.k]] = splitSegment(o, e.segment, e.t);
   }
-  if (ids[0] === ids[1]) return m;
+  if (ids[0] === ids[1]) return [m, ids];
   if (o === m) o = clone(m);
-  return link(o, ids[0], ids[1]) ? o : m;
+  return link(o, ids[0], ids[1]) ? [o, ids] : [m, ids];
 }
 
 // The segments of the one vessel segment i belongs to, as far as its state runs: it continues

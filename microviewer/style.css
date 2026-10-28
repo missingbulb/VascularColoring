@@ -104,3 +104,5 @@ dialog h2 { margin: 0 0 6px; }
 .hint-text { font-size: 12px; color: var(--muted); }
 .legend-ends { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
 footer#version { margin-top: 24px; text-align: right; }
+details.box > summary { font: 600 11px var(--cond); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; cursor: pointer; }
+.views button[aria-pressed="true"] { background: var(--accent); color: #062326; border-color: var(--accent); }

@@ -148,6 +148,22 @@ its straightest pair of branches, so two vessels that only cross sit apart in de
 aid, not a detector: closer than the 4 to 6 slices a vessel spans, two vessels touch from every
 angle. Any of the view buttons shows the whole stack again.
 
+**Review: Detected and Missed (owner, 2026-10-28).** The owner asked for two ways to look at the
+stack against its model: one keeping only the stack's layers where vessels were detected, to check
+and measure them, and one keeping only the rest, to find what was missed. Once a model is open, the
+**Review** box offers **Everything**, **Detected** (only the signal within reach of a shown vessel)
+and **Missed** (only the signal away from every shown vessel; whatever bright line is left is a
+vessel the model does not have). Within reach means inside a tube along each curve of the vessel's
+own radius `r` plus **Reach beyond the vessel wall** (default 2 µm), reaching as far in depth at the
+slice spacing the view draws; a point without a radius takes the model's median. Hidden candidates
+and declined vessels cover nothing. Both renders, both flattened pictures and the depth picking
+below honour the review. Hovering a vessel shows its width (⌀ = 2 r) there.
+**Draw a missed vessel** places a new vessel a click at a time: a click on an existing point or
+vessel snaps to it, anywhere else lands on the brightest shown voxel under the pointer (so in Missed
+the depth comes from the unexplained signal itself). Joining an existing vessel, Enter or Escape
+ends it; each click is one undo step. The drawn vessel is an owner-drawn `vessel` edge with no
+radius yet. `tests/test_microviewer_coverage.mjs` pins the tube.
+
 **First draft (2026-10-03):** 961 points, 920 segments, 136 junctions, 222 tips, 55 KB. Seen before
 the owner's corrections: the main network is followed; the bright tissue edge down the left side is
 traced as a vessel; faint vessels in the lower right break into short pieces or are missed; a few

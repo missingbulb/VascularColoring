@@ -76,6 +76,20 @@
       </div>
       <p class="note" id="model-msg"></p>
     </fieldset>
+    <details class="box" id="review-box" open hidden>
+      <summary>Review</summary>
+      <div class="col">
+        <div class="seg" id="review-mode">
+          <button type="button" data-v="all" aria-pressed="true">Everything</button>
+          <button type="button" data-v="detected" aria-pressed="false">Detected</button>
+          <button type="button" data-v="missed" aria-pressed="false">Missed</button>
+        </div>
+        <p class="note" id="review-note">The whole stack.</p>
+        <label class="row" id="reach-row" hidden>Reach beyond the vessel wall <output id="reach-o"></output><input type="range" id="reach" min="0" max="10" step="0.5" value="2"></label>
+        <div class="views"><button type="button" id="m-draw" aria-pressed="false">Draw a missed vessel</button></div>
+        <p class="note" id="draw-note"></p>
+      </div>
+    </details>
     <fieldset>
       <legend>Render</legend>
       <div class="seg" id="mode">
