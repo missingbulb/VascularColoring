@@ -1,11 +1,12 @@
 // The analysis, mounted into the shell: a file the shell brings in is read as a TIFF stack, turned into
-// volumes and shown in the 3D viewer, with its vessel model beside it; a dropped model file goes to the
-// model.
+// volumes and shown in the 3D viewer, with its vessel model beside it and its items on cards; a dropped
+// model file goes to the model.
 import { openTiff, TiffError } from './tiff.js';
 import { buildVolumes, binFor } from './stack.js';
 import * as shell from './shell.js';
 import { show, maxTextureSide } from './viewer.js';
 import * as model from './modelview.js';
+import * as items from './items.js';
 
 async function open(name, bytes) {
   try {
@@ -33,6 +34,8 @@ async function open(name, bytes) {
 shell.mount({
   open,
   dropped(f) { if (!/\.json$/i.test(f.name)) return false; model.openFile(f); return true; },
+  shown(view) { items.visibleNow(view === 'items'); },
 });
 model.init();
+items.init(() => shell.showView('3d'));
 try { maxTextureSide(); } catch (err) { shell.unavailable(err.message); }

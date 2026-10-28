@@ -92,6 +92,7 @@
         <button type="button" role="tab" data-view="3d" class="on" aria-selected="true">3D</button>
         <button type="button" role="tab" data-view="flat" aria-selected="false">Flattened</button>
         <button type="button" role="tab" data-view="depth" aria-selected="false">Depth profile</button>
+        <button type="button" role="tab" data-view="items" aria-selected="false">Items <span class="count" id="items-count"></span></button>
       </div>
       <span class="grow"></span>
       <div class="for-3d views" role="group" aria-label="Look from">
@@ -100,6 +101,25 @@
         <button type="button" id="v-tilt">Tilted</button>
         <button type="button" id="v-side">Side</button>
         <button type="button" id="v-front">Front</button>
+      </div>
+      <div class="for-items views">
+        <div class="seg" id="item-kind">
+          <button type="button" data-v="junctions" aria-pressed="true">Junctions <span class="count"></span></button>
+          <button type="button" data-v="vessels" aria-pressed="false">Vessels <span class="count"></span></button>
+        </div>
+        <select id="item-filter" aria-label="Which items">
+          <option value="all" data-for="junctions vessels">All</option>
+          <option value="review" data-for="junctions vessels">Worth a look</option>
+          <option value="declined" data-for="vessels">Declined</option>
+        </select>
+        <select id="item-sort" aria-label="Order">
+          <option value="file" data-for="junctions vessels">In file order</option>
+          <option value="short" data-for="vessels">Shortest first</option>
+          <option value="wide" data-for="vessels">Widest first</option>
+          <option value="branches" data-for="junctions">Most branches first</option>
+          <option value="crowd" data-for="junctions">Most crowded first</option>
+        </select>
+        <span class="dim" id="items-note"></span>
       </div>
     </div>
     <div id="busy" hidden><span class="spin big"></span><div id="progress-text"></div><div id="progress-bar"><i></i></div></div>
@@ -139,6 +159,11 @@
             <label class="row">Single slice <output id="sl-o"></output><input type="range" id="sl" min="0" max="1" step="1" value="0"></label>
           </div>
         </div>
+      </section>
+
+      <section class="pane" data-pane="items" hidden>
+        <p class="hint" id="items-empty">Load a vessel model to review it item by item: a card for each junction and each vessel.</p>
+        <div class="cards" id="item-list"></div>
       </section>
 
       <section class="pane depth" data-pane="depth" hidden>

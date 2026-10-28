@@ -153,7 +153,15 @@ function apply(next, keepFuture) {
   history.push(model); if (!keepFuture) future = [];
   model = next; edits++; changed();
 }
+const listeners = [];
+// Other views of the model (the item cards) hear every change to it, a new model included.
+export const onChange = (fn) => listeners.push(fn);
+const tell = () => listeners.forEach((fn) => fn(model));
+export const current = () => model;
+// an edit made from another view, undoable like any other
+export function edit(next) { closeMenu(); apply(next); }
 function changed() {
+  tell();
   if (savedKey) {
     if (edits) store.set(savedKey, { edits, model: Mo.toJSON(model) }); else store.del(savedKey);
   }
@@ -250,7 +258,7 @@ function openMenu(h, x, y) {
 // The junction from the side, cut out of the stack: two vessels that only cross sit apart in depth.
 // The view looks across the straightest pair of branches through it, the vessel running on.
 const LOOK_RADII = 8, LOOK_MIN_UM = 10;
-function lookAt(id) {
+export function lookAt(id) {
   const N = model.nodes.get(id), w = toWorld(N), nb = Mo.neighbours(model, id).map((k) => toWorld(model.nodes.get(k)));
   const dir = nb.map((q) => { const v = [q[0] - w[0], q[1] - w[1]], l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l]; });
   let best = [0, 1, 2];
@@ -263,6 +271,17 @@ function lookAt(id) {
   V.focus(w, um / (model.size_px[0] * model.um_per_px) * 2 * V.half[0], along);
   if (mode === 'side') setMode('overlay');
   msg('Showing this junction from the side. Top, Tilted, Side or Front shows the whole stack again.');
+}
+// Points of the model from straight above, the stack cut down to the box around them, so a vessel
+// is seen on its own.
+export function frame(ids, marginUm = 10) {
+  const ps = ids.map((k) => model.nodes.get(k)), um = marginUm;
+  const lo = toWorld({ x: Math.min(...ps.map((p) => p.x)) - um, y: Math.max(...ps.map((p) => p.y)) + um, z: 0 });
+  const hi = toWorld({ x: Math.max(...ps.map((p) => p.x)) + um, y: Math.min(...ps.map((p) => p.y)) - um, z: 0 });
+  const h = Math.max(hi[0] - lo[0], hi[1] - lo[1]) / 2;
+  Object.assign(V.S, { yaw: 0, pitch: 0, clip: [lo[0], lo[1], hi[0], hi[1]], pan: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2], dist: Math.max(.15, h * 5) });
+  if (mode === 'side') setMode('overlay');
+  V.redraw();
 }
 function closeMenu() { if (!$('ctx').hidden) { $('ctx').hidden = true; hover = null; V.redraw(); } }
 
@@ -314,7 +333,7 @@ function open(text, name) {
   $('model-on').hidden = false;
   $('m-candidates-row').hidden = !model.segments.some((s) => s.state !== 'vessel');
   setMode(mode === 'off' ? 'side' : mode);
-  facts();
+  facts(); tell();
 }
 
 function download() {
@@ -340,7 +359,7 @@ const draftFor = (name) => drafts.find((x) => same(x.source, name));
 export function stackOpened(name) {
   stackName = name;
   model = null; loaded = null; history = []; future = []; edits = 0; savedKey = null;
-  $('model-on').hidden = true; msg(''); setMode(mode);
+  $('model-on').hidden = true; msg(''); setMode(mode); tell();
   $('model-draft').hidden = !draftFor(name);
   if (draftFor(name)) loadDraft();
 }

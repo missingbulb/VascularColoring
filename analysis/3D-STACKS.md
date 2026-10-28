@@ -148,6 +148,20 @@ its straightest pair of branches, so two vessels that only cross sit apart in de
 aid, not a detector: closer than the 4 to 6 slices a vessel spans, two vessels touch from every
 angle. Any of the view buttons shows the whole stack again.
 
+The **Items** tab takes the model apart into its units of work, the way NOR Finder reviews each
+candidate on its own: a card for every junction (three or more live branches, so one that waits on
+a candidate's review is listed and marked) and every vessel (an edge from a junction or tip to the
+next). A card shows the stack around its item, flattened over the shown slices in the depth
+colours, with the rest of the model thin in magenta and the item in white; a vessel's band is its
+modelled width. A vessel card gives its length (along the curve, with depth at the drawn slice
+spacing), mean width and range, and depth span, and approves, declines or deletes it; a junction
+card gives its depth, width and how many other junctions lie within 20 µm (crowding is a sign the
+trace went wrong there), and opens the side view or splits it as a crossing. Filters show the ones
+worth a look (candidates; junctions that are pending, of four or more branches, or crowded) and
+the declined vessels; sorting brings the shortest, widest, most branched or most crowded first.
+**Show in 3D** cuts the stack down to the vessel and looks at it from above. Every card edit is an
+ordinary edit, undone and downloaded with the rest.
+
 **First draft (2026-10-03):** 961 points, 920 segments, 136 junctions, 222 tips, 55 KB. Seen before
 the owner's corrections: the main network is followed; the bright tissue edge down the left side is
 traced as a vessel; faint vessels in the lower right break into short pieces or are missed; a few
