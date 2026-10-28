@@ -187,13 +187,14 @@ function geometry() {
   half = ext.map(e => e / m);
 }
 
+const TAN_HALF_FOV = Math.tan(15 * Math.PI / 180);
 export function camera(asp) {
   const cp = Math.cos(S.pitch), e = [S.dist * cp * Math.sin(S.yaw), S.dist * Math.sin(S.pitch), S.dist * cp * Math.cos(S.yaw)];
   const right = [Math.cos(S.yaw), 0, -Math.sin(S.yaw)];
   const up = [-Math.sin(S.pitch) * Math.sin(S.yaw), Math.cos(S.pitch), -Math.sin(S.pitch) * Math.cos(S.yaw)];
   const tgt = [S.pan[0] * right[0] + S.pan[1] * up[0], S.pan[0] * right[1] + S.pan[1] * up[1], S.pan[0] * right[2] + S.pan[1] * up[2]];
   const eye = e.map((v, i) => v + tgt[i]);
-  return M.mul(M.persp(30 * Math.PI / 180, asp, 0.05, 50), M.look(eye, tgt, up));
+  return M.mul(M.persp(2 * Math.atan(TAN_HALF_FOV), asp, 0.05, 50), M.look(eye, tgt, up));
 }
 
 function render() {
@@ -372,15 +373,25 @@ export function controls(cv, grab, click) {
     const dx = e.clientX - prev[0], dy = e.clientY - prev[1], k = 2.2 / cv.clientHeight;
     if (pts.size === 2) {
       const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      if (last) S.dist = Math.min(Math.max(S.dist * last / d, MIN_DIST), 12);
+      if (last) zoomAt(cv, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, S.dist * last / d);
       last = d; S.pan[0] -= dx * k * S.dist / 6; S.pan[1] += dy * k * S.dist / 6;
     } else if (e.shiftKey || e.buttons === 2) { S.pan[0] -= dx * k * S.dist / 3; S.pan[1] += dy * k * S.dist / 3; }
     else { S.yaw -= dx * .008; S.pitch = Math.min(Math.max(S.pitch + dy * .008, -Math.PI / 2 + .001), Math.PI / 2 - .001); }
     dirty = true;
   });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
-  cv.addEventListener('wheel', (e) => { e.preventDefault(); S.dist = Math.min(Math.max(S.dist * Math.exp(e.deltaY * .001), MIN_DIST), 12); dirty = true; }, { passive: false });
+  cv.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(cv, e.clientX, e.clientY, S.dist * Math.exp(e.deltaY * .001)); dirty = true; }, { passive: false });
   new ResizeObserver(() => { dirty = true; }).observe(cv);
+}
+
+// Moves the camera to distance `to`, keeping still whatever sits under the client point (x, y) on the
+// plane through the orbit target.
+function zoomAt(cv, x, y, to) {
+  to = Math.min(Math.max(to, MIN_DIST), 12);
+  const r = cv.getBoundingClientRect(), k = TAN_HALF_FOV * (S.dist - to);
+  S.pan[0] += ((x - r.left) / r.width * 2 - 1) * (r.width / r.height) * k;
+  S.pan[1] += (1 - (y - r.top) / r.height * 2) * k;
+  S.dist = to;
 }
 
 // A small box of the stack around a world point [x, y, z], seen from the side: the line of sight is
