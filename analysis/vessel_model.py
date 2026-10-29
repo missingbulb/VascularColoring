@@ -71,7 +71,14 @@ ABOUT = ('status: draft as drawn by analysis/vessel_model.py, or corrected once 
          'reviewed_regions: boxes the owner has checked completely; outside them a missing vessel is not annotated, '
          'not absent. dense_regions: boxes (x0, y0, x1, y1 in µm) where the extractor found far more junctions than the '
          'stack\'s own mean density makes likely (junctions found, and expected at that density), a hint that the '
-         'tracing went wrong there; the viewer does not update them as the model is edited.')
+         'tracing went wrong there; the viewer does not update them as the model is edited. '
+         'Optional, written by analysis/extraction/lab.py: on an edge, r_a and r_b, the radius in µm at end a and end b '
+         'measured across the vessel and fitted as a straight taper (the radius runs linearly between them; absent, '
+         'read the points\' own r); taper_known, true where that taper is clearly more than noise; flow, "ab" or "ba" '
+         'once the direction blood runs is known (not inferred by the extractor: narrowing runs with the flow in '
+         'arterioles but against it in venules); bridged, true on an edge the extractor drew across a gap in the '
+         'signal. At the top: algorithm, the extraction version that drew the model; score, its plausibility card; '
+         'repairs, what that version changed.')
 
 
 def read_cd31(path, channel):
@@ -103,14 +110,23 @@ def noise_units(vol, um):
     return np.where(keep[:, None, None], z, 0), keep
 
 
-def segment(z, keep, um):
+def segment(z, keep, um, fill_lumens=False):
     """The confident and the faint-seeded masks, the depth (slices) of each pixel, and the flattened
-    signal in noise units."""
+    signal in noise units. fill_lumens fills every hole narrower than the mask's own median vessel
+    width: a gap that thin is a lumen or a stain dropout inside one vessel, not tissue between two."""
     flat = z[keep].max(axis=0)
 
     def mask_at(grow, seed):
         m = ndi.binary_closing(apply_hysteresis_threshold(flat, grow, seed), np.ones((3, 3)))
-        return remove_small_objects(m, max_size=int(MIN_OBJECT_UM2 / um ** 2))
+        m = remove_small_objects(m, max_size=int(MIN_OBJECT_UM2 / um ** 2))
+        if fill_lumens and m.any():
+            holes = ndi.binary_fill_holes(m) & ~m
+            lab, n = ndi.label(holes)
+            if n:
+                width = 2 * float(np.median(ndi.distance_transform_edt(m)[m]))
+                narrow = ndi.maximum(ndi.distance_transform_edt(holes), lab, range(1, n + 1)) < width
+                m = m | np.concatenate([[False], narrow])[lab]
+        return m
     confident, mask = mask_at(GROW_SIGMA, SEED_SIGMA), mask_at(CANDIDATE_GROW_SIGMA, CANDIDATE_SEED_SIGMA)
     zk = ndi.gaussian_filter(z[keep], (0, 2 * SMOOTH_UM / um, 2 * SMOOTH_UM / um))
     w = np.clip(zk - GROW_SIGMA, 0, None)
@@ -291,9 +307,9 @@ def trace(mask):
     return pos, clean(pos, edges, dist), dist
 
 
-def model(vol, um, source, z_step):
+def model(vol, um, source, z_step, fill_lumens=False):
     z, keep = noise_units(vol, um)
-    confident, faint, depth, flat = segment(z, keep, um)
+    confident, faint, depth, flat = segment(z, keep, um, fill_lumens)
     where, E = {}, []   # node key -> (y px, x px, z slices); edges as pixel paths between node keys
 
     def add(tag, pos, edges, dist, state):

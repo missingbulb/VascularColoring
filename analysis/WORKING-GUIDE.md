@@ -102,6 +102,7 @@ The owner iterated to this exact style — keep it:
 | `analysis/results-first-pass.md` | Measured results, calibration, limitations. |
 | `analysis/STATUS.md` | Current state and agreed next step. |
 | `analysis/3D-STACKS.md` | The 3D work on the raw stacks: why flattening is not enough, what the literature does, open questions, ledger. |
+| `analysis/extraction/` | Versioned 3D-stack vessel extractors, their shared score, provisional labels and ledger; `lab.py` runs them all. |
 | `analysis/export_stack_view.py` + `analysis/stack_view/` | One raw stack → a rotatable 3D web viewer for the owner's feedback. |
 | `data/README.md` + `data/sources.json` | The owner's raw confocal stacks: kept in Google Drive, never in git; fetched by `analysis/fetch_data.py` and checked by SHA-256. What is known about the microscope and how to read the stacks. |
 
