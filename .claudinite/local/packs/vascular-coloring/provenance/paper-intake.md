@@ -72,3 +72,14 @@
   sources that differ in more than scale … Group the rollup by source"; the repo's own table
   mechanics stayed.
 - **Actor:** claudinite/growth-dedup task, running as work item #712.
+
+## 2026-10-29 · strengthened · intake committed copyrighted PDFs and figures to a public repo (2649723)
+- **Source:** commit 0a29c0c ingested Blinder 2013 and Cassot 2010 with PDFs and figure crops;
+  2649723 removed them again.
+- **Reason:** the skill told every intake to `git mv` the PDF in and commit every figure, with no
+  licence step, though references/README.md already said copyrighted papers keep only digest and
+  figure descriptions.
+- **Actor:** claudinite/growth-extract task, running as work item missingbulb/VascularColoring#758.
+- **Mechanism:** a licence-check paragraph at step 1 of the paper-intake skill.
+- **Retire when:** the repository goes private, or intake is scripted to refuse a PDF without an
+  open licence.
