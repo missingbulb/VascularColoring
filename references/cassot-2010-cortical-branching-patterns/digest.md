@@ -8,7 +8,7 @@
   Toulouse; Fluid Mechanics Institute of Toulouse; Oxford.
 - **Venue / id:** *Brain Research* **1313**:62–78 (2010), available online 11 Dec 2009.
   DOI **10.1016/j.brainres.2009.12.007**. Paywalled; PDF supplied by the owner (2026-10-29). 17 pages.
-- **PDF:** [`cassot-2010-cortical-branching-patterns.pdf`](cassot-2010-cortical-branching-patterns.pdf)
+- **PDF:** not committed: the article is copyrighted (Elsevier) and this repo is public. The owner holds a copy; this digest and the figures below are the working record.
 - **One-line thesis:** across ~9,400 bifurcations of human cortical arteriolar and venular trees,
   area ratios and branching angles are broadly distributed and **do not follow optimality
   (Murray-type) predictions**: the Murray exponent spreads from ~1.4 to ~16, daughters together
@@ -169,4 +169,4 @@ same-order daughters and 5 lower-order daughters.**
 
 ## 6. Extracted images
 
-All twelve figures, described in [`figures/README.md`](figures/README.md).
+All twelve figures, described (images not committed) in [`figures/README.md`](figures/README.md).

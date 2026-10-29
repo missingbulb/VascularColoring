@@ -4,8 +4,8 @@
 > This is the bridge from reading to pipeline work: the per-paper digests hold the detail, this
 > holds the *decisions*. Current pipeline: [`analysis/measure_vessels.py`](../analysis/measure_vessels.py).
 
-**Papers folded in:** all eight — wang-2022, rust-2020, freitas-andrade-2022, stefanitsch-2015,
-hill-2020, bizou-2026, blinder-2013, cassot-2010. The last two are biology references for scoring a
+**Papers folded in:** all ten — wang-2022, rust-2020, freitas-andrade-2022, stefanitsch-2015,
+hill-2020, bizou-2026, blinder-2013, cassot-2010, ji-2021, smith-2019. The last four are biology references for scoring a
 vessel *graph*, not methods for the pixel pipeline; their numbers live in
 [`BIOLOGY-INVARIANTS.md`](BIOLOGY-INVARIANTS.md), and only the cautions below are folded in here. **Rust's supplementary toolbox is in the repo**, which closed the last
 open parameter gaps and made a direct method-vs-method comparison possible (§3.1).

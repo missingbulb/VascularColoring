@@ -7,7 +7,7 @@
   **David Kleinfeld\*** (\*corresponding, dk@physics.ucsd.edu). UC San Diego; SAIC.
 - **Venue / id:** *Nature Neuroscience* **16**(7):889–897, July 2013. DOI **10.1038/nn.3426**.
   Paywalled; PDF supplied by the owner (2026-10-29). 11 pages including Online Methods.
-- **PDF:** [`blinder-2013-cortical-angiome.pdf`](blinder-2013-cortical-angiome.pdf)
+- **PDF:** not committed: the article is copyrighted (Nature Neuroscience) and this repo is public. The owner holds a copy; this digest and the figures below are the working record.
 - **One-line thesis:** the mouse cortical microvasculature, reconstructed in full over several
   mm³, is a highly interconnected 3D mesh of loops whose topology and computed flow ignore
   cortical columns; penetrating venules act as sinks, so collateral flow does not rescue tissue
@@ -134,7 +134,7 @@ compact loops**: rarer than typical, not absent.
 
 ## 6. Extracted images
 
-All eight figures, described in [`figures/README.md`](figures/README.md):
+All eight figures, described (images not committed) in [`figures/README.md`](figures/README.md):
 `fig1_vectorized_angiome`, `fig2_geometry_and_loops` ⭐, `fig3_communities`, `fig4_flow_domains`,
 `fig5_penetrating_vessels`, `fig6_intrinsic_optical_signal`, `fig7_occlusion_flow_loss`,
 `fig8_lattice_model`.
