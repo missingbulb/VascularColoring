@@ -34,3 +34,10 @@ and current state in [`analysis/STATUS.md`](../../../../analysis/STATUS.md).
   density and the µm calibration are usable; per-segment **count** is still inflated by
   fragmentation, absolute length comes from figure-resolution crops, and the capillary/artery split
   is one diameter threshold (`ARTERY_DIAM_PX`). (trustworthy-numbers)
+
+- **Needing a fact about the samples or the acquisition that the files do not carry** (the z-step,
+  a stain, an objective, which region a stack shows) — ask the owner for it in the thread, as one
+  direct question, before treating it as unknown. Listing it as an "open question" in a document is
+  not asking, and working around it (2D instead of 3D, a guessed value) hides the cost of not
+  knowing. Record the answer, with who gave it, where the value is read from (`data/sources.json`
+  for the stacks). (ask-before-unknown)

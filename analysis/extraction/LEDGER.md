@@ -9,11 +9,11 @@ model, **not the owner**: 111 curves called vessels, 74 called not, 9 vessels no
 
 | id | version | adds | vessels found | non-vessels kept | missed found | F1 | plausibility (fr1 / fr2 / ca1r1 / ca1r2) | verdict |
 |---|---|---|---|---|---|---|---|---|
-| V1 | v1-flat-skeleton | the tracer as of 2026-10-28 (`vessel_model.py`) | 106/111 | 24/74 | 2/9 | 0.880 | 0.69 / 0.17 / 0.22 / 0.06 | baseline, kept |
-| V2 | v2-scored-repair | lumen fill, ridge snap, speck test, weak short loops broken, straight gap bridges, crossing split | 103/111 | 17/74 | 2/9 | 0.892 | 0.80 / 0.73 / 0.70 / 0.50 | kept |
-| V3 | v3-geodesic-bridges | open ends follow the ridge map to a landing point (minimal path) | 103/111 | 17/74 | 2/9 | 0.892 | 0.79 / 0.73 / 0.72 / 0.50 | kept, no measured gain: the labels hold few gaps (see L6) |
-| V4 | v4-line-evidence | short confirmed dead ends must pass the quarter-turn and ridge tests | 102/111 | 14/74 | 2/9 | 0.899 | 0.79 / 0.71 / 0.77 / 0.48 | kept |
-| V5 | v5-no-short-islands | owner rule: lone vessels under 45 µm dropped | 102/111 | 13/74 | 2/9 | 0.903 | 0.78 / 0.71 / 0.76 / 0.48 | **default** |
+| V1 | v1-flat-skeleton | the tracer as of 2026-10-28 (`vessel_model.py`) | 106/111 | 24/74 | 2/9 | 0.880 | 0.74 / 0.18 / 0.23 / 0.06 | baseline, kept |
+| V2 | v2-scored-repair | lumen fill, ridge snap, speck test, weak short loops broken, straight gap bridges, crossing split | 103/111 | 17/74 | 2/9 | 0.892 | 0.86 / 0.72 / 0.72 / 0.50 | kept |
+| V3 | v3-geodesic-bridges | open ends follow the ridge map to a landing point (minimal path) | 103/111 | 17/74 | 2/9 | 0.892 | 0.85 / 0.72 / 0.74 / 0.51 | kept, no measured gain: the labels hold few gaps (see L6) |
+| V4 | v4-line-evidence | short confirmed dead ends must pass the quarter-turn and ridge tests | 102/111 | 14/74 | 2/9 | 0.899 | 0.84 / 0.70 / 0.78 / 0.49 | kept |
+| V5 | v5-no-short-islands | owner rule: lone vessels under 45 µm dropped | 102/111 | 13/74 | 2/9 | 0.903 | 0.83 / 0.70 / 0.78 / 0.49 | **default** |
 
 Plausibility is not monotone with the grade: bridges and kept strong loops lower it while finding
 more. Rank versions by the grade; read plausibility for *which* biological rule a version breaks.
@@ -30,6 +30,8 @@ more. Rank versions by the grade; read plausibility for *which* biological rule 
 | L6 | Geodesic bridges (ideation: neuron/road tracing) | minimal path over 1/(sato ridge) from each open end, 12 widths ahead, ±60° | 2-9 more joins per stack; grade unchanged | kept; revisit when labels cover gaps (the judges flagged 9 missed vessels, few of them gaps) |
 | L7 | Dead ends on speckle (grade: largest error class) | Fable "not" curves the pipeline kept are short (median 12 µm), half the ridge strength, low quarter-turn lead | 17→14 kept non-vessels for one real vessel lost | kept in v4; the cut-offs are shares of the field's own medians |
 | L8 | Short lone vessels are noise (owner, 2026-10-29) | edge with no junction at either end and under 45 µm (median cortical capillary segment, Ji 2021) | 25-46 islands per stack; no judged vessel lost | kept in v5 |
+
+| L9 | Branch angles in 3D (owner gave the z-step, 1 µm, 2026-10-29) | each branch's direction is the mean direction of its curve just outside a sphere as wide as the widest branch (Cassot 2010), x, y and depth in µm; smallest angle under 40° flags a fork; a branch over 50° out of the other two's plane flags a steep junction | v5 out-of-plane rate 4-7% on three stacks, 18% on CA1 r2 (Cassot: under 10% of real junctions); depth is noisy at about a slice over a few-µm tangent, so the rate runs high | kept in `score.py`; replaces the 2D chord to the next control point |
 
 ## Ideas not yet tried (from the algorithm-ideation pass, 2026-10-29)
 

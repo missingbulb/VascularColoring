@@ -17,6 +17,8 @@ import numpy as np
 import tifffile
 from PIL import Image
 
+import fetch_data
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 VIEWER = os.path.join(HERE, 'stack_view', 'index.html')
 
@@ -39,7 +41,8 @@ def header(path):
             'pages': len(tf.pages), 'file_bytes': os.path.getsize(path),
             'um_per_px': (1 / px_per_unit) if px_per_unit and unit in ('micron', 'um', 'µm') else None,
             'unit': unit,
-            'z_step_um': ij.get('spacing'),
+            'z_step_um': ij.get('spacing') or fetch_data.z_step_um(path),
+            'z_step_source': 'file' if ij.get('spacing') else ('the owner (data/sources.json)' if fetch_data.z_step_um(path) else None),
             'imagej': {k: v for k, v in ij.items() if not isinstance(v, (bytes, np.ndarray)) and k not in ('Ranges', 'LUTs')},
         }
 
@@ -85,7 +88,7 @@ def export(path, out, b, z_step, region=None):
     meta = {'source': os.path.basename(path), 'bin': b,
             'um_per_px': h['um_per_px'] * b if h['um_per_px'] else None,
             'z_step_um': z_step if z_step is not None else h['z_step_um'],
-            'z_step_source': 'command line' if z_step is not None else ('file' if h['z_step_um'] else None),
+            'z_step_source': 'command line' if z_step is not None else h['z_step_source'],
             'region_yx_px': list(region[:2]) if region else None,
             'channels': {}}
     for c, name in CHANNELS.items():

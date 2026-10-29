@@ -35,7 +35,8 @@ SHORT_LOOP_EDGES = 2            # loops average ~8 edges and ~15% have 2-4 (Blin
 LOOP_SEARCH_EDGES = 8          # loops are searched up to the mean real loop's edge count
 SHORT_LOOP_UM = 100.0           # a loop under ~100 µm around is suspect whatever its count (mean real loop ~486 µm, Smith 2019)
 DEGREE4_EXPECTED = 0.07         # up to ~7% of interior nodes have degree > 3; more suggests crossings traced as junctions
-NARROW_DEG = 45.0               # median smallest angle at a capillary junction is 84° in 3D; under 45° in projection is a suspect fork
+NARROW_DEG = 40.0               # smallest angle at a junction averages 84° in 3D (Ji 2021); under ~40° is one vessel traced twice or a shallow crossing (BIOLOGY-INVARIANTS B4)
+STEEP_DEG = 50.0                # under 10% of junctions have a branch more than 50° out of the plane of the other two (Cassot 2010)
 ARTERIOLE_R = 3.5               # µm; above this radius a vessel is an arteriole or venule (Ji 2021), below it a capillary
 TAPER_SIG = 2.0                 # a radius slope this many standard errors from flat makes an edge's taper "known"
 TAPER_MIN = 0.15                # ... and only when the ends differ by at least 15% of the mean radius
@@ -206,6 +207,39 @@ def leave_dirs(E, nodes, n, adj):
     return out
 
 
+def branch_tangents(E, nodes, n, adj, um, z_step):
+    """Unit 3D directions (x, y, z in µm) in which each edge leaves node n, Cassot's way: the mean
+    direction of the curve where it runs just outside a sphere as wide as the widest branch there.
+    Depth counts only when the slice spacing is known; without it the directions are flat (z = 0)."""
+    end_r = [E[j].get('r_a' if E[j]['a'] == n else 'r_b', nodes[n].get('r', 1.0)) for j, _ in adj[n]]
+    R = max(max(end_r, default=1.0), 1.0)
+    out = []
+    for j, m in adj[n]:
+        e = E[j]
+        xy, _ = sample_edge(e, nodes, um)
+        if e['b'] == n:
+            xy = xy[::-1]
+        P = np.column_stack([(xy[:, 0] + .5) * um, (xy[:, 1] + .5) * um, xy[:, 2] * (z_step or 0.0)])
+        v = P - P[0]
+        d = np.linalg.norm(v, axis=1)
+        shell = (d >= R) & (d <= R + max(2 * R, 3.0))
+        u = (v[shell] / d[shell, None]).mean(0) if shell.any() else v[-1] / (d[-1] or 1)
+        out.append((j, u / (np.linalg.norm(u) or 1)))
+    return out
+
+
+def out_of_plane_deg(dirs):
+    """For a three-way junction: the smallest angle any one branch makes with the plane of the other two."""
+    best = 90.0
+    for k in range(3):
+        a, b = [dirs[i][1] for i in range(3) if i != k]
+        nrm = np.cross(a, b)
+        if np.linalg.norm(nrm) < 1e-6:
+            continue
+        best = min(best, float(np.degrees(np.arcsin(min(abs(dirs[k][1] @ nrm) / np.linalg.norm(nrm), 1.0)))))
+    return best
+
+
 def score(model, flat, measure_taper=True):
     """Score card for a model against its flattened stack. Adds r_a, r_b (and taper_known) to each
     confirmed edge when measure_taper; returns the card."""
@@ -239,9 +273,12 @@ def score(model, flat, measure_taper=True):
     loops = short_loops(E, adj, lengths)
     junctions = [n for n, d in deg.items() if d >= 3]
     deg4 = [n for n in junctions if deg[n] >= 4]
-    narrow, conflict, murray = [], [], []
+    narrow, steep, conflict, murray = [], [], [], []
+    z_step = model.get('z_step_um')
     for n in junctions:
-        dirs = leave_dirs(E, nodes, n, adj)
+        dirs = branch_tangents(E, nodes, n, adj, um, z_step)
+        if z_step and len(dirs) == 3 and out_of_plane_deg(dirs) > STEEP_DEG:
+            steep.append(n)
         ang = min(np.degrees(np.arccos(np.clip(u @ v, -1, 1))) for x, (_, u) in enumerate(dirs) for _, v in dirs[x + 1:])
         if ang < NARROW_DEG:
             narrow.append(n)
@@ -272,6 +309,8 @@ def score(model, flat, measure_taper=True):
         'short_loops': len({i for i, _, _ in loops}),
         'degree4_rate': round(len(deg4) / max(interior, 1), 3),
         'narrow_junctions': round(len(narrow) / max(len(junctions), 1), 3),
+        # depth along a faint vessel is noisy (about a slice), so over the few µm the tangent spans this rate runs high
+        'steep_junctions': round(len(steep) / max(sum(1 for n in junctions if deg[n] == 3), 1), 3) if z_step else None,
         'taper_conflicts': round(len(conflict) / max(len(junctions), 1), 3) if measure_taper else None,   # per junction, counted at arteriole/venule junctions only
         'murray_log_ratio_median': round(float(np.median(murray)), 3) if murray else None,
         'median_segment_um': round(float(np.median(lengths)), 1) if lengths else 0.0,
@@ -280,7 +319,7 @@ def score(model, flat, measure_taper=True):
     }
     card['plausibility'] = plausibility(card)
     card['_flags'] = {'unsupported': [E[i]['id'] for i in unsupported], 'short_loop_edges': sorted({E[i]['id'] for i, _, _ in loops}),
-                      'degree4_nodes': deg4, 'narrow_nodes': narrow, 'conflict_nodes': conflict}
+                      'degree4_nodes': deg4, 'narrow_nodes': narrow, 'steep_nodes': steep, 'conflict_nodes': conflict}
     card['_per_edge'] = {E[i]['id']: r for i, r in enumerate(per_edge) if r}
     return card
 

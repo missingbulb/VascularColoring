@@ -62,6 +62,24 @@ def test_off_signal_edge_is_unsupported():
     assert card['_flags']['unsupported'] == [2], card['_flags']
 
 
+def test_branch_angles_are_read_in_3d_just_outside_the_junction():
+    # a flat Y at the origin (z = 10 slices), and the same Y with one arm climbing steeply in depth
+    def y(climb):
+        m = model({1: (50, 50), 2: (80, 50), 3: (20, 70), 4: (20, 30)}, [(1, 2), (1, 3), (1, 4)])
+        for n in m['nodes']:
+            n['z'] = 10.0
+        m['nodes'][1]['z'] = 10.0 + climb
+        m['z_step_um'] = 1.0
+        E, adj = sc.graph(m)
+        nodes = {n['id']: n for n in m['nodes']}
+        return sc.branch_tangents(E, nodes, 1, adj, UM, m['z_step_um'])
+    flat = y(0)
+    assert sc.out_of_plane_deg(flat) < 1
+    angles = sorted(np.degrees(np.arccos(np.clip(u @ v, -1, 1))) for i, (_, u) in enumerate(flat) for _, v in flat[i + 1:])
+    assert 60 < angles[0] < 75 and angles[-1] > 140, angles   # the two left arms are ~67° apart
+    assert sc.out_of_plane_deg(y(40)) > 50   # an arm rising 40 µm over 30 µm across leaves the plane by ~53°
+
+
 if __name__ == '__main__':
     for name, f in list(globals().items()):
         if name.startswith('test_'):

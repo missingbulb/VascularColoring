@@ -21,6 +21,17 @@ MANIFEST = os.path.join(ROOT, 'data', 'sources.json')
 RAW = os.path.join(ROOT, 'data', 'raw')
 
 
+def z_step_um(path):
+    """The slice spacing (µm) the manifest records for a stack, matched by file name, or None. The TIFF
+    exports do not store it, so the manifest carries what the owner stated, with its source."""
+    name = os.path.basename(path)
+    with open(MANIFEST) as f:
+        for src in json.load(f)['sources']:
+            if any(os.path.basename(e['path']) == name for e in src.get('files', [])):
+                return src.get('z_step_um')
+    return None
+
+
 class ChecksumMismatch(Exception):
     pass
 
