@@ -47,6 +47,8 @@ export function parse(j) {
     const state = s.state ?? 'vessel';
     if (!STATES.includes(state)) throw new ModelError(`${v2 ? 'an edge' : 'a segment'} has the unknown state "${state}" (${s.a}–${s.b})`);
     const ids = [s.a], flow = FLOWS.includes(s.flow) ? s.flow : null;
+    const { id: _i, a: _a, b: _b, via: _v, state: _st, confidence: _c, vessel: _ve, r_a: _ra, r_b: _rb, flow: _f, ...rest } = s;
+    const extra = Object.keys(rest).length ? rest : null;
     for (const p of (v2 && s.via) || []) {
       if (![p.x, p.y, p.z].every(Number.isFinite)) throw new ModelError(`a curve point on edge ${s.a}–${s.b} has no position`);
       m.nodes.set(next, pt(next, p)); ids.push(next++);
@@ -57,7 +59,7 @@ export function parse(j) {
       const k = key(ids[i - 1], ids[i]);
       if (ids[i - 1] !== ids[i] && !seen.has(k)) {
         seen.add(k);
-        m.segments.push(seg(ids[i - 1], ids[i], { state, confidence: s.confidence, vessel: s.vessel, ...(r && { ra: r[i - 1], rb: r[i] }), flow }));
+        m.segments.push(seg(ids[i - 1], ids[i], { state, confidence: s.confidence, vessel: s.vessel, ...(r && { ra: r[i - 1], rb: r[i] }), flow, extra }));
       }
     }
   }
@@ -91,9 +93,10 @@ const key = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 const pt = (id, p) => (Number.isFinite(p.r) ? { id, x: p.x, y: p.y, z: p.z, r: p.r } : { id, x: p.x, y: p.y, z: p.z });
 // confidence is the extractor's score and vessel its guess at which branch continues a trunk; a
 // segment the owner drew has neither, and stays without them
-const seg = (a, b, { state, confidence, vessel, ra, rb, flow }) => ({ a, b, state, ...(confidence != null && { confidence }), ...(vessel != null && { vessel }),
-  ...(Number.isFinite(ra) && Number.isFinite(rb) && { ra, rb }), ...(flow != null && { flow }) });
-const sameEdge = (p, q) => p.state === q.state && p.confidence === q.confidence && p.vessel === q.vessel;
+// extra holds the edge's fields this viewer has no use for, written back as they came
+const seg = (a, b, { state, confidence, vessel, ra, rb, flow, extra }) => ({ a, b, state, ...(confidence != null && { confidence }), ...(vessel != null && { vessel }),
+  ...(Number.isFinite(ra) && Number.isFinite(rb) && { ra, rb }), ...(flow != null && { flow }), ...(extra && { extra }) });
+const sameEdge = (p, q) => p.state === q.state && p.confidence === q.confidence && p.vessel === q.vessel && p.extra === q.extra;
 
 // The segments at each point, rejected ones included, since a recorded "no" keeps its own ends.
 function incidence(m) {
@@ -139,7 +142,7 @@ export function toJSON(m, extra = {}) {
     edges: es.map((e, k) => {
       const start = from(m.segments[e.segments[0]], e.ids[0]), end = from(m.segments[e.segments.at(-1)], e.ids.at(-1));
       const out = start.out ?? (end.out == null ? null : !end.out);
-      return { id: k + 1, a: e.ids[0], b: e.ids.at(-1), ...(e.vessel != null && { vessel: e.vessel }), state: e.state,
+      return { ...e.extra, id: k + 1, a: e.ids[0], b: e.ids.at(-1), ...(e.vessel != null && { vessel: e.vessel }), state: e.state,
         ...(e.confidence != null && { confidence: e.confidence }),
         ...(Number.isFinite(start.r0) && Number.isFinite(end.r0) && { r_a: start.r0, r_b: end.r0 }), ...(out != null && { flow: out ? 'ab' : 'ba' }),
         via: e.ids.slice(1, -1).map(at) };
