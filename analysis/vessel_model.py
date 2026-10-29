@@ -71,7 +71,10 @@ ABOUT = ('status: draft as drawn by analysis/vessel_model.py, or corrected once 
          'reviewed_regions: boxes the owner has checked completely; outside them a missing vessel is not annotated, '
          'not absent. dense_regions: boxes (x0, y0, x1, y1 in µm) where the extractor found far more junctions than the '
          'stack\'s own mean density makes likely (junctions found, and expected at that density), a hint that the '
-         'tracing went wrong there; the viewer does not update them as the model is edited.')
+         'tracing went wrong there; the viewer does not update them as the model is edited. '
+         'excluded_regions: areas the owner marked as damaged sample, each {polygon: [[x, y], ...] in µm, reason}, '
+         'running through every slice; whatever lies inside is left out of the analysis, and densities are taken over '
+         'the rest of the field.')
 
 
 def read_cd31(path, channel):
@@ -425,7 +428,7 @@ def curves(E, where, um, shape, source, z_step):
     dense = dense_regions(nodes, edges, W * H * um * um)
     return {'format': FORMAT, '_about': ABOUT, 'status': 'draft', 'source': source, 'slices': int(Z), 'size_px': [int(W), int(H)],
             'um_per_px': um, 'z_step_um': z_step, 'nodes': nodes, 'edges': edges, 'reviewed_regions': [],
-            'dense_regions': dense}
+            'dense_regions': dense, 'excluded_regions': []}
 
 
 def dense_regions(nodes, edges, area):

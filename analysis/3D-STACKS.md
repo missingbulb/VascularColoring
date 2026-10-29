@@ -124,6 +124,12 @@ middle (under 2 widths with one free end, under 4 with two) are dropped. Where j
 more than the stack's own mean density allows (a count within 5 typical widths with Poisson
 p < 0.001), the area goes into `dense_regions` as probably traced wrong, and the viewer outlines it in
 amber; nothing there is deleted.
+`excluded_regions` are areas of damaged sample (a fold, a tear, a bubble, debris, out of focus) the
+owner marked to leave out of the analysis (owner, 2026-10-29): each an outline in µm drawn from above
+with a reason, running through every slice, since the stacks are thin and damage cuts through all of
+them. Vessels lying mostly inside are counted apart, not as part of the network, and densities are to
+be taken over the field outside them. **Mark a damaged area** in the viewer lassos one; clicking a
+hatched area changes its reason or unmarks it. The extractor writes the list empty.
 Each edge carries a `state` and a `confidence`. The tracing above makes the
 `vessel` segments. A second, fainter tracing (hysteresis 3.5σ / 2.0σ, same cleaning) adds whatever
 lies mostly outside the confident mask as `candidate` segments, joined onto a confident vessel where

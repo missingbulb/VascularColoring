@@ -114,7 +114,7 @@ const tests = {
     const o = Mo.review(branching(), 2, 'rejected');
     assert.deepEqual(states(o), ['1-2:vessel', '2-3:vessel', '2-4:rejected', '4-5:rejected']);
     assert.deepEqual(Mo.neighbours(o, 2).sort(), [1, 3]);
-    assert.deepEqual(Mo.pieceCounts(o), { vessel: 1, candidate: 0, accepted: 0, rejected: 1 });
+    assert.deepEqual(Mo.pieceCounts(o), { vessel: 1, candidate: 0, accepted: 0, rejected: 1, excluded: 0 });
     // with the rejected branch ignored, point 2 is a plain bend and can be straightened
     const straight = Mo.removeBend(o, 2);
     assert.deepEqual(states(straight), ['1-3:vessel', '2-4:rejected', '4-5:rejected']);
@@ -188,8 +188,34 @@ const tests = {
     assert.equal(drawn.state, 'vessel'); assert.equal(drawn.confidence, undefined);
     assert.deepEqual(Mo.drawSegment(o, { node: 1 }, { node: 1 }), [o, null]);
   },
+  'an area marked as damaged leaves the vessels inside it out of the counts'() {
+    // a vessel 1-2-3 along y = 0 with a branch 2-4-5 down to y = 50, and a damaged area around the branch
+    const m = Mo.parse(base([[1, 0, 0, 0], [2, 20, 0, 0], [3, 40, 0, 0], [4, 20, 30, 0], [5, 20, 50, 0]], [[1, 2], [2, 3], [2, 4], [4, 5]]));
+    const square = [[10, 10], [30, 10], [30, 60], [10, 60]];
+    const o = Mo.markExcluded(m, square, 'fold');
+    assert.equal(m.excluded_regions, undefined, 'the model marked on is unchanged');
+    assert.deepEqual(o.excluded_regions, [{ polygon: square, reason: 'fold' }]);
+    assert.ok(Mo.excluded(o, { x: 20, y: 40 })); assert.ok(!Mo.excluded(o, { x: 20, y: 5 }));
+    assert.deepEqual(Mo.stats(m).segments, 4);
+    const s = Mo.stats(o);
+    assert.equal(s.segments, 2, 'the segments inside the area are left out'); assert.equal(s.excludedSegments, 2);
+    assert.equal(s.tips, 2, 'and so is the tip inside it');
+    assert.equal(Mo.excludedFraction(o), 20 * 50 / (100 * 100));
+    assert.deepEqual([Mo.pieceCounts(m).vessel, Mo.pieceCounts(m).excluded], [3, 0]);
+    assert.deepEqual([Mo.pieceCounts(o).vessel, Mo.pieceCounts(o).excluded], [2, 1], 'the branch 2-4-5 lies mostly in the area');
+    assert.deepEqual(Mo.unmarkExcluded(o, 0).excluded_regions, []);
+  },
+  'an outline with no area is not an area, and the areas go into the file unchanged'() {
+    const m = Mo.parse(base([[1, 0, 0, 0], [2, 20, 0, 0]], [[1, 2]]));
+    assert.equal(Mo.markExcluded(m, [[0, 0], [10, 10]]), m);
+    assert.equal(Mo.markExcluded(m, [[0, 0], [10, 10], [20, 20]]), m);
+    const o = Mo.markExcluded(m, [[0, 0], [10, 0], [10, 10]]);
+    assert.deepEqual(Mo.parse(Mo.toJSON(o)).excluded_regions, o.excluded_regions);
+    assert.throws(() => Mo.parse({ ...Mo.toJSON(o), excluded_regions: [{ polygon: [[0, 0], [1, 1]] }] }), Mo.ModelError);
+    assert.throws(() => Mo.parse({ ...Mo.toJSON(o), excluded_regions: [{ polygon: [[0, 0], [1, 'x'], [2, 0]] }] }), Mo.ModelError);
+  },
 };
 
 let n = 0;
 for (const [name, fn] of Object.entries(tests)) { fn(); n++; console.log('ok', name); }
-assert.equal(n, 23);
+assert.equal(n, 25);
