@@ -31,10 +31,12 @@ SNAP_WIDTHS = 0.5               # the curve may sit half a width off the ridge a
 BESIDE_WIDTHS = 2.0             # "the tissue beside it" is sampled two widths out on each side
 SUPPORTED = 0.6                 # an edge with less than 60% of its length on signal is unsupported
 # Biology (references/BIOLOGY-INVARIANTS.md; Ji 2021, Smith 2019 for mouse cortex).
-SHORT_LOOP_EDGES = 4            # real loops run ~9-11 segments; a loop of 4 or fewer is suspect
-SHORT_LOOP_UM = 100.0           # ... and so is one under ~100 µm around (mean real loop ~486 µm)
+SHORT_LOOP_EDGES = 2            # loops average ~8 edges and ~15% have 2-4 (Blinder 2013), so only a 2-edge loop (~1-4% of real ones) is suspect by count
+LOOP_SEARCH_EDGES = 8          # loops are searched up to the mean real loop's edge count
+SHORT_LOOP_UM = 100.0           # a loop under ~100 µm around is suspect whatever its count (mean real loop ~486 µm, Smith 2019)
 DEGREE4_EXPECTED = 0.07         # up to ~7% of interior nodes have degree > 3; more suggests crossings traced as junctions
 NARROW_DEG = 45.0               # median smallest angle at a capillary junction is 84° in 3D; under 45° in projection is a suspect fork
+ARTERIOLE_R = 3.5               # µm; above this radius a vessel is an arteriole or venule (Ji 2021), below it a capillary
 TAPER_SIG = 2.0                 # a radius slope this many standard errors from flat makes an edge's taper "known"
 TAPER_MIN = 0.15                # ... and only when the ends differ by at least 15% of the mean radius
 PROFILE_WIDTHS = 3.0            # the cross profile reaches this many widths either side when measuring a width
@@ -161,7 +163,7 @@ def edge_length_um(e, nodes):
 
 def short_loops(E, adj, lengths):
     """Edges that close a loop of at most SHORT_LOOP_EDGES edges or SHORT_LOOP_UM µm around: for each
-    edge, the shortest other path between its ends (by hops, ties by length)."""
+    edge, the fewest-hop other path between its ends, searched up to LOOP_SEARCH_EDGES edges."""
     hits = []
     for i, e in enumerate(E):
         a, b = e['a'], e['b']
@@ -171,7 +173,7 @@ def short_loops(E, adj, lengths):
         while q:
             n = q.popleft()
             h, d = best[n]
-            if h >= SHORT_LOOP_EDGES - 1:
+            if h >= LOOP_SEARCH_EDGES - 1:
                 continue
             for j, m in adj.get(n, []):
                 if j == i or m in best:
@@ -245,6 +247,9 @@ def score(model, flat, measure_taper=True):
             narrow.append(n)
         if not measure_taper:
             continue
+        rs = sorted(((E[j]['r_a'] if E[j]['a'] == n else E[j]['r_b']) for j, _ in adj[n]), reverse=True)
+        if rs[0] <= ARTERIOLE_R:
+            continue   # capillary junctions converge and diverge about evenly (Smith 2019): taper says nothing there
         # narrowing towards the junction (into it) from two or more known-taper edges: blood cannot both
         # arrive narrowing from two sides and leave widening; one trunk feeds the rest
         into = 0
@@ -256,10 +261,8 @@ def score(model, flat, measure_taper=True):
             into += r_here < r_far
         if into >= 2:
             conflict.append(n)
-        # Murray, only where a parent is arteriole-sized (r > 3.5 µm; not for capillary-capillary junctions)
-        rs = sorted(((E[j]['r_a'] if E[j]['a'] == n else E[j]['r_b']) for j, _ in adj[n]), reverse=True)
-        if rs[0] > 3.5:
-            murray.append(np.log(sum(r ** 3 for r in rs[1:])) / 3 - np.log(rs[0]))
+        # Murray, at the same junctions only (not at capillary-capillary ones)
+        murray.append(np.log(sum(r ** 3 for r in rs[1:])) / 3 - np.log(rs[0]))
     interior = sum(1 for d in deg.values() if d >= 2)
     card = {
         'edges': len(E), 'junctions': len(junctions), 'length_um': round(total, 1),
@@ -269,15 +272,31 @@ def score(model, flat, measure_taper=True):
         'short_loops': len({i for i, _, _ in loops}),
         'degree4_rate': round(len(deg4) / max(interior, 1), 3),
         'narrow_junctions': round(len(narrow) / max(len(junctions), 1), 3),
-        'taper_conflicts': round(len(conflict) / max(len(junctions), 1), 3) if measure_taper else None,
+        'taper_conflicts': round(len(conflict) / max(len(junctions), 1), 3) if measure_taper else None,   # per junction, counted at arteriole/venule junctions only
         'murray_log_ratio_median': round(float(np.median(murray)), 3) if murray else None,
         'median_segment_um': round(float(np.median(lengths)), 1) if lengths else 0.0,
+        # healthy tissue has no blind ends inside the volume (Blinder 2013): an open end away from the frame is a gap or a spur
+        'interior_ends': interior_ends(model, deg, nodes, flat.shape),
     }
     card['plausibility'] = plausibility(card)
     card['_flags'] = {'unsupported': [E[i]['id'] for i in unsupported], 'short_loop_edges': sorted({E[i]['id'] for i, _, _ in loops}),
                       'degree4_nodes': deg4, 'narrow_nodes': narrow, 'conflict_nodes': conflict}
     card['_per_edge'] = {E[i]['id']: r for i, r in enumerate(per_edge) if r}
     return card
+
+
+def interior_ends(model, deg, nodes, shape):
+    """Open ends more than one vessel width inside the frame, per junction (a fragmentation rate)."""
+    um = model['um_per_px']
+    H, W = shape
+    n = 0
+    for k, d in deg.items():
+        if d != 1:
+            continue
+        p = nodes[k]
+        x, y, w = p['x'] / um, p['y'] / um, max(2 * p.get('r', um) / um, 2.0)
+        n += min(x, y, W - x, H - y) > w
+    return round(n / max(sum(1 for d in deg.values() if d >= 3), 1), 2)
 
 
 def plausibility(c):

@@ -9,11 +9,11 @@ model, **not the owner**: 111 curves called vessels, 74 called not, 9 vessels no
 
 | id | version | adds | vessels found | non-vessels kept | missed found | F1 | plausibility (fr1 / fr2 / ca1r1 / ca1r2) | verdict |
 |---|---|---|---|---|---|---|---|---|
-| V1 | v1-flat-skeleton | the tracer as of 2026-10-28 (`vessel_model.py`) | 106/111 | 24/74 | 2/9 | 0.880 | 0.58 / 0.13 / 0.11 / 0.01 | baseline, kept |
-| V2 | v2-scored-repair | lumen fill, ridge snap, speck test, weak short loops broken, straight gap bridges, crossing split | 103/111 | 17/74 | 2/9 | 0.892 | 0.73 / 0.60 / 0.50 / 0.35 | kept |
-| V3 | v3-geodesic-bridges | open ends follow the ridge map to a landing point (minimal path) | 103/111 | 17/74 | 2/9 | 0.892 | 0.66 / 0.57 / 0.51 / 0.36 | kept, no measured gain: the labels hold few gaps (see L6) |
-| V4 | v4-line-evidence | short confirmed dead ends must pass the quarter-turn and ridge tests | 102/111 | 14/74 | 2/9 | 0.899 | 0.65 / 0.49 / 0.53 / 0.33 | kept |
-| V5 | v5-no-short-islands | owner rule: lone vessels under 45 µm dropped | 102/111 | 13/74 | 2/9 | 0.903 | 0.64 / 0.49 / 0.52 / 0.32 | **default** |
+| V1 | v1-flat-skeleton | the tracer as of 2026-10-28 (`vessel_model.py`) | 106/111 | 24/74 | 2/9 | 0.880 | 0.69 / 0.17 / 0.22 / 0.06 | baseline, kept |
+| V2 | v2-scored-repair | lumen fill, ridge snap, speck test, weak short loops broken, straight gap bridges, crossing split | 103/111 | 17/74 | 2/9 | 0.892 | 0.80 / 0.73 / 0.70 / 0.50 | kept |
+| V3 | v3-geodesic-bridges | open ends follow the ridge map to a landing point (minimal path) | 103/111 | 17/74 | 2/9 | 0.892 | 0.79 / 0.73 / 0.72 / 0.50 | kept, no measured gain: the labels hold few gaps (see L6) |
+| V4 | v4-line-evidence | short confirmed dead ends must pass the quarter-turn and ridge tests | 102/111 | 14/74 | 2/9 | 0.899 | 0.79 / 0.71 / 0.77 / 0.48 | kept |
+| V5 | v5-no-short-islands | owner rule: lone vessels under 45 µm dropped | 102/111 | 13/74 | 2/9 | 0.903 | 0.78 / 0.71 / 0.76 / 0.48 | **default** |
 
 Plausibility is not monotone with the grade: bridges and kept strong loops lower it while finding
 more. Rank versions by the grade; read plausibility for *which* biological rule a version breaks.
@@ -22,7 +22,7 @@ more. Rank versions by the grade; read plausibility for *which* biological rule 
 
 | id | idea (source) | mechanism | result | verdict / revisit if |
 |---|---|---|---|---|
-| L1 | Score graphs with biology (owner) | `score.py`: on-signal share, short loops (≤4 edges or <100 µm round), degree-4 rate over 7%, junction smallest angle <45°, two edges narrowing into one junction, Murray at arteriole junctions only | v1's attached-image loops are the dominant flag: 18-139 short-loop edges per stack | kept as the shared scorer |
+| L1 | Score graphs with biology (owner) | `score.py`: on-signal share, short loops (2 edges, or <100 µm round; 2026-10-29 correction from Blinder 2013: ~15% of real loops have 2-4 edges, so a 3-4 edge loop is no longer suspect by count), open ends inside the frame per junction (Blinder: no blind ends in healthy tissue), degree-4 rate over 7%, junction smallest angle <45°, two edges narrowing into one junction and Murray, both at arteriole/venule junctions only (capillary junctions converge and diverge evenly, Smith 2019) | v1's attached-image loops are the dominant flag: 14-128 short-loop edges per stack, 6-26 after v5 | kept as the shared scorer |
 | L2 | Break every short loop at its weakest edge (Claude) | weakest by on-curve over beside-curve signal | plausibility 0.01→0.69 on CA1 r2, but **deleted real thick vessels** whose traced curve ran beside the vessel | dropped; now only weak edges (<0.75 of the field's median contrast) or twin edges go, strong loops stay flagged for the owner |
 | L3 | Thick vessels trace as two lines around a dim lumen (diagnosis) | fill mask holes narrower than the mask's median vessel width before skeletonising | CA1 loops fall (139→44 flagged short-loop edges on CA1 r2 after the rest of v2) | kept in v2+ (`fill_lumens`) |
 | L4 | Validate a segment by the pixels along it (owner) | ridge snap of curve points; quarter-turn test (signal along the curve minus the same curve turned 90°) | v1 candidates: quarter-turn removes 23-258 per stack, mostly the scribbles over speckle | kept |
@@ -35,7 +35,7 @@ more. Rank versions by the grade; read plausibility for *which* biological rule 
 
 Largest classes after v5: 13 kept non-vessels (short branches on speckle, duplicate traces across
 thick vessels in CA1), 7 of 9 judged-missed vessels still missed (faint capillaries at speckle
-brightness), and 17-44 flagged short loops in CA1 that are strong on both sides.
+brightness), 6-26 flagged short-loop edges per stack that are strong on both sides, and 1-1.75 open ends inside the frame per junction (each a gap or a spur by Blinder's no-blind-ends rule).
 
 | idea | lens | targets | cost | kill test |
 |---|---|---|---|---|

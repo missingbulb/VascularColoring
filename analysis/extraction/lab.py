@@ -66,7 +66,7 @@ def cached(version, name, path):
     return m, False
 
 
-COLS = ['plausibility', 'edges', 'junctions', 'on_signal', 'short_loops', 'degree4_rate', 'narrow_junctions',
+COLS = ['plausibility', 'edges', 'junctions', 'on_signal', 'short_loops', 'interior_ends', 'degree4_rate', 'narrow_junctions',
         'taper_conflicts', 'median_segment_um', 'seconds']
 
 
