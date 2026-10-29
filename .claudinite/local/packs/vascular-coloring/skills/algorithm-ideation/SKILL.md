@@ -1,6 +1,6 @@
 ---
 name: algorithm-ideation
-description: Generate genuinely new directions for an image-extraction algorithm before building the next version - when the current version plateaus, when starting a new version, or when the owner asks for a new approach. Widens the search with fixed lenses, then picks by evidence.
+description: Finding a genuinely new direction before building the next extraction version - when the current one plateaus, or the owner asks for a new approach.
 metadata:
   body: workflow
   usage:

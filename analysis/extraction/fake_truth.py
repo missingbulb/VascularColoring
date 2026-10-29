@@ -128,7 +128,6 @@ def collect(outdir):
             'missed': [[[bx + x, by + y] for x, y in line] for line in ans.get('missed', [])],
             'notes': ans.get('notes', ''),
         })
-    os.makedirs(LABELS, exist_ok=True)
     json.dump(out, open(os.path.join(LABELS, f'{SET}.json'), 'w'), indent=0)
 
 
