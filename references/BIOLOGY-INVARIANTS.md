@@ -1,6 +1,6 @@
 # Biology invariants — what a real cerebral vessel graph must look like
 
-> **Status: draft for expert sign-off (2026-10-29; Blinder 2013 and Cassot 2010 folded in the same day).** Nothing here waits on that sign-off: the
+> **Status: draft for expert sign-off (2026-10-29; Blinder 2013, Cassot 2010, Ji 2021 and Smith 2019 digested the same day).** Nothing here waits on that sign-off: the
 > algorithms may use these invariants now, and a rejected one gets removed from scoring.
 > Each invariant names its sources, a confidence, the number to test, and how to use it in scoring.
 > The reviewer column at the end of each item is for the expert.
@@ -71,7 +71,7 @@ round and come back to where it started).
 directed cycle" constrains nothing on its own. It bites only together with B8 and B10, which fix
 the orientation of some edges from their widths.
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Blinder et al. 2010, *PNAS* 107:12670 ([PMC2906564](https://pmc.ncbi.nlm.nih.gov/articles/PMC2906564)); Smith et al. 2019, *Front Physiol* 10:233 ([PMC6444172](https://pmc.ncbi.nlm.nih.gov/articles/PMC6444172/)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Nishimura et al. 2007, *PNAS* 104:365 (secondary summary only).
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Blinder et al. 2010, *PNAS* 107:12670 ([PMC2906564](https://pmc.ncbi.nlm.nih.gov/articles/PMC2906564)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Nishimura et al. 2007, *PNAS* 104:365 (secondary summary only).
 
 **Confidence.** High.
 
@@ -95,7 +95,7 @@ Short loops of 2–4 segments do occur, but they are a minority.
 - Smith 2019, mouse cortex: 11.2 ± 1.2 edges per loop; mean loop length 486 ± 60 µm.
 - Hudetz 1988, rat (cited by Smith 2019): 4–7 capillaries per loop.
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021, *Neuron* 109:1168 ([PMC8525211](https://pmc.ncbi.nlm.nih.gov/articles/PMC8525211)); Smith et al. 2019.
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)). Smith's mouse loops come from the same reconstructions as Blinder's, so those two are not independent.
 
 **Confidence.** High that loops are typically ~8–11 segments. Medium on the short-loop share: the
 sources count loops differently, and Blinder's 2-edge share (~4%) is above Ji's (~1%).
@@ -116,7 +116,7 @@ exactly three entries per vertex. Ji 2021: degree-3 nodes are 0.968–0.987 of n
 range across regions); mean degree 3.02 ± 0.02; branches per node 1.529, close to the 3/2 of a pure
 degree-3 graph. Smith 2019: 7.2 ± 0.9% of interior vertices in mouse cortex have more than three connections.
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021; Smith 2019. Blinder cites earlier cast and dye studies that found
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)). Blinder cites earlier cast and dye studies that found
 microvessels "joined only as triads".
 
 **Confidence.** High.
@@ -134,6 +134,8 @@ Expert: ☐ agree ☐ disagree ☐ comment: ______
 **Numbers.**
 - Ji 2021, all vessels, angles between the three branch tangents (tangent = principal direction of
   the first 10 skeleton voxels): smallest 84 ± 4°, median 118 ± 2°, largest 145 ± 3° per node (means across regions).
+- Ji 2021, planarity: the third branch sits on average **14.8°** out of the plane of the other two
+  (mean projection 0.255), whole mouse brain.
 - Cassot 2010, human arteriolar and venular trees, 9,414 bifurcations, mean ± circular SD:
   parent–larger daughter **127° ± 27**, parent–smaller daughter **115° ± 26**, between daughters
   **104° ± 27**. The larger daughter continues straighter than the smaller one, yet still turns ~53°
@@ -141,10 +143,10 @@ Expert: ☐ agree ☐ disagree ☐ comment: ______
 - Cassot 2010, planarity: **~⅓ of junctions are flat (< 2° out of plane), over half < 6°, ¾ < 20°,
   under 10% > 50°.**
 
-**Sources.** Ji 2021 ([PMC8525211](https://pmc.ncbi.nlm.nih.gov/articles/PMC8525211)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)).
+**Sources.** Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)).
 
 **Confidence.** Medium–High: two independent sources agree on wide angles (one mouse, one human);
-planarity from one human source.
+planarity from two independent sources (Ji mouse ~15° on average, Cassot human ~13°).
 
 **Use in scoring.** Penalize a junction whose two closest branches are under ~40° apart (more
 likely one vessel traced twice, or a shallow crossing) and one far out of plane. Measure angles from
@@ -163,7 +165,7 @@ Expert: ☐ agree ☐ disagree ☐ comment: ______
 matter); branches under 40 µm dominate. Smith 2019, mouse cortex: mean 44.8 ± 2.4 µm, SD 28.1 µm
 (straight length; tortuous length ~20% longer). Human capillaries are ~34% longer than mouse (Smith 2019).
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021; Smith 2019.
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)).
 
 **Confidence.** High.
 
@@ -179,6 +181,8 @@ Expert: ☐ agree ☐ disagree ☐ comment: ______
 **Claim.** Capillaries are mildly curved between junctions.
 
 **Numbers.** Ji 2021: tortuosity 1.27 ± 0.05. Smith 2019: tortuous lengths ~20% longer than straight.
+
+**Sources.** Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)), an estimate there, not a measurement.
 
 **Confidence.** Medium.
 
@@ -196,7 +200,7 @@ capillaries, and not a steady taper in the flow direction.
 **Numbers.**
 - Blinder 2013: median and mean microvessel radius **near 2 µm**, constant with cortical depth
   (gel-filled vessels, size preserved).
-- Ji 2021: mean vessel radius 2.39 µm, median 2.05 µm (whole brain); in-vivo minimum radius
+- Ji 2021: mean vessel radius 2.74 µm, median 2.14 µm (whole brain; the PMC author manuscript gives 2.39 / 2.05); in-vivo minimum radius
   1.9 ± 0.3 µm; capillaries ≈ 96% of vessel length; capillary cut-off radius 3.5 µm (where the
   radius distribution leaves its power law). Vessels under ~5 µm shrink after perfusion-fixation;
   Ji corrects lengths by ×1.05.
@@ -207,8 +211,8 @@ capillaries, and not a steady taper in the flow direction.
 - Smith 2019 separates arterioles/venules from capillaries at 7.2 µm diameter (mouse).
 - For scale: Blinder's penetrating arterioles have median diameter 11 µm, venules 9 µm.
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021; "Endothelial structure contributes to heterogeneity in brain capillary
-diameter", *Vascular Biology* 2023 ([PMC10503221](https://pmc.ncbi.nlm.nih.gov/articles/PMC10503221/)); Smith 2019.
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); "Endothelial structure contributes to heterogeneity in brain capillary
+diameter", *Vascular Biology* 2023 ([PMC10503221](https://pmc.ncbi.nlm.nih.gov/articles/PMC10503221/)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)).
 
 **Confidence.** High.
 
@@ -233,14 +237,14 @@ always a daughter.**
   daughters together are usually wider than the parent (Murray's cap is 1.26; ~¾ exceed it); larger
   daughter A₁/A₀ median 0.91 and **> 1 in ~40% of junctions**; smaller daughter A₂/A₀ median 0.61 and
   **> 1 in under 10%**; daughter ratio A₂/A₁ median 0.72.
-- Ji 2021: the radius distribution above r = 3.5 µm follows a power law with exponent −2.81 ± 0.03,
+- Ji 2021: the radius distribution above r = 3.5 µm follows a power law with exponent −2.73 ± 0.03 (−2.81 in the PMC manuscript),
   which the authors compare to Murray's −3 (a population statistic, not a per-junction one).
 - El-Bouri & Payne, statistical model of human penetrating vessels: median exponent 2.5, IQR
   1.75–3.7 (secondary summary).
 - Murray 1926 (theory): a = 3. The repo's spur limit also leans on Murray; see
   `analysis/3D-STACKS.md`, "The spur limit — Murray's law".
 
-**Sources.** Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Ji 2021; El-Bouri & Payne ([Liverpool repository](https://livrepository.liverpool.ac.uk/id/eprint/3134475)); Murray CD 1926, *PNAS* 12:207.
+**Sources.** Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); El-Bouri & Payne ([Liverpool repository](https://livrepository.liverpool.ac.uk/id/eprint/3134475)); Murray CD 1926, *PNAS* 12:207.
 
 **Confidence.** High that a single junction's exponent is too noisy to score tightly (9,414
 junctions, though from one human brain). The "thinnest branch is a daughter" rule is >90% in that data.
@@ -286,8 +290,11 @@ venous side. "Narrowing is the flow direction" is therefore true for arterioles 
 - Cassot 2010, human: venular trees have **~50% more junctions** per tree, and venular daughters sit
   closer together (smaller angle between them); area ratios differ by only ~5%. The paper sorted
   trees into arterioles and venules "according to their morphological features" without saying which.
+- Smith 2019: inside the capillary bed, three-way junctions split **about evenly into converging
+  (2 in, 1 out) and diverging (1 in, 2 out)** under a pressure gradient. The bed itself has no
+  narrowing direction; the rule above applies only to the arteriolar and venular trees.
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Smith 2019.
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)).
 
 **Confidence.** High that the two sides run opposite ways. **Low** that our CD31-only stacks can
 tell an arteriole from a venule: CD31 labels both, the widths overlap, and Wang 2022 needed α-SMA to
@@ -335,7 +342,7 @@ callosum); d̄ = 0.494 · ρ_L^(−1/2) − 3.08. Smith 2019, mouse cortex: mean
 maxima 29.4 µm, maximum 50.1 ± 3.7 µm. Deleting one capillary raises the local maximum distance by
 only ~2 µm (Ji), so the mesh is redundant.
 
-**Sources.** Ji 2021; Smith 2019.
+**Sources.** Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Smith et al. 2019 ([digest](smith-2019-capillary-networks-across-species/digest.md)).
 
 **Confidence.** High for cortex. For CA1, scale by density: ~1.2× larger distances (B13).
 
@@ -354,7 +361,7 @@ Expert: ☐ agree ☐ disagree ☐ comment: ______
 as cited). Shaw et al. 2021: lower capillary density in CA1 than in visual cortex, with lower flow
 and oxygenation; an older study put perfused capillary density in CA1 at < 30% of cortex.
 
-**Sources.** Ji 2021; Shaw et al. 2021, *Nat Commun* 12:3190 ([doi:10.1038/s41467-021-23508-y](https://doi.org/10.1038/s41467-021-23508-y)).
+**Sources.** Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)); Shaw et al. 2021, *Nat Commun* 12:3190 ([doi:10.1038/s41467-021-23508-y](https://doi.org/10.1038/s41467-021-23508-y)).
 
 **Confidence.** High that CA1 is sparser than frontal cortex, roughly two-thirds. Medium for the
 absolute value in our sections: fixed slices shrink differently from Ji's cleared brains, and frontal
@@ -410,9 +417,11 @@ volume, a vessel ends only where the volume itself is cut.
 be weakly attached (a tree hanging off one vessel) scales as (log₂N)/N, negligible at N ~ 10⁴ junctions
 per mm³; their community analysis found no near-isolated pockets. Their own extraction found gaps in
 **~5% of vessels** and closed them automatically (Kaufhold 2012, "connecting gaps and deleting
-open-ended segments"). Ji 2021: the largest connected component holds 0.987 of all branches.
+open-ended segments"). Ji 2021: the largest connected component holds 0.987 of all branches; even
+after a classifier-based cleanup, only 0.485 of interior 240 µm cubes had no open-ended segment, so
+residual blind ends are an extraction limit even in the best data.
 
-**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021.
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021 ([digest](ji-2021-whole-brain-microvascular-topology/digest.md)).
 
 **Confidence.** Medium–High for healthy adult tissue. Growing sprouts (development, injury, the
 ischemic samples in Wang 2022) can end blindly.
@@ -457,14 +466,11 @@ region differences and slab-face truncation each move these numbers by tens of p
 
 ## Sources and what was read
 
-Full `paper-intake` digests in this folder: **Blinder et al. 2013** ([digest](blinder-2013-cortical-angiome/digest.md))
-and **Cassot et al. 2010** ([digest](cassot-2010-cortical-branching-patterns/digest.md)), both
-from PDFs supplied by the owner.
+Full `paper-intake` digests in this folder: **Blinder et al. 2013** ([digest](blinder-2013-cortical-angiome/digest.md)),
+**Cassot et al. 2010** ([digest](cassot-2010-cortical-branching-patterns/digest.md)), **Ji et al. 2021**
+([digest](ji-2021-whole-brain-microvascular-topology/digest.md)) and **Smith et al. 2019**
+([digest](smith-2019-capillary-networks-across-species/digest.md)). Smith's mouse data are cut from the
+same reconstructions as Blinder's, so mouse-cortex agreement between them counts once.
 
-Read from open full text, not yet digested: Ji 2021, Smith 2019, the 2023 capillary-diameter EM
-study. Abstracts or secondary summaries only: Blinder 2010, Nishimura 2007, El-Bouri & Payne,
-Shaw 2021.
-
-Still to digest (both open access): **Ji et al. 2021**, *Neuron*, the main source for degree,
-length, angles, radius and density; **Smith et al. 2019**, *Front Physiol*, for loop and
-tissue-distance statistics.
+Read from open full text, not digested: the 2023 capillary-diameter EM study. Abstracts or secondary
+summaries only: Blinder 2010, Nishimura 2007, El-Bouri & Payne, Shaw 2021.

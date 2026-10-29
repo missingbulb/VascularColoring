@@ -1,7 +1,9 @@
 # References — source papers
 
 One folder per paper. Each folder is **self-contained**: the original PDF, a digest written so the
-PDF never has to be reopened, and every figure extracted and described.
+PDF never has to be reopened, and every figure extracted and described. This repository is public,
+so a copyrighted paper keeps only its digest and figure descriptions; the PDF and images are
+committed only under an open licence such as CC BY.
 
 ```
 references/
@@ -41,8 +43,10 @@ It is the repeatable protocol these folders were built with.
 | [**bizou-2026-nvu-angiogenic-programs**](bizou-2026-nvu-angiogenic-programs/digest.md)<br>*Nat Commun* 17:6746 — NVU communications | **Whole-brain vascular-density heatmaps** (the second paper to converge on the grid-heatmap construct), an open analysis toolkit, and a warning that density is region-specific. | none — all micrographs are multi-channel |
 | [**blinder-2013-cortical-angiome**](blinder-2013-cortical-angiome/digest.md)<br>*Nat Neurosci* 16:889 — the cortical angiome | **What a correct mouse cortical vessel graph looks like**: 93% three-way junctions, median vessel 50 µm, radius ~2 µm, loops of ~8 edges, no dangling sub-networks, penetrating venules 3× arterioles. Feeds [`BIOLOGY-INVARIANTS.md`](BIOLOGY-INVARIANTS.md). | none — renders of vectorized networks and plots |
 | [**cassot-2010-cortical-branching-patterns**](cassot-2010-cortical-branching-patterns/digest.md)<br>*Brain Res* 1313:62 — human cortical arteriole and venule bifurcations | **Junction geometry from 9,414 bifurcations**: Murray's exponent scatters (IQR 2.3–6.1), the larger daughter is wider than the parent in ~40%, angles are wide (~104° between daughters) and mostly planar; optimal-angle theory fails. | none — human, India ink, renders and plots |
+| [**ji-2021-whole-brain-microvascular-topology**](ji-2021-whole-brain-microvascular-topology/digest.md)<br>*Neuron* 109:1168 — three whole mouse brains at sub-µm resolution | **The largest measured vessel graph**: 97–99% three-way junctions, angles 84/118/145°, junctions ~15° out of plane, loops of ~9 branches, median capillary 45–46 µm, tortuosity 1.27, length density per region including hippocampus. Copyrighted: digest only, no PDF or figures. | none — no figures committed |
+| [**smith-2019-capillary-networks-across-species**](smith-2019-capillary-networks-across-species/digest.md)<br>*Front Physiol* 10:233 — mouse vs human capillary beds, CC BY | **Capillary-bed statistics and a generator**: loops of ~11 edges and ~490 µm, 7% four-way junctions, tissue-to-vessel distance ~18 µm, junctions about half converging and half diverging. Mouse data shared with Blinder 2013. | none — renders and plots |
 
-**Five of eight contribute no panels, and that is a result, not a gap.** A paper enters the
+**Seven of ten contribute no panels, and that is a result, not a gap.** A paper enters the
 working dataset only if it has isolated single-channel vessel images; forcing multi-channel
 merges or a different imaging modality into `VESSEL_*` would break the one contract the dataset
 has. Each of those digests says explicitly why, in its §5.
