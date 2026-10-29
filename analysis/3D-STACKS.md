@@ -109,7 +109,10 @@ guessed), and `status` draft or corrected. Each edge runs from node `a` to node 
 chosen over Bézier handles, which float off the vessel at a depth that is hard to see. Each edge
 carries a `vessel` id, the extractor's guess at which branch continues a trunk through a junction
 (the straightest pair within 60° of straight on), for the owner to correct; and `reviewed_regions`
-are boxes the owner has checked completely, empty in a draft. Its `_about` field defines the rest. It is drawn the owner's chosen way, flat plus depth:
+are boxes the owner has checked completely, empty in a draft. An edge may also carry its start and
+end widths, `r_a` and `r_b` (radius in µm at `a` and at `b`), and narrows steadily between them along
+its curve; and `flow`, `"ab"` or `"ba"`, the direction blood runs, absent where it is unknown. Where
+an edge has no `r_a`/`r_b`, its radius runs between the `r` of the points along it. Its `_about` field defines the rest. It is drawn the owner's chosen way, flat plus depth:
 each slice in its own noise units, flattened, hysteresis 5σ / 2.5σ, skeletonised, spurs under 2
 parent widths, specks under 4 widths and networks adding up to under 10 widths dropped, each
 centerline point placed at the depth where its signal sits (median over 2 widths along the
@@ -148,7 +151,7 @@ magenta over the stack. On the model: drag a point to move it (in the plane of t
 tilted view moves it in depth too); right-click a segment to delete it or add a bend, a junction to
 split it into vessels that cross (branches paired off straightest-through first, each pair at the
 depth between its neighbours, a leftover branch detached as a tip), or any point to delete it;
-right-drag from one piece to another to connect them. Candidates are drawn dashed, can be hidden,
+right-drag from one piece to another to connect them. Candidates are drawn faded, can be hidden,
 and a click on one approves or declines its whole vessel (junction to junction; A or D while
 pointing at it). Edits are kept in the browser until
 **Download corrected model**, with undo and redo. `tests/test_vessel_model_edits.mjs` pins the edits.
@@ -184,6 +187,14 @@ worth a look (candidates; junctions that are pending, of four or more branches, 
 the declined vessels; sorting brings the shortest, widest, most branched or most crowded first.
 **Show in 3D** cuts the stack down to the vessel and looks at it from above. Every card edit is an
 ordinary edit, undone and downloaded with the rest.
+
+**Vessels as tubes (owner, 2026-10-29).** Beside the stack the model is a picture of its own, so it
+can be told apart from the image at a glance: the depth colours are the stack's alone, and the model
+is drawn white at 80% opacity. With **Show vessel widths** on, each vessel is a shaded tube as wide
+as the vessel, narrowing from its start width to its end width; off, it is a plain line. A
+low-confidence vessel is faded, never dotted: a paler blue at 40% beside the stack, fainter magenta
+over it, and fainter on the item cards; a junction that waits on one is faded too. Over the stack
+the widths stay two slim edges, tapering the same way, so the signal under them stays readable.
 
 **Review: Detected and Missed (owner, 2026-10-28).** The owner asked for two ways to look at the
 stack against its model: one keeping only the stack's layers where vessels were detected, to check

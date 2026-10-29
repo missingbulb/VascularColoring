@@ -14,6 +14,8 @@ const SAMPLES = 8;             // curve samples per segment, for lengths and dra
 const CROWD_UM = 20;           // how near another junction must be to count as crowding
 // the model in magenta and the item in white: neither is a colour the depth scale gives the stack
 const MODEL = 'rgba(255,79,216,.75)', ITEM = '#fff';
+// how much a low-confidence vessel is faded against a confident one
+const FADED = .4;
 const STATE_TEXT = { vessel: 'Vessel', candidate: 'Low confidence', accepted: 'Approved', rejected: 'Declined' };
 
 let kind = 'junctions', filter = 'all', sort = 'file', items = { junctions: [], vessels: [] }, shown = false, selected = null;
@@ -104,11 +106,12 @@ function picture(cv, m, box, mark) {
     if (!Mo.live(s)) return;
     const a = m.nodes.get(s.a), b = m.nodes.get(s.b);
     if (Math.max(a.x, b.x) < cx - half || Math.min(a.x, b.x) > cx + half || Math.max(a.y, b.y) < cy - half || Math.min(a.y, b.y) > cy + half) return;
-    c.setLineDash(s.state === 'candidate' ? [3 * dpr, 3 * dpr] : []);
+    // a low-confidence vessel fainter
+    c.globalAlpha = s.state === 'candidate' ? FADED : 1;
     const pts = Mo.sampleSegment(m, i, SAMPLES).map(at);
     c.beginPath(); c.moveTo(...pts[0]); for (const p of pts) c.lineTo(...p); c.stroke();
   });
-  c.setLineDash([]);
+  c.globalAlpha = 1;
   mark(c, at, k, dpr);
 }
 
@@ -127,9 +130,8 @@ function vesselPicture(cv, m, v) {
       }
       c.globalAlpha = .18; c.drawImage(band, 0, 0); c.globalAlpha = 1;
     }
-    c.strokeStyle = ITEM; c.globalAlpha = .85; c.lineWidth = dpr; c.setLineDash(v.state === 'candidate' ? [4 * dpr, 3 * dpr] : []);
+    c.strokeStyle = ITEM; c.globalAlpha = .85 * (v.state === 'candidate' ? FADED : 1); c.lineWidth = dpr;
     c.beginPath(); c.moveTo(...at(v.path[0])); for (const p of v.path) c.lineTo(...at(p)); c.stroke(); c.globalAlpha = 1;
-    c.setLineDash([]);
     for (const [p, e] of [[v.path[0], v.ends[0]], [v.path.at(-1), v.ends[1]]]) {
       const [x, y] = at(p); c.beginPath();
       if (e === 'junction') { c.arc(x, y, 4 * dpr, 0, 2 * Math.PI); c.strokeStyle = ITEM; c.lineWidth = 1.5 * dpr; c.stroke(); }
@@ -145,11 +147,11 @@ function junctionPicture(cv, m, j) {
     c.strokeStyle = ITEM; c.lineWidth = 1.5 * dpr;
     m.segments.forEach((s, i) => {
       if (!Mo.live(s) || (s.a !== j.id && s.b !== j.id)) return;
-      c.setLineDash(s.state === 'candidate' ? [4 * dpr, 3 * dpr] : []);
+      c.globalAlpha = s.state === 'candidate' ? FADED : 1;
       const pts = Mo.sampleSegment(m, i, SAMPLES).map(at);
       c.beginPath(); c.moveTo(...pts[0]); for (const p of pts) c.lineTo(...p); c.stroke();
     });
-    c.setLineDash([]);
+    c.globalAlpha = 1;
     const [x, y] = at(j);
     c.beginPath(); c.arc(x, y, Math.max((j.r || 0) * k, 5 * dpr), 0, 2 * Math.PI); c.lineWidth = 1.5 * dpr; c.stroke();
   });
