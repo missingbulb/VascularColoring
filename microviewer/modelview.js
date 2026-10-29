@@ -1,6 +1,6 @@
 // The vessel model beside or over the stack, in the stack's own camera, and the owner's corrections to
 // it: drag a point to move it, right-click a segment or a point to delete it or split a junction,
-// right-drag from one piece to another to connect them, click a dashed low-confidence vessel to
+// right-drag from one piece to another to connect them, click a faded low-confidence vessel to
 // approve or decline it. The corrected model downloads as JSON.
 //
 // The review narrows the stack to what the model accounts for: Detected keeps only the signal around
@@ -19,6 +19,11 @@ const PICK_POINT_PX = 9, PICK_SEGMENT_PX = 6, DRAG_PX = 5;
 const OVERLAY = '#ff4fd8';
 // knots of junctions the extractor marked as probably traced wrong, in amber: none of the other colours
 const DENSE = '#ffb020';
+// Beside the stack, depth is the stack's to show: the model is white, a low-confidence vessel a
+// paler blue and fainter, and the vessel under the pointer cyan.
+const SURE = '#ffffff', SURE_ALPHA = .8, UNSURE = '#9db8ff', UNSURE_ALPHA = .4, LIT = '#4fd1d9';
+// a tube's shading from its wall to its core, and the narrowest it is drawn, in screen pixels
+const TUBE_SHADES = [.5, .7, .85, 1], TUBE_MIN_PX = 1;
 // The points are handles to drag, shown only once the view is zoomed this far in from the whole stack,
 // so the opening picture is the vessels alone.
 const HANDLES_ZOOM = 2;
@@ -93,6 +98,57 @@ function nearness(line) {
   return d <= r ? 1 : Math.max(FADED, 1 - (1 - FADED) * (d - r) / (r / 2));
 }
 
+// One side of a line `r` pixels out from it, at each of its points.
+function rim(line, r, side) {
+  return line.map((q, k) => {
+    const a = line[Math.max(k - 1, 0)], b = line[Math.min(k + 1, line.length - 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [q[0] - side * (b[1] - a[1]) / len * r[k], q[1] + side * (b[0] - a[0]) / len * r[k]];
+  });
+}
+
+// The drawn segments as unbroken runs along the model's edges, each a line on screen with its
+// widths where every piece of it has them, far runs first. A run is drawn whole, so a tube's shading
+// carries on through its curve points without a seam.
+const edgesOf = new WeakMap();
+function runs(drawn) {
+  let es = edgesOf.get(model);
+  if (!es) edgesOf.set(model, (es = Mo.edges(model)));
+  const out = [];
+  for (const e of es) {
+    let run = null;
+    e.segments.forEach((i, k) => {
+      if (!drawn.has(i)) { run = null; return; }
+      if (!run) out.push((run = { segs: [], line: [], r: [], depth: 0 }));
+      const fwd = model.segments[i].a === e.ids[k], line = view.curves.get(i), r = view.widths.get(i);
+      const o = fwd ? line : [...line].reverse(), w = r && (fwd ? r : [...r].reverse()), skip = run.segs.length ? 1 : 0;
+      run.segs.push(i); run.line.push(...o.slice(skip));
+      if (run.r && w) run.r.push(...w.slice(skip)); else run.r = null;
+    });
+  }
+  for (const run of out) run.depth = run.line.reduce((t, q) => t + q[2], 0) / run.line.length;
+  return out.sort((p, q) => q.depth - p.depth);
+}
+
+// A run, opaque: a shaded tube as wide as the vessel where the model gives its width, so it
+// narrows as the vessel does, and a plain line where it does not or widths are hidden.
+function vessel(c, { line, r }, tint) {
+  r = showWidths && r;
+  if (!r) {
+    c.strokeStyle = tint; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
+    return;
+  }
+  // rings of the tube from its wall inwards, each brighter, so it reads round rather than flat
+  for (let k = 0; k < TUBE_SHADES.length; k++) {
+    const f = 1 - k / TUBE_SHADES.length, rr = r.map((v) => Math.max(v, TUBE_MIN_PX) * f);
+    c.fillStyle = shade(tint, TUBE_SHADES[k]);
+    const left = rim(line, rr, 1), right = rim(line, rr, -1).reverse();
+    c.beginPath(); [...left, ...right].forEach(([x, y], j) => (j ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.fill();
+    for (const j of [0, line.length - 1]) { c.beginPath(); c.arc(line[j][0], line[j][1], rr[j], 0, 2 * Math.PI); c.fill(); }
+  }
+}
+const shade = (hex, f) => `rgb(${[1, 3, 5].map((k) => Math.round(parseInt(hex.slice(k, k + 2), 16) * f)).join(',')})`;
+
 function draw() {
   if (!model || mode === 'off' || !V.meta || !cv.clientWidth) return;
   const dpr = window.devicePixelRatio || 1;
@@ -103,39 +159,46 @@ function draw() {
   const { pts } = view, Z = slices(), deg = Mo.degrees(model), seen = Mo.degrees(model, visible);
   const all = Mo.degrees(model, Mo.live), cand = Mo.degrees(model, (s) => s.state === 'candidate');
   const hot = new Set(isCandidate(hover) ? Mo.piece(model, hover.segment) : hover?.segment != null ? [hover.segment] : []);
-  const span = Math.max(V.S.z1 + 1 - V.S.z0, 1);
-  const colour = (z) => {
-    if (mode === 'overlay') return OVERLAY;
-    if (!V.S.depth) return '#4fd1d9';
-    const t = V.turbo(((z + .5) - V.S.z0) / span);
-    return `rgb(${t.map((v) => Math.round(v * 255)).join(',')})`;
-  };
+  const colour = () => (mode === 'overlay' ? OVERLAY : SURE);
+  // a tube runs smoothly through its curve points, so only its ends are marked
+  const tubes = mode === 'side' && showWidths;
   // far segments first, so nearer vessels draw over the ones they pass in front of
   const order = model.segments.map((s, i) => i).filter((i) => view.curves.has(i) && shown(model.segments[i]));
   order.sort((i, j) => (pts.get(model.segments[j].a)[2] + pts.get(model.segments[j].b)[2]) - (pts.get(model.segments[i].a)[2] + pts.get(model.segments[i].b)[2]));
-  c.lineCap = 'round';
-  for (const i of order) {
-    const s = model.segments[i], line = view.curves.get(i), lit = hot.has(i);
-    // a low-confidence vessel is dashed in the same colours, so depth still reads along it
-    const unsure = s.state === 'candidate';
-    c.setLineDash(unsure ? [4, 4] : []);
-    c.strokeStyle = lit ? '#fff' : colour((model.nodes.get(s.a).z + model.nodes.get(s.b).z) / 2);
-    // over the stack the lines stay thin and let the signal under them show through
-    c.globalAlpha = (lit ? 1 : (mode === 'overlay' ? .7 : 1) * (unsure ? .8 : 1)) * nearness(line);
-    c.lineWidth = lit ? 3 : mode === 'overlay' ? 1.1 : 1.5;
-    c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
-    const r = showWidths && view.widths.get(i);
-    if (r) {
-      // the vessel's width as two slim edges either side of its centerline, never a fill over the signal
-      c.globalAlpha *= .5; c.lineWidth = 1;
-      for (const side of [1, -1]) {
-        c.beginPath();
-        line.forEach((q, k) => {
-          const a = line[Math.max(k - 1, 0)], b = line[Math.min(k + 1, line.length - 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-          const x = q[0] - side * (b[1] - a[1]) / len * r[k], y = q[1] + side * (b[0] - a[0]) / len * r[k];
-          if (k) c.lineTo(x, y); else c.moveTo(x, y);
-        });
-        c.stroke();
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const unsure = (i) => model.segments[i].state === 'candidate';
+  if (mode === 'side') {
+    // Beside the stack the model is a picture of its own: confident vessels white and nearly opaque,
+    // low-confidence ones faded. Each kind is drawn opaque on a layer of its own and laid on once,
+    // so the pieces of a vessel never stack into beads.
+    const rs = runs(new Set(order)), lit = (run) => run.segs.some((i) => hot.has(i));
+    for (const [which, tint, alpha] of [[true, UNSURE, UNSURE_ALPHA], [false, SURE, SURE_ALPHA]]) {
+      const layer = document.createElement('canvas'); layer.width = cv.width; layer.height = cv.height;
+      const l = layer.getContext('2d'); l.scale(dpr, dpr); l.lineCap = 'round'; l.lineJoin = 'round';
+      for (const run of rs) if (unsure(run.segs[0]) === which && !lit(run)) { l.globalAlpha = nearness(run.line); vessel(l, run, tint); }
+      c.globalAlpha = alpha; c.drawImage(layer, 0, 0, cv.clientWidth, cv.clientHeight);
+    }
+    c.globalAlpha = 1;
+    for (const run of rs) if (lit(run)) { c.globalAlpha = nearness(run.line); vessel(c, run, LIT); }
+    c.globalAlpha = 1;
+  } else {
+    for (const i of order) {
+      const line = view.curves.get(i), lit = hot.has(i);
+      c.strokeStyle = lit ? '#fff' : OVERLAY;
+      // over the stack the lines stay thin and let the signal under them show through, a low-confidence
+      // one fainter still
+      c.globalAlpha = (lit ? 1 : unsure(i) ? .35 : .7) * nearness(line);
+      c.lineWidth = lit ? 3 : 1.1;
+      c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
+      const r = showWidths && view.widths.get(i);
+      if (r) {
+        // the vessel's width as two slim edges either side of its centerline, never a fill over the signal
+        c.globalAlpha *= .5; c.lineWidth = 1;
+        for (const side of [1, -1]) {
+          c.beginPath();
+          rim(line, r, side).forEach(([x, y], k) => (k ? c.lineTo(x, y) : c.moveTo(x, y)));
+          c.stroke();
+        }
       }
     }
   }
@@ -148,14 +211,14 @@ function draw() {
     const p = pts.get(n.id), v = seen.get(n.id) || 0; if (!p || !v || !inSlab(n)) continue;
     const d = deg.get(n.id) || 0, hot = hover?.node === n.id;
     c.beginPath();
-    // a junction is where three confirmed vessels meet; one that waits on a candidate's review is dashed
+    // a junction is where three confirmed vessels meet; one that waits on a candidate's review is faded
     if (v >= 3) {
-      c.setLineDash(d >= 3 || hot ? [] : [2, 2]);
+      c.globalAlpha = d >= 3 || hot ? 1 : UNSURE_ALPHA;
       c.arc(p[0], p[1], hot ? 6 : 4, 0, 2 * Math.PI); c.strokeStyle = hot ? '#fff' : mode === 'overlay' ? OVERLAY : 'rgba(255,255,255,.85)'; c.lineWidth = hot ? 2 : 1.2; c.stroke();
-      c.setLineDash([]);
-    } else if (hot || all.get(n.id) !== cand.get(n.id)) {
-      // a candidate's own points are left undrawn, so it reads as a dashed line and not as a row of dots
-      c.arc(p[0], p[1], hot ? 4.5 : (v === 1 ? 2.2 : 1.6) * (mode === 'overlay' ? .7 : 1), 0, 2 * Math.PI); c.fillStyle = hot ? '#fff' : colour(n.z); c.fill();
+      c.globalAlpha = 1;
+    } else if (hot || (all.get(n.id) !== cand.get(n.id) && !(v === 2 && tubes))) {
+      // a candidate's own points are left undrawn, so it reads as one faded line and not as a row of dots
+      c.arc(p[0], p[1], hot ? 4.5 : (v === 1 ? 2.2 : 1.6) * (mode === 'overlay' ? .7 : 1), 0, 2 * Math.PI); c.fillStyle = hot ? '#fff' : colour(); c.fill();
     }
   }
   const w = hover && (hover.node == null || pts.has(hover.node)) && hoverRadius(hover);
@@ -285,7 +348,7 @@ function grab(e) {
   return null;
 }
 
-// A left click on a dashed vessel asks for its verdict.
+// A left click on a faded vessel asks for its verdict.
 function clicked(e) {
   if (!model || mode === 'off') return;
   if (drawing) return drawClick(e);

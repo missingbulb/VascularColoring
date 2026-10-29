@@ -46,28 +46,57 @@ export function parse(j) {
     // a file written before segments had a state holds only the extractor's confident vessels
     const state = s.state ?? 'vessel';
     if (!STATES.includes(state)) throw new ModelError(`${v2 ? 'an edge' : 'a segment'} has the unknown state "${state}" (${s.a}–${s.b})`);
-    const ids = [s.a];
+    const ids = [s.a], flow = FLOWS.includes(s.flow) ? s.flow : null;
+    const { id: _i, a: _a, b: _b, via: _v, state: _st, confidence: _c, vessel: _ve, r_a: _ra, r_b: _rb, flow: _f, ...rest } = s;
+    const extra = Object.keys(rest).length ? rest : null;
     for (const p of (v2 && s.via) || []) {
       if (![p.x, p.y, p.z].every(Number.isFinite)) throw new ModelError(`a curve point on edge ${s.a}–${s.b} has no position`);
       m.nodes.set(next, pt(next, p)); ids.push(next++);
     }
     ids.push(s.b);
+    const r = taperAlong(m, ids, s.r_a, s.r_b);
     for (let i = 1; i < ids.length; i++) {
       const k = key(ids[i - 1], ids[i]);
-      if (ids[i - 1] !== ids[i] && !seen.has(k)) { seen.add(k); m.segments.push(seg(ids[i - 1], ids[i], { state, confidence: s.confidence, vessel: s.vessel })); }
+      if (ids[i - 1] !== ids[i] && !seen.has(k)) {
+        seen.add(k);
+        m.segments.push(seg(ids[i - 1], ids[i], { state, confidence: s.confidence, vessel: s.vessel, ...(r && { ra: r[i - 1], rb: r[i] }), flow, extra }));
+      }
     }
   }
   prune(m);
   return m;
 }
 
+// An edge narrows from its start width r_a to its end width r_b, steadily along its points. Blood flows
+// along it as "ab" (from a to b) or "ba"; with no flow the direction is unknown.
+const FLOWS = ['ab', 'ba'];
+function taperAlong(m, ids, ra, rb) {
+  if (!Number.isFinite(ra) || !Number.isFinite(rb)) return null;
+  const P = ids.map((id) => m.nodes.get(id)), d = [0];
+  for (let i = 1; i < P.length; i++) d.push(d[i - 1] + Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y, P[i].z - P[i - 1].z));
+  const L = d.at(-1) || 1;
+  return d.map((v) => ra + (rb - ra) * v / L);
+}
+// A segment carries its own radius at each end (ra at a, rb at b) when its edge tapers, and its flow
+// as "ab" or "ba" between its own ends. Seen from its end p: the radius there, at the far end, and
+// whether blood flows away from p.
+function from(s, p) {
+  const fwd = p === s.a;
+  return { r0: fwd ? s.ra : s.rb, r1: fwd ? s.rb : s.ra, out: s.flow == null ? null : (s.flow === 'ab') === fwd };
+}
+// the fields of a segment running from p, given what `from` reports for it there
+const taper = ({ r0, r1, out }) => ({ ...(Number.isFinite(r0) && Number.isFinite(r1) && { ra: r0, rb: r1 }), ...(out != null && { flow: out ? 'ab' : 'ba' }) });
+const bare = ({ ra: _a, rb: _b, flow: _f, ...rest }) => rest;
+
 const key = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 // a radius the file does not give stays unknown rather than zero
 const pt = (id, p) => (Number.isFinite(p.r) ? { id, x: p.x, y: p.y, z: p.z, r: p.r } : { id, x: p.x, y: p.y, z: p.z });
 // confidence is the extractor's score and vessel its guess at which branch continues a trunk; a
 // segment the owner drew has neither, and stays without them
-const seg = (a, b, { state, confidence, vessel }) => ({ a, b, state, ...(confidence != null && { confidence }), ...(vessel != null && { vessel }) });
-const sameEdge = (p, q) => p.state === q.state && p.confidence === q.confidence && p.vessel === q.vessel;
+// extra holds the edge's fields this viewer has no use for, written back as they came
+const seg = (a, b, { state, confidence, vessel, ra, rb, flow, extra }) => ({ a, b, state, ...(confidence != null && { confidence }), ...(vessel != null && { vessel }),
+  ...(Number.isFinite(ra) && Number.isFinite(rb) && { ra, rb }), ...(flow != null && { flow }), ...(extra && { extra }) });
+const sameEdge = (p, q) => p.state === q.state && p.confidence === q.confidence && p.vessel === q.vessel && p.extra === q.extra;
 
 // The segments at each point, rejected ones included, since a recorded "no" keeps its own ends.
 function incidence(m) {
@@ -110,8 +139,14 @@ export function toJSON(m, extra = {}) {
   const at = (id) => { const { id: _, ...p } = nodes.get(id); return p; };
   return { ...rest, ...extra, format: FORMAT,
     nodes: [...nodes.values()].filter((n) => ends.has(n.id)),
-    edges: es.map((e, k) => ({ id: k + 1, a: e.ids[0], b: e.ids.at(-1), ...(e.vessel != null && { vessel: e.vessel }), state: e.state,
-      ...(e.confidence != null && { confidence: e.confidence }), via: e.ids.slice(1, -1).map(at) })) };
+    edges: es.map((e, k) => {
+      const start = from(m.segments[e.segments[0]], e.ids[0]), end = from(m.segments[e.segments.at(-1)], e.ids.at(-1));
+      const out = start.out ?? (end.out == null ? null : !end.out);
+      return { ...e.extra, id: k + 1, a: e.ids[0], b: e.ids.at(-1), ...(e.vessel != null && { vessel: e.vessel }), state: e.state,
+        ...(e.confidence != null && { confidence: e.confidence }),
+        ...(Number.isFinite(start.r0) && Number.isFinite(end.r0) && { r_a: start.r0, r_b: end.r0 }), ...(out != null && { flow: out ? 'ab' : 'ba' }),
+        via: e.ids.slice(1, -1).map(at) };
+    }) };
 }
 
 // ---------- the curve ----------
@@ -136,7 +171,8 @@ export function curvePoint(m, i, t) {
   const mirror = (p, q) => ({ x: 2 * p.x - q.x, y: 2 * p.y - q.y, z: 2 * p.z - q.z });
   const P0 = pa != null ? m.nodes.get(pa) : mirror(P1, P2), P3 = pb != null ? m.nodes.get(pb) : mirror(P2, P1);
   const out = catmullRom(P0, P1, P2, P3, t);
-  if (Number.isFinite(P1.r) && Number.isFinite(P2.r)) out.r = P1.r + (P2.r - P1.r) * t;
+  const r1 = s.ra ?? P1.r, r2 = s.rb ?? P2.r;
+  if (Number.isFinite(r1) && Number.isFinite(r2)) out.r = r1 + (r2 - r1) * t;
   return out;
 }
 
@@ -201,19 +237,19 @@ export function deleteNode(m, id) {
 export function removeBend(m, id) {
   const nb = neighbours(m, id);
   if (nb.length !== 2) return m;
-  const like = merged(between(m, id, nb[0]), between(m, id, nb[1]));
+  const p = between(m, id, nb[0]), q = between(m, id, nb[1]), here = from(p, nb[0]), there = from(q, nb[1]);
   const o = deleteNode(m, id);
   for (const n of nb) if (!o.nodes.has(n)) o.nodes.set(n, { ...m.nodes.get(n) });
-  link(o, nb[0], nb[1], like);
+  link(o, nb[0], nb[1], { ...bare(merged(p, q)), ...taper({ r0: here.r0, r1: there.r0, out: here.out ?? (there.out == null ? null : !there.out) }) });
   return o;
 }
 
 // A point placed on the curve of segment i at fraction t from its first end, so the curve keeps its
 // shape until the point is moved; returns [model, new point id].
 export function splitSegment(m, i, t) {
-  const o = clone(m), s = o.segments[i];
-  const id = addNode(o, curvePoint(m, i, t));
-  o.segments.splice(i, 1, seg(s.a, id, s), seg(id, s.b, s));
+  const o = clone(m), s = o.segments[i], p = curvePoint(m, i, t);
+  const id = addNode(o, p);
+  o.segments.splice(i, 1, seg(s.a, id, { ...s, rb: p.r }), seg(id, s.b, { ...s, ra: p.r }));
   return [o, id];
 }
 
@@ -248,7 +284,7 @@ export function splitJunction(m, id, zScale = 1) {
     if (Number.isFinite(N.r)) p.r = N.r;
     const nid = addNode(o, p);
     // the pair is one vessel running through
-    for (const i of g) { if (!o.nodes.has(nb[i])) o.nodes.set(nb[i], { ...m.nodes.get(nb[i]) }); link(o, nid, nb[i], { ...like[i], vessel: like[g[0]].vessel }); }
+    for (const i of g) { if (!o.nodes.has(nb[i])) o.nodes.set(nb[i], { ...m.nodes.get(nb[i]) }); link(o, nid, nb[i], { ...bare(like[i]), vessel: like[g[0]].vessel, ...taper(from(like[i], id)) }); }
   }
   return o;
 }

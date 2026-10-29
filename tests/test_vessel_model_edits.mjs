@@ -175,6 +175,36 @@ const tests = {
     assert.equal(out.edges.length, 2, 'two vessels, each one edge through its own crossing point');
     assert.deepEqual(out.edges.map((e) => e.via.length), [1, 1]);
   },
+  'a vessel tapers from its start width to its end width, whatever the junctions it meets carry'() {
+    // edge 2-4 narrows from 2 µm at the junction to 1 µm at the tip, through its one via point
+    const j = { ...SAMPLE, edges: SAMPLE.edges.map((e) => (e.id === 3 ? { ...e, r_a: 2, r_b: 1, flow: 'ab' } : e)) };
+    const m = Mo.parse(j), radius = (i, t) => Mo.curvePoint(m, i, t).r;
+    const tip = m.segments.findIndex((s) => s.b === 4), root = m.segments.findIndex((s) => s.a === 2 && s.b === m.segments[tip].a);
+    assert.ok(tip >= 0 && root >= 0);
+    assert.equal(radius(root, 0), 2, 'the start width, not the 2.9 µm junction');
+    assert.equal(radius(tip, 1), 1, 'the end width, not the 1.4 µm tip');
+    const mid = radius(root, 1);
+    assert.ok(mid < 2 && mid > 1 && Math.abs(radius(tip, 0) - mid) < 1e-9, 'it narrows steadily through the via point');
+    const e = Mo.toJSON(m).edges.find((x) => x.b === 4);
+    assert.deepEqual([e.r_a, e.r_b, e.flow], [2, 1, 'ab'], 'the taper and flow are written back');
+    assert.equal(Mo.toJSON(m).edges.find((x) => x.b === 3).r_a, undefined, 'an edge without a taper is written without one');
+  },
+  'edits keep a vessel’s taper and flow'() {
+    const m = Mo.parse({ ...SAMPLE, edges: [{ id: 1, a: 1, b: 2, vessel: 1, r_a: 3, r_b: 1, flow: 'ba', via: [] }, { id: 2, a: 2, b: 3, vessel: 2, via: [] }] });
+    const [o, id] = Mo.splitSegment(m, 0, .5);
+    assert.ok(Math.abs(Mo.curvePoint(o, 0, 1).r - Mo.curvePoint(m, 0, .5).r) < 1e-9, 'the new curve point sits at the width it was placed at');
+    let e = Mo.toJSON(o).edges.find((x) => x.a === 1);
+    assert.deepEqual([e.via.length, e.r_a, e.r_b, e.flow], [1, 3, 1, 'ba']);
+    e = Mo.toJSON(Mo.removeBend(o, id)).edges.find((x) => x.a === 1);
+    assert.deepEqual([e.via.length, e.r_a, e.r_b, e.flow], [0, 3, 1, 'ba'], 'and taking the point out again restores the edge');
+  },
+  'an edge keeps the fields the viewer does not know through edits and the download'() {
+    const m = Mo.parse({ ...SAMPLE, edges: [{ id: 1, a: 1, b: 2, vessel: 1, taper_known: true, bridged: true, via: [] }, { id: 2, a: 2, b: 3, vessel: 2, via: [] }] });
+    const [o] = Mo.splitSegment(m, 0, .5);
+    const out = Mo.toJSON(o).edges;
+    assert.deepEqual([out[0].taper_known, out[0].bridged, out[0].via.length], [true, true, 1]);
+    assert.equal(out[1].bridged, undefined);
+  },
   'a missed vessel is drawn point by point, as one edge that joins the network where it ends'() {
     const m = Mo.parse(base([[1, 0, 0, 0], [2, 20, 0, 0]], [[1, 2, 'vessel', .9]]));
     let [o, id] = Mo.drawSegment(m, { point: { x: 10, y: 30, z: 1 } }, { point: { x: 10, y: 20, z: 1 } });
@@ -192,4 +222,4 @@ const tests = {
 
 let n = 0;
 for (const [name, fn] of Object.entries(tests)) { fn(); n++; console.log('ok', name); }
-assert.equal(n, 23);
+assert.equal(n, 26);
