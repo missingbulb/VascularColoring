@@ -1,6 +1,6 @@
 # Biology invariants — what a real cerebral vessel graph must look like
 
-> **Status: draft for expert sign-off (2026-10-29).** Nothing here waits on that sign-off: the
+> **Status: draft for expert sign-off (2026-10-29; Blinder 2013 and Cassot 2010 folded in the same day).** Nothing here waits on that sign-off: the
 > algorithms may use these invariants now, and a rejected one gets removed from scoring.
 > Each invariant names its sources, a confidence, the number to test, and how to use it in scoring.
 > The reviewer column at the end of each item is for the expert.
@@ -28,20 +28,21 @@ correction where one is known.
 | # | Invariant | Number to test | Confidence | Use |
 |---|---|---|---|---|
 | B1 | The undirected graph **has loops**; the flow graph has **no directed cycles** | loops allowed; no flow orientation may cycle | High | Do not penalize loops as such |
-| B2 | Real loops are **long**: about 9–11 segments, ~370–490 µm around | a loop of < 4–5 segments or < ~150 µm is suspect | High (mouse cortex) | Penalize short loops |
-| B3 | Junctions are **three-way** | degree 3 in ~97–99% of junctions; > 3 in ≤ ~7% | High | A degree-4 rate above ~7% means crossings were merged |
-| B4 | Capillary junction **angles are wide** | per junction, smallest angle ≈ 84°, median ≈ 118°, largest ≈ 145° (means) | Medium | Penalize narrow forks (< ~40°) |
-| B5 | Capillary **segment length** | median ≈ 45 µm; mean 45 ± SD 28 µm; > 200 µm rare | High | Score the length distribution |
+| B2 | Loops are **mostly long**: typically 8–11 segments | short loops (2–4 segments) are ~15% of loops at most; 2-segment loops ~1–4% | High (mouse cortex) | Penalize a surplus of short loops, not each one |
+| B3 | Junctions are **three-way** | degree 3 in ~93–99% of junctions; 4-way ≤ ~7% | High | A degree-4 rate above ~7% means crossings were merged |
+| B4 | Junction **angles are wide** and junctions are **nearly flat** | capillaries: smallest ≈ 84°, median ≈ 118°; trees: daughters ≈ 104° apart; ½ of junctions < 6° out of plane | Medium–High | Penalize narrow forks (< ~40°) and strongly 3D junctions |
+| B5 | Capillary **segment length** | median ≈ 45–50 µm; mean 45 ± SD 28 µm; 10–200 µm range | High | Score the length distribution |
 | B6 | Capillary **tortuosity** | ≈ 1.2–1.3 (path / chord) | Medium | Score bendiness; > ~2 is suspect |
 | B7 | **Capillary width** is nearly uniform and small | lumen ~2–5 µm (radius median ~2 µm); within-segment SD ≈ 0.4 µm | High | Capillaries carry no usable taper at 0.55 µm/px |
-| B8 | **Murray's law** at arteriole and venule junctions | r₀ᵃ = r₁ᵃ + r₂ᵃ, a ≈ 2.5 (IQR ~1.75–3.7); a = 3 in theory | Medium | A wide prior on non-capillary junctions only |
-| B9 | **Branch angle follows radius** at arteriole junctions | cos θ₁ = (r₀⁴ + r₁⁴ − r₂⁴) / (2 r₀² r₁²); symmetric split ≈ 75° | Low | Weak prior; thin side branches leave near 90° |
-| B10 | **Narrowing gives flow direction only on the arterial side** | arterial: largest branch is upstream; venous: largest branch is downstream | High (direction) / Low (telling sides apart in CD31) | Score orientation consistency, not absolute direction |
+| B8 | **Murray's law** holds only loosely at single junctions | per-junction exponent median ~3.6, IQR 2.3–6.1; larger daughter wider than parent in ~40% | High (that it is loose) | At most a broad prior; the **thinnest** branch is the reliable signal |
+| B9 | Optimal-branching **angle formulas do not predict real angles** | predicted 75–83° between daughters vs measured ≈ 104°; correlation ≈ 0 | High (rejection) | Do not score angles against Murray's angle formula |
+| B10 | **Narrowing gives flow direction only on the arterial side** | arterial: thinnest branch is downstream; venous: thinnest branch is upstream | High (direction) / Low (telling sides apart in CD31) | Score orientation consistency, not absolute direction |
 | B11 | Width changes **at junctions**, not smoothly along a segment | step at each branch point; near-constant between | Low–Medium | Start/end width is a tree-side cue; expect ~0 slope on capillaries |
 | B12 | **Space filling**: no tissue is far from a vessel | mean tissue-to-vessel distance ~10–20 µm; max ~50 µm (cortex) | High | Large empty volumes flag missed vessels |
 | B13 | **Length density** by region | cortex ~0.9–1.0 m/mm³; hippocampus ~0.68, Ammon's horn ~0.65 | High (ratio) / Medium (absolute, fixed tissue) | Sanity range per region; CA1 ≈ ⅔ of cortex |
 | B14 | **CD31 signal is patchy along a vessel** | gaps along real vessels are expected | Medium | Pixel-support checks must tolerate gaps |
 | B15 | A thin slab **cuts most loops open** | loop ~490 µm vs slab ~tens of µm | Low (our inference) | Expect few closed loops; many vessels end at the slab faces |
+| B16 | **No blind ends inside the tissue** | real vessels end only where the volume is cut | Medium–High | An interior dead end is a gap or a spur |
 
 The scale estimates for one of our fields are in [§ Expected amounts in one field](#expected-amounts-in-one-field).
 
@@ -57,44 +58,52 @@ every vessel can be oriented from its high-pressure end to its low-pressure end,
 round and come back to where it started).
 
 **What holds at which scale.**
-- *Pial surface arteries:* loops that span the whole middle-cerebral-artery territory (Blinder 2010).
-- *Penetrating arterioles and venules:* essentially unbranched trunks diving into the cortex; each
-  is a flow bottleneck (Nishimura 2007). Tree-like.
-- *Capillary bed:* an "interconnected mesh" of loops whose topology ignores cortical columns
-  (Blinder 2013); "mesh-like, in contrast to arterioles and venules, which form quasi-fractal
-  hierarchies" (Smith 2019).
+- *Pial surface arteries:* a 2D network of loops, ~4 edges per loop, spanning the whole
+  middle-cerebral-artery territory (Blinder 2010; Blinder 2013 Fig. 2d).
+- *Penetrating arterioles and venules:* long radial trunks that feed and drain the mesh; each is a
+  flow bottleneck (Nishimura 2007). Their side branches form trees with 3–5 diameter orders
+  between the precapillary vessel and the pial origin (Cassot 2010, human).
+- *Capillary bed:* a 3D mesh; network resistance between two points stops growing beyond ~150 µm,
+  the signature of a 3D lattice, and there are no weakly attached sub-networks (Blinder 2013);
+  "mesh-like, in contrast to arterioles and venules, which form quasi-fractal hierarchies" (Smith 2019).
 
 **A caution for scoring.** Any undirected graph can be given an acyclic orientation, so "no
-directed cycle" constrains nothing on its own. It bites only together with B8–B10, which fix the
-orientation of each edge from its widths.
+directed cycle" constrains nothing on its own. It bites only together with B8 and B10, which fix
+the orientation of some edges from their widths.
 
-**Sources.** Blinder et al. 2013, *Nat Neurosci* 16:889 (abstract only, [doi:10.1038/nn.3426](https://doi.org/10.1038/nn.3426)); Blinder et al. 2010, *PNAS* 107:12670 ([PMC2906564](https://pmc.ncbi.nlm.nih.gov/articles/PMC2906564)); Smith et al. 2019, *Front Physiol* 10:233 ([PMC6444172](https://pmc.ncbi.nlm.nih.gov/articles/PMC6444172/)); Nishimura et al. 2007, *PNAS* 104:365 (secondary summary only).
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Blinder et al. 2010, *PNAS* 107:12670 ([PMC2906564](https://pmc.ncbi.nlm.nih.gov/articles/PMC2906564)); Smith et al. 2019, *Front Physiol* 10:233 ([PMC6444172](https://pmc.ncbi.nlm.nih.gov/articles/PMC6444172/)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Nishimura et al. 2007, *PNAS* 104:365 (secondary summary only).
 
 **Confidence.** High.
 
-**Use in scoring.** Never penalize a loop for being a loop. Penalize (a) short loops, per B2, and
-(b) any orientation, derived from widths, that closes a directed cycle.
+**Use in scoring.** Never penalize a loop for being a loop. Penalize (a) a surplus of short loops,
+per B2, and (b) any orientation, derived from widths, that closes a directed cycle.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
-## B2. Real loops are long
+## B2. Loops are mostly long
 
-**Claim.** The shortest loop through a capillary branch is about nine branches long, and a typical
-loop is 10–11 segments and several hundred micrometres around. Two-branch loops are about 1% of loops.
+**Claim.** A typical capillary loop has 8–11 segments and runs several hundred micrometres around.
+Short loops of 2–4 segments do occur, but they are a minority.
 
 **Numbers.**
-- Ji 2021, whole mouse brain: shortest loop 8.97 ± 0.53 branches (mean ± SE); two-branch loops ≈ 0.011 of loops (median); independent loops ≈ N/2 for N nodes.
-- Smith 2019, mouse cortex (7 regions): 11.2 ± 1.2 edges per loop; mean loop length 486 ± 60 µm.
+- Blinder 2013, mouse vibrissa cortex: **mean 8 edges per loop** over 59,909 loops; the histogram
+  (Fig. 2d) runs from 2 to ~15 edges with a mode at 7–8. Read off the figure (approximate): loops
+  of 2, 3, 4, 5 edges are ≈ 4%, 5.5%, 6%, 9% of loops, so **2–4-edge loops ≈ 15%**. Its inset shows
+  an 8-edge loop only a few tens of µm across.
+- Ji 2021, whole mouse brain: the shortest loop through a branch is 8.97 ± 0.53 branches (mean ± SE);
+  two-branch loops ≈ 0.011 of loops (median).
+- Smith 2019, mouse cortex: 11.2 ± 1.2 edges per loop; mean loop length 486 ± 60 µm.
 - Hudetz 1988, rat (cited by Smith 2019): 4–7 capillaries per loop.
 
-**Sources.** Ji et al. 2021, *Neuron* 109:1168 ([PMC8525211](https://pmc.ncbi.nlm.nih.gov/articles/PMC8525211)); Smith et al. 2019 ([PMC6444172](https://pmc.ncbi.nlm.nih.gov/articles/PMC6444172/)).
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji et al. 2021, *Neuron* 109:1168 ([PMC8525211](https://pmc.ncbi.nlm.nih.gov/articles/PMC8525211)); Smith et al. 2019.
 
-**Confidence.** High for mouse cortex. The rat count is shorter, so the floor is soft.
+**Confidence.** High that loops are typically ~8–11 segments. Medium on the short-loop share: the
+sources count loops differently, and Blinder's 2-edge share (~4%) is above Ji's (~1%).
 
-**Use in scoring.** A loop of 2–3 segments is almost certainly a crossing read as two junctions,
-or a duplicate trace of one vessel. Penalize loops under ~4–5 segments or ~150 µm around,
-increasingly as they get shorter. The image that started this research shows several small loops
-of three or four segments in a small area: that is what this invariant rejects.
+**Use in scoring.** Score the **distribution** of loop sizes, not each loop. A graph where short
+loops (≤ 4 segments) are much more than ~15% of loops, or 2-segment loops much more than a few
+percent, is merging crossings or tracing one vessel twice. The image that started this research
+has several 3–4-segment loops in a small area, which is that surplus.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
@@ -102,12 +111,13 @@ Expert: ☐ agree ☐ disagree ☐ comment: ______
 
 **Claim.** Vessel junctions are almost always bifurcations: one vessel splits into two, or two merge into one.
 
-**Numbers.** Ji 2021: degree-3 nodes are 0.968–0.987 of nodes (interquartile range across
-regions); mean degree 3.02 ± 0.02; branches per node 1.529, close to the 3/2 of a pure degree-3
-graph. Smith 2019: 7.2 ± 0.9% of interior vertices in mouse cortex have more than three
-connections (a looser image-processing definition, so treat 7% as the ceiling).
+**Numbers.** Blinder 2013: **0.93 triads, < 0.07 four-way "crosses"**; their adjacency matrix has
+exactly three entries per vertex. Ji 2021: degree-3 nodes are 0.968–0.987 of nodes (interquartile
+range across regions); mean degree 3.02 ± 0.02; branches per node 1.529, close to the 3/2 of a pure
+degree-3 graph. Smith 2019: 7.2 ± 0.9% of interior vertices in mouse cortex have more than three connections.
 
-**Sources.** Ji 2021; Smith 2019 (which also cites Duvernoy and Blinder for "mainly three connections").
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021; Smith 2019. Blinder cites earlier cast and dye studies that found
+microvessels "joined only as triads".
 
 **Confidence.** High.
 
@@ -117,38 +127,47 @@ certainly an artifact (a knot).
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
-## B4. Capillary junction angles are wide
+## B4. Junction angles are wide, and junctions are nearly flat
 
-**Claim.** At a capillary junction the three branches spread out; two branches rarely leave side by side.
+**Claim.** At a junction the three branches spread out, and they lie close to one plane.
 
-**Numbers.** Ji 2021, angles between the three branch tangent vectors at each node (tangent = the
-principal direction of the first 10 skeleton voxels): smallest 84 ± 4°, median 118 ± 2°, largest
-145 ± 3° (means across regions). The full distribution, and so a hard floor, is not given.
+**Numbers.**
+- Ji 2021, all vessels, angles between the three branch tangents (tangent = principal direction of
+  the first 10 skeleton voxels): smallest 84 ± 4°, median 118 ± 2°, largest 145 ± 3° per node (means across regions).
+- Cassot 2010, human arteriolar and venular trees, 9,414 bifurcations, mean ± circular SD:
+  parent–larger daughter **127° ± 27**, parent–smaller daughter **115° ± 26**, between daughters
+  **104° ± 27**. The larger daughter continues straighter than the smaller one, yet still turns ~53°
+  from straight on average. Venular daughters sit closer together than arteriolar ones.
+- Cassot 2010, planarity: **~⅓ of junctions are flat (< 2° out of plane), over half < 6°, ¾ < 20°,
+  under 10% > 50°.**
 
-**Sources.** Ji 2021 ([PMC8525211](https://pmc.ncbi.nlm.nih.gov/articles/PMC8525211)).
+**Sources.** Ji 2021 ([PMC8525211](https://pmc.ncbi.nlm.nih.gov/articles/PMC8525211)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)).
 
-**Confidence.** Medium: one source, means only.
+**Confidence.** Medium–High: two independent sources agree on wide angles (one mouse, one human);
+planarity from one human source.
 
-**Use in scoring.** Penalize a junction whose smallest angle is far below ~84°. A fork under
-~30–40° is more likely one vessel traced twice, or a crossing at a shallow angle. Measure angles
-from tangents over ~5 µm of each branch, as Ji did, not from the end-to-end chord.
+**Use in scoring.** Penalize a junction whose two closest branches are under ~40° apart (more
+likely one vessel traced twice, or a shallow crossing) and one far out of plane. Measure angles from
+tangents just outside the junction (Cassot uses a sphere the size of the widest branch), not from
+end-to-end chords.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
 ## B5. Capillary segment length
 
-**Claim.** A capillary runs about 45 µm between junctions; long unbranched runs are rare.
+**Claim.** A capillary runs about 45–50 µm between junctions; long unbranched runs are rare.
 
-**Numbers.** Ji 2021: median capillary branch length 46 ± 1 µm (somatosensory cortex), 45 ± 1 µm
-(inferior colliculus), 67 ± 3 µm (corpus callosum, a white-matter region); branches under 40 µm
-dominate, over 200 µm are rare. Smith 2019, mouse cortex: mean 44.8 ± 2.4 µm, SD 28.1 µm (straight
-length; tortuous length ~20% longer). Human capillaries are ~34% longer than mouse (Smith 2019).
+**Numbers.** Blinder 2013: lengths **10–200 µm, median 50 µm** (101,992 edges, tortuous length);
+"no edges that spanned hundreds of micrometers". Ji 2021: median capillary branch length 46 ± 1 µm
+(somatosensory cortex), 45 ± 1 µm (inferior colliculus), 67 ± 3 µm (corpus callosum, white
+matter); branches under 40 µm dominate. Smith 2019, mouse cortex: mean 44.8 ± 2.4 µm, SD 28.1 µm
+(straight length; tortuous length ~20% longer). Human capillaries are ~34% longer than mouse (Smith 2019).
 
-**Sources.** Ji 2021; Smith 2019.
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021; Smith 2019.
 
 **Confidence.** High.
 
-**Use in scoring.** Compare the segment-length distribution to a ~45 µm median. Many segments
+**Use in scoring.** Compare the segment-length distribution to a ~45–50 µm median. Many segments
 under ~10 µm mean fragmentation or spurious junctions; a segment over ~200 µm with no branch
 probably hides missed side branches. Segments cut by the slab faces or the image border are
 truncated, so score only interior segments.
@@ -175,6 +194,8 @@ that variation is local (endothelial structure), about as large as the differenc
 capillaries, and not a steady taper in the flow direction.
 
 **Numbers.**
+- Blinder 2013: median and mean microvessel radius **near 2 µm**, constant with cortical depth
+  (gel-filled vessels, size preserved).
 - Ji 2021: mean vessel radius 2.39 µm, median 2.05 µm (whole brain); in-vivo minimum radius
   1.9 ± 0.3 µm; capillaries ≈ 96% of vessel length; capillary cut-off radius 3.5 µm (where the
   radius distribution leaves its power law). Vessels under ~5 µm shrink after perfusion-fixation;
@@ -184,8 +205,9 @@ capillaries, and not a steady taper in the flow direction.
   and venules (first ~1–4 branch orders) are wider than mid-capillaries, and the arterial and venous
   transitions do not differ from each other.
 - Smith 2019 separates arterioles/venules from capillaries at 7.2 µm diameter (mouse).
+- For scale: Blinder's penetrating arterioles have median diameter 11 µm, venules 9 µm.
 
-**Sources.** Ji 2021; "Endothelial structure contributes to heterogeneity in brain capillary
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021; "Endothelial structure contributes to heterogeneity in brain capillary
 diameter", *Vascular Biology* 2023 ([PMC10503221](https://pmc.ncbi.nlm.nih.gov/articles/PMC10503221/)); Smith 2019.
 
 **Confidence.** High.
@@ -197,82 +219,102 @@ trace wider than ~7 µm is either a larger vessel or two vessels side by side.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
-## B8. Murray's law at arteriole and venule junctions
+## B8. Murray's law holds only loosely at a single junction
 
-**Claim.** At a junction of non-capillary vessels, the trunk radius r₀ and branch radii r₁, r₂
-satisfy roughly r₀ᵃ = r₁ᵃ + r₂ᵃ. Murray's minimum-work argument gives a = 3; measured cerebral
-values are lower and widely spread.
+**Claim.** Averaged over many junctions, trunk and branch sizes follow r₀ᵃ ≈ r₁ᵃ + r₂ᵃ with a
+around 3. At any one junction the exponent scatters enormously, and the larger branch is often
+wider than the trunk. The robust fact is narrower: **the thinnest of the three branches is almost
+always a daughter.**
 
 **Numbers.**
-- Murray 1926: a = 3 (theory; equal split → each daughter 0.79 × parent radius).
-- Ji 2021: the vessel radius distribution above r = 3.5 µm follows a power law with exponent
-  −2.81 ± 0.03, which the authors compare to Murray's −3.
-- El-Bouri & Payne, statistical model of human penetrating arterioles and venules: median exponent
-  2.5, interquartile range 1.75–3.7 (secondary summary; human).
-- Arterial bifurcations in brain and other organs: a ≈ 2.5–2.6 (secondary summary).
-- The repo already uses a = 3 (laminar) to ~2.2 (capillary networks) in its spur limit;
-  see `analysis/3D-STACKS.md`, "The spur limit — Murray's law".
+- Cassot 2010, 9,414 human arteriolar and venular bifurcations: per-junction exponent **median 3.58,
+  IQR 2.28–6.14, 5–95% range 1.36–16.33**; arterioles 3.61 vs venules 3.54 (no difference); parent
+  order 1 (next to capillaries) 3.98, orders 2–4 ≈ 2.7–2.9. Area ratios: (A₁+A₂)/A₀ median 1.52, so
+  daughters together are usually wider than the parent (Murray's cap is 1.26; ~¾ exceed it); larger
+  daughter A₁/A₀ median 0.91 and **> 1 in ~40% of junctions**; smaller daughter A₂/A₀ median 0.61 and
+  **> 1 in under 10%**; daughter ratio A₂/A₁ median 0.72.
+- Ji 2021: the radius distribution above r = 3.5 µm follows a power law with exponent −2.81 ± 0.03,
+  which the authors compare to Murray's −3 (a population statistic, not a per-junction one).
+- El-Bouri & Payne, statistical model of human penetrating vessels: median exponent 2.5, IQR
+  1.75–3.7 (secondary summary).
+- Murray 1926 (theory): a = 3. The repo's spur limit also leans on Murray; see
+  `analysis/3D-STACKS.md`, "The spur limit — Murray's law".
 
-**Sources.** Murray CD 1926, *PNAS* 12:207; Ji 2021; El-Bouri & Payne ([Liverpool repository](https://livrepository.liverpool.ac.uk/id/eprint/3134475)); Cassot et al. 2010, *Brain Res* (228 human arteriolar and venular trees; abstract only, exponent not yet read).
+**Sources.** Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Ji 2021; El-Bouri & Payne ([Liverpool repository](https://livrepository.liverpool.ac.uk/id/eprint/3134475)); Murray CD 1926, *PNAS* 12:207.
 
-**Confidence.** Medium for "a between ~2 and 3 on average"; low for any single junction.
+**Confidence.** High that a single junction's exponent is too noisy to score tightly (9,414
+junctions, though from one human brain). The "thinnest branch is a daughter" rule is >90% in that data.
 
-**Use in scoring.** Only at junctions where at least one branch is above capillary size (r > ~3.5 µm).
-Score the fitted exponent with a broad prior centred near 2.5. The corollary is stronger than the
-exponent: with any a > 1, **the trunk is the widest of the three branches**, so a junction whose
-two widest branches are both much wider than the third is a trunk with a side branch, and a junction
-where a thin vessel "feeds" two wide ones is wrong on the arterial side (see B10 for the venous side).
+**Use in scoring.** Do not penalize a junction for missing Murray's law unless it is far outside the
+5–95% range (k < ~1.3 or > ~16). Use the **thinnest-branch rule** instead: at a tree junction, the
+thinnest branch is a daughter, so the trunk is one of the two wider ones. Only apply this to
+non-capillary junctions (r > ~3.5 µm); capillary junctions carry no usable width signal (B7).
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
-## B9. Branch angle follows the radius ratio at arteriole junctions
+## B9. Optimal-branching angle formulas do not predict real angles
 
-**Claim.** In the same minimum-work model, a branch's angle from the trunk direction θ₁ depends on
-the radii: cos θ₁ = (r₀⁴ + r₁⁴ − r₂⁴) / (2 r₀² r₁²). An equal split under a = 3 gives ~37.5° per
-branch, ~75° between them; a very thin side branch leaves at nearly 90°, while the trunk barely bends.
+**Claim.** Minimum-work theory (Murray 1926) predicts each branch's angle from the radii,
+cos θ₁ = (r₀⁴ + r₁⁴ − r₂⁴) / (2 r₀² r₁²), which gives ~75° between equal daughters. Measured cortical
+junctions do not follow this.
 
-**Sources.** Murray CD 1926, *J Gen Physiol* 9:835 (the angle paper); Zamir 1976 and 1978 (other
-optimality principles give similar angles). Formula from background knowledge, not re-read this session.
+**Numbers.** Cassot 2010 applied an energy-minimization angle formula (Frame & Sarelius) to 9,414
+human junctions: predicted angles between daughters fell in a narrow **75–83°** band; measured angles
+average **104°** and spread widely; **the correlation between predicted and measured is close to
+zero**. Ji 2021's mouse junctions (median 118°) are wide too.
 
-**Confidence.** Low: measured angles scatter widely around the optimum, and capillary junctions
-(B4, median ~118°) clearly do not follow it.
+**Sources.** Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Murray CD 1926, *J Gen Physiol* 9:835 (formula from background knowledge).
 
-**Use in scoring.** A weak prior at non-capillary junctions: the widest continuation should be
-nearly straight, and a thin side branch should leave steeply. This is also the rule for which
-branch "continues the vessel" through a junction.
+**Confidence.** High that the formula should not be used for scoring.
+
+**Use in scoring.** Do not score angles against a radius-based optimum. Use the empirical angle
+distributions in B4 instead.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
 ## B10. Narrowing gives flow direction only on the arterial side
 
 **Claim.** Blood runs artery → arterioles → capillaries → venules → veins. On the **arterial** side
-each junction **divides** flow, so vessels narrow downstream. On the **venous** side each junction
-**merges** flow, so vessels **widen** downstream. "Narrowing is the flow direction" is therefore
-true for arterioles and backwards for venules.
+each junction **divides** flow; on the **venous** side each junction **merges** flow. Combined with
+B8, the thinnest branch at a junction is **downstream** on the arterial side and **upstream** on the
+venous side. "Narrowing is the flow direction" is therefore true for arterioles and backwards for venules.
 
-**Sources.** The arterial-tree / venous-tree hierarchy in Smith 2019 and Blinder 2013; Cassot 2010
-(arteriolar and venular trees analysed separately); standard physiology.
+**Numbers that bear on telling the sides apart.**
+- Blinder 2013, mouse: penetrating **venules outnumber arterioles 3.0 : 1**; median diameter
+  **arterioles 11 µm, venules 9 µm**, so in mouse a penetrating venule is not reliably wider. Arteriole
+  side branches peak at layer 4; venule side branches peak near the surface.
+- Cassot 2010, human: venular trees have **~50% more junctions** per tree, and venular daughters sit
+  closer together (smaller angle between them); area ratios differ by only ~5%. The paper sorted
+  trees into arterioles and venules "according to their morphological features" without saying which.
+
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Smith 2019.
 
 **Confidence.** High that the two sides run opposite ways. **Low** that our CD31-only stacks can
-tell an arteriole from a venule: CD31 labels both. Wang 2022 used α-SMA to mark arteries; we have no
-such channel. Width, wall smoothness and straightness are weak cues and are for the expert to confirm.
+tell an arteriole from a venule: CD31 labels both, the widths overlap, and Wang 2022 needed α-SMA to
+mark arteries. Bushier branching and narrower daughter angles are weak hints for venules.
 
-**Use in scoring.** Score **consistency**, not absolute direction: along a connected run of
-non-capillary vessels, every junction should agree with one orientation (all diverging or all
-converging, as seen from the trunk). Mixed signals along one tree mean a misread width or a wrong
-junction. Leave the "artery or vein" label open unless another channel or the owner supplies it.
+**Use in scoring.** Score **consistency**, not absolute direction: along one connected tree, every
+junction's thinnest branch should point the same way relative to the trunk. Mixed signals along one
+tree mean a misread width or a wrong junction. Leave the "artery or vein" label open unless another
+channel or the owner supplies it.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
 ## B11. Width changes at junctions, not smoothly along a segment
 
 **Claim.** In the morphometric models of cortical trees, each segment between junctions has a
-roughly constant diameter, and diameter drops at each branch point. A long arteriole that sheds many
-small side branches therefore looks tapered when the side branches are too small to see.
+roughly constant diameter, and diameter drops at branch points. How much it drops depends on the
+junction: a trunk that sheds a small side branch barely narrows, while a symmetric split narrows
+both daughters clearly. A long arteriole that sheds many small side branches therefore looks
+tapered when the side branches are too small to see.
 
-**Sources.** Our inference from the constant-diameter segment models used for cortical networks
-(Smith 2019 simulates uniform diameters; Cassot 2006/2010 measure diameters per vertex) and from B7.
-No source read this session measures within-segment taper of cortical arterioles directly.
+**Numbers.** Cassot 2010: the larger daughter of a same-order (intra-element) junction "arises
+without tapering", of an asymmetric-lateral junction "with a weak taper", of a symmetric split
+"with a marked taper". Smith 2019 and Blinder 2013 model each edge with a single radius (Blinder's is
+the median along the edge).
+
+**Sources.** Cassot et al. 2010 ([digest](cassot-2010-cortical-branching-patterns/digest.md)); Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Smith 2019. No source read so far measures taper *within* a segment of a
+cortical arteriole directly.
 
 **Confidence.** Low–Medium. This is the first invariant to put to the expert.
 
@@ -358,6 +400,29 @@ biology predicts here.
 
 Expert: ☐ agree ☐ disagree ☐ comment: ______
 
+## B16. No blind ends inside the tissue
+
+**Claim.** In healthy adult cortex every vessel connects at both ends; nothing dead-ends in the
+tissue, and there are no small sub-networks hanging off the main mesh by a single vessel. Within a
+volume, a vessel ends only where the volume itself is cut.
+
+**Numbers.** Blinder 2013: in a graph where every junction has three branches, the fraction that can
+be weakly attached (a tree hanging off one vessel) scales as (log₂N)/N, negligible at N ~ 10⁴ junctions
+per mm³; their community analysis found no near-isolated pockets. Their own extraction found gaps in
+**~5% of vessels** and closed them automatically (Kaufhold 2012, "connecting gaps and deleting
+open-ended segments"). Ji 2021: the largest connected component holds 0.987 of all branches.
+
+**Sources.** Blinder et al. 2013 ([digest](blinder-2013-cortical-angiome/digest.md)); Ji 2021.
+
+**Confidence.** Medium–High for healthy adult tissue. Growing sprouts (development, injury, the
+ischemic samples in Wang 2022) can end blindly.
+
+**Use in scoring.** An endpoint well inside the volume (away from the image border and the slab
+faces) is evidence of a stain gap or a spur: try to bridge it to a nearby end or vessel, or drop the
+stub. Endpoints on the volume's boundary are expected (B15).
+
+Expert: ☐ agree ☐ disagree ☐ comment: ______
+
 ---
 
 ## Expected amounts in one field
@@ -381,19 +446,25 @@ region differences and slab-face truncation each move these numbers by tens of p
 1. Do CD31-stained cortical arterioles taper between branch points, or only step down at them (B11)?
 2. In CD31-only mouse stacks, is there any reliable cue to tell an arteriole from a venule (B10)?
 3. Does capillary flow direction stay fixed, or do individual capillaries reverse? If they reverse,
-   B1's "no directed cycle" holds only at each instant.
+   B1's "no directed cycle" holds only at each instant. (Nguyen et al. 2011, cited by Blinder 2013,
+   reports reversals upstream of an occluded venule; we have nothing on healthy tissue.)
 4. Are CA1 junction angles, segment lengths and loop sizes known to differ from cortex? Every number
    here except density is from cortex.
-5. Is the 7% ceiling for four-way junctions (B3) right for mouse capillaries, or an image-processing artifact in the source?
+5. Is the ~7% ceiling for four-way junctions (B3) real biology, or an extraction artifact? Blinder
+   2013 and Smith 2019 both land near 7%; Ji 2021 suggests fewer.
+6. Cassot 2010's junction statistics are from human temporal cortex in one brain. Do mouse arteriolar
+   junctions have the same spread of Murray exponents and the same wide angles (B4, B8, B9)?
 
-## Papers to ingest next
+## Sources and what was read
 
-Read this session from open full text: Ji 2021, Smith 2019, the 2023 capillary-diameter EM study.
-Abstracts or secondary summaries only: Blinder 2013, Blinder 2010, Nishimura 2007, Cassot 2010,
-El-Bouri & Payne, Shaw 2021. Full `paper-intake` digests (see [`README.md`](README.md)) should follow for:
+Full `paper-intake` digests in this folder: **Blinder et al. 2013** ([digest](blinder-2013-cortical-angiome/digest.md))
+and **Cassot et al. 2010** ([digest](cassot-2010-cortical-branching-patterns/digest.md)), both
+from PDFs supplied by the owner.
 
-- **Ji et al. 2021**, *Neuron* — open; the main quantitative source here.
-- **Smith et al. 2019**, *Front Physiol* — open; loop and distance statistics.
-- **Blinder et al. 2013**, *Nat Neurosci* — **paywalled; needs the owner to download the PDF.**
-- **Cassot et al. 2010**, *Brain Res* — **paywalled; needs the owner to download the PDF.** It holds
-  the measured Murray exponent and angles for cortical arteriolar and venular trees.
+Read from open full text, not yet digested: Ji 2021, Smith 2019, the 2023 capillary-diameter EM
+study. Abstracts or secondary summaries only: Blinder 2010, Nishimura 2007, El-Bouri & Payne,
+Shaw 2021.
+
+Still to digest (both open access): **Ji et al. 2021**, *Neuron*, the main source for degree,
+length, angles, radius and density; **Smith et al. 2019**, *Front Physiol*, for loop and
+tissue-distance statistics.
