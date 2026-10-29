@@ -7,6 +7,7 @@ PDF never has to be reopened, and every figure extracted and described.
 references/
   README.md                  <- you are here: the paper index
   METHODS-SYNTHESIS.md       <- cross-paper: what the literature does vs what we adopted
+  BIOLOGY-INVARIANTS.md      <- what a real vessel graph must look like: scoring invariants, for expert sign-off
   _tools/extract_pdf_assets.py
   <paper-slug>/
     <paper-slug>.pdf         the original article
