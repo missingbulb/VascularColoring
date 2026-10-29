@@ -13,4 +13,5 @@ next step. These are the authoritative working rules for this project — honor 
 The source literature lives in [`references/`](references/README.md), one self-contained folder per
 paper: **read the paper's `digest.md`, not the PDF** — the digests exist so the PDFs never have to be
 reopened. [`references/METHODS-SYNTHESIS.md`](references/METHODS-SYNTHESIS.md) carries the
-cross-paper method decisions. **Adding an article? Follow the `paper-intake` skill.**
+cross-paper method decisions, and [`references/BIOLOGY-INVARIANTS.md`](references/BIOLOGY-INVARIANTS.md)
+the biology a correct vessel graph must obey (the scoring invariants, pending expert sign-off). **Adding an article? Follow the `paper-intake` skill.**

@@ -158,6 +158,16 @@ its straightest pair of branches, so two vessels that only cross sit apart in de
 aid, not a detector: closer than the 4 to 6 slices a vessel spans, two vessels touch from every
 angle. Any of the view buttons shows the whole stack again.
 
+**Moving around the view (owner, 2026-10-29).** Dragging turns the view about the centre of the
+screen, wherever panning has put it, and the stack's three axes are drawn there, a fixed size, as the
+one thing that stays put while the view turns. A wheel or pinch zooms, a sideways scroll pans left and
+right, and shift-drag or right-drag pans. The stage carries no instructions of its own. The model's
+points, the handles that are dragged to correct it, appear only once the view is zoomed in to twice
+the whole-stack view, so the opening picture is the vessels alone; until then a point cannot be
+picked, and segments still can. While a point is dragged, every other handle is hidden and the stack
+and the model away from it fade, leaving clear what lies within reach of the point (its farthest
+neighbour, and at least 60 px).
+
 The **Items** tab takes the model apart into its units of work, the way NOR Finder reviews each
 candidate on its own: a card for every junction (three or more live branches, so one that waits on
 a candidate's review is listed and marked) and every vessel (an edge from a junction or tip to the

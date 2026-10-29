@@ -146,7 +146,6 @@ body.over #view { border-color: var(--accent); }
 #mcv.connecting { cursor: crosshair; }
 #hud { pointer-events: none; }
 /* text over the black stage keeps light colours in either theme */
-.hint-over { position: absolute; left: 10px; right: 10px; bottom: 8px; font-size: 11px; color: #9aa0a8; pointer-events: none; }
 .tag { position: absolute; left: 10px; top: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #9aa0a8; pointer-events: none; }
 .stage .tag.mark { color: var(--mark); }
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3D MicroViewer</title>
 <meta name="description" content="Open a confocal z-stack in the browser and turn it in 3D.">
-<meta name="version" id="site-version" title="version 0.11028.30">
+<meta name="version" id="site-version" title="version 0.11029.31">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <script>
@@ -137,12 +137,10 @@
           <div class="stage" id="stage">
             <canvas id="gl"></canvas>
             <canvas id="hud"></canvas>
-            <div class="hint-over" id="stage-hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
             <div class="tag" id="tag-stack" hidden>Stack</div>
           </div>
           <div class="stage" id="stage-model" hidden>
             <canvas id="mcv"></canvas>
-            <div class="hint-over">drag a point: move it · click a faded vessel: approve or decline · right-click: delete or split · right-drag from one piece to another: connect them</div>
             <div class="tag">Model</div>
           </div>
         </div>
