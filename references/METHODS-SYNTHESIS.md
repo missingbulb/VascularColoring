@@ -4,8 +4,10 @@
 > This is the bridge from reading to pipeline work: the per-paper digests hold the detail, this
 > holds the *decisions*. Current pipeline: [`analysis/measure_vessels.py`](../analysis/measure_vessels.py).
 
-**Papers folded in:** all six — wang-2022, rust-2020, freitas-andrade-2022, stefanitsch-2015,
-hill-2020, bizou-2026. **Rust's supplementary toolbox is in the repo**, which closed the last
+**Papers folded in:** all eight — wang-2022, rust-2020, freitas-andrade-2022, stefanitsch-2015,
+hill-2020, bizou-2026, blinder-2013, cassot-2010. The last two are biology references for scoring a
+vessel *graph*, not methods for the pixel pipeline; their numbers live in
+[`BIOLOGY-INVARIANTS.md`](BIOLOGY-INVARIANTS.md), and only the cautions below are folded in here. **Rust's supplementary toolbox is in the repo**, which closed the last
 open parameter gaps and made a direct method-vs-method comparison possible (§3.1).
 
 ---
@@ -213,6 +215,12 @@ use. Neither has been read yet.
 - **2-D projection under-states tortuosity by ~35%** (Freitas-Andrade: 0.93 in 2-D vs 1.4 in 3-D
   on the same samples), and **crossings in projection are miscounted as bifurcations** — a
   published warning that lands squarely on our COUNT metric, since every panel we have is 2-D.
+- **Murray's law is a population trend, not a per-junction rule.** Cassot (human, 9,414
+  bifurcations) finds the per-junction exponent spread over 1.4–16 (5–95%) and the larger daughter
+  wider than the parent in ~40% of junctions. Any width-based rule at one junction (spur limits,
+  trunk choice, flow direction) should lean on the *thinnest* branch, which is a daughter > 90% of the time.
+- **Short loops are real but rare.** Blinder's mouse loops average 8 edges with ~15% at 2–4 edges;
+  a graph whose loops are mostly that short is merging crossings.
 - **Section thickness decides whether connectivity means anything.** 5 µm paraffin (Rust's human
   panels, Hill's histology) shows isolated cross-sections, where branch and junction counts are
   meaningless and only area fraction is reported. 80 µm (Wang) and 25–150 µm (Freitas-Andrade)

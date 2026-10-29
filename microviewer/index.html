@@ -137,12 +137,10 @@
           <div class="stage" id="stage">
             <canvas id="gl"></canvas>
             <canvas id="hud"></canvas>
-            <div class="hint-over" id="stage-hint">drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom</div>
             <div class="tag" id="tag-stack" hidden>Stack</div>
           </div>
           <div class="stage" id="stage-model" hidden>
             <canvas id="mcv"></canvas>
-            <div class="hint-over">drag a point: move it · click a dashed vessel: approve or decline · right-click: delete or split · right-drag from one piece to another: connect them</div>
             <div class="tag">Model</div>
           </div>
         </div>
@@ -216,7 +214,7 @@
           <button type="button" data-v="missed" aria-pressed="false">Missed</button>
         </div>
         <p class="note" id="review-note">The whole stack.</p>
-        <label class="row" id="reach-row" hidden>Reach beyond the vessel wall <output id="reach-o"></output><input type="range" id="reach" min="0" max="10" step="0.5" value="2"></label>
+        <label class="row" id="reach-row" hidden>Reach beyond the vessel wall <output id="reach-o"></output><input type="range" id="reach" min="0" max="200" step="5" value="50"></label>
         <div class="views"><button type="button" id="m-draw" aria-pressed="false">Draw a missed vessel</button></div>
         <p class="note" id="draw-note"></p>
         <div class="views"><button type="button" id="m-lasso" aria-pressed="false">Mark a damaged area</button></div>

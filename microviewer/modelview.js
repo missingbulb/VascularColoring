@@ -22,10 +22,16 @@ const OVERLAY = '#ff4fd8';
 const DENSE = '#ffb020';
 // areas left out of the analysis are hatched in grey: damage has no colour of its own to compete with
 const EXCLUDED = '#b8b8b8';
+// The points are handles to drag, shown only once the view is zoomed this far in from the whole stack,
+// so the opening picture is the vessels alone.
+const HANDLES_ZOOM = 2;
+// While a point is dragged the rest of the picture fades: what lies within reach of it (the farthest of
+// its neighbours, times SPOT_REACH, and at least SPOT_MIN_PX) stays clear, the rest drops to FADED.
+const SPOT_REACH = 1.25, SPOT_MIN_PX = 60, FADED = .15;
 
 let model = null, loaded = null, history = [], future = [], edits = 0, savedKey = null;
 let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true, showWidths = true;
-let review = 'all', reach = 2, maskKey = null, maskTimer = null, drawing = null, lasso = null;
+let review = 'all', reach = .5, maskKey = null, maskTimer = null, drawing = null, moving = null, lasso = null;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage: edits live until the page closes */ } },
@@ -90,6 +96,15 @@ function hatching(c) {
   h.beginPath(); h.moveTo(0, 8); h.lineTo(8, 0); h.stroke();
   return c.createPattern(hatch, 'repeat');
 }
+const handles = () => V.S.dist <= V.FIT_DIST / HANDLES_ZOOM;
+// how clearly a line is drawn while a point is dragged: whole near the point, faded away from it
+function nearness(line) {
+  const sp = V.S.spot;
+  if (!sp) return 1;
+  const x = sp.x * view.W, y = sp.y * view.H, r = sp.r * view.H;
+  const d = Math.min(...line.map((q) => Math.hypot(q[0] - x, q[1] - y)));
+  return d <= r ? 1 : Math.max(FADED, 1 - (1 - FADED) * (d - r) / (r / 2));
+}
 
 function draw() {
   if (!model || mode === 'off' || !V.meta || !cv.clientWidth) return;
@@ -120,7 +135,7 @@ function draw() {
     c.strokeStyle = lit ? '#fff' : colour((model.nodes.get(s.a).z + model.nodes.get(s.b).z) / 2);
     // over the stack the lines stay thin and let the signal under them show through
     // a vessel in a damaged area is out of the analysis, and fades
-    c.globalAlpha = lit ? 1 : (mode === 'overlay' ? .7 : 1) * (unsure ? .8 : 1) * (inDamage(i) ? .3 : 1);
+    c.globalAlpha = (lit ? 1 : (mode === 'overlay' ? .7 : 1) * (unsure ? .8 : 1) * (inDamage(i) ? .3 : 1)) * nearness(line);
     c.lineWidth = lit ? 3 : mode === 'overlay' ? 1.1 : 1.5;
     c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
     const r = showWidths && view.widths.get(i);
@@ -138,14 +153,16 @@ function draw() {
       }
     }
   }
-  c.globalAlpha = 1; c.setLineDash([6, 4]); c.strokeStyle = DENSE; c.lineWidth = 1.5;
+  c.globalAlpha = V.S.spot ? FADED : 1; c.setLineDash([6, 4]); c.strokeStyle = DENSE; c.lineWidth = 1.5;
   for (const b of view.boxes) { c.beginPath(); b.forEach((q, k) => (k ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); c.stroke(); }
   c.setLineDash([]);
   const outline = (q) => { c.beginPath(); q.forEach((p, k) => (k ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); };
   for (const a of view.areas) { outline(a); c.fillStyle = hatching(c); c.fill(); c.strokeStyle = EXCLUDED; c.lineWidth = 1.2; c.stroke(); }
   if (lasso?.pts.length > 1) { c.setLineDash([5, 4]); c.strokeStyle = '#fff'; c.lineWidth = 1.5; outline(lasso.pts); c.stroke(); c.setLineDash([]); }
   c.globalAlpha = 1;
+  // the handles: none in the opening view, and only the one being dragged while it moves
   for (const n of model.nodes.values()) {
+    if (moving != null ? n.id !== moving : !handles()) continue;
     const p = pts.get(n.id), v = seen.get(n.id) || 0; if (!p || !v || !inSlab(n)) continue;
     const d = deg.get(n.id) || 0, hot = hover?.node === n.id;
     c.beginPath();
@@ -174,6 +191,7 @@ function draw() {
     c.setLineDash([5, 4]); c.strokeStyle = '#fff'; c.lineWidth = 1.5;
     c.beginPath(); c.moveTo(...rubber.from); c.lineTo(...rubber.to); c.stroke(); c.setLineDash([]);
   }
+  if (mode === 'side') V.axes(c, view.vp, view.W, view.H);
   if (Z !== model.slices) {
     c.font = '12px "IBM Plex Mono", monospace'; c.fillStyle = '#e8b04a';
     c.fillText(`model has ${model.slices} slices, stack has ${Z}`, 10, 26);
@@ -186,7 +204,7 @@ function pick(e, segmentsOnly = false) {
   const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   let best = null, bd = PICK_POINT_PX;
   const on = Mo.degrees(model, visible);
-  if (!segmentsOnly) for (const [id, p] of view.pts) {
+  if (!segmentsOnly && handles()) for (const [id, p] of view.pts) {
     if (!on.get(id) || !inSlab(model.nodes.get(id))) continue;
     const d = Math.hypot(p[0] - x, p[1] - y);
     if (d < bd) { bd = d; best = { node: id }; }
@@ -258,17 +276,20 @@ function grab(e) {
   if (e.button === 0 && !e.shiftKey && h?.node != null && !drawing) {
     const base = model, id = h.node, ndcZ = view.pts.get(id)[3];
     let moved = false;
+    const done = () => { moving = null; V.S.spot = null; };
     return {
       move(ev) {
-        const r = cv.getBoundingClientRect();
-        const nx = (ev.clientX - r.left) / view.W * 2 - 1, ny = 1 - (ev.clientY - r.top) / view.H * 2;
+        const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+        const nx = x / view.W * 2 - 1, ny = 1 - y / view.H * 2;
+        const far = Math.max(0, ...Mo.neighbours(base, id).map((k) => view.pts.get(k)).filter(Boolean).map((q) => Math.hypot(q[0] - x, q[1] - y)));
+        moving = id; V.S.spot = { x: x / view.W, y: y / view.H, r: Math.max(SPOT_MIN_PX, SPOT_REACH * far) / view.H };
         const w = V.M.xf(V.M.inv(view.vp), [nx, ny, ndcZ]);
         const next = Mo.moveNode(base, id, fromWorld([w[0] / w[3], w[1] / w[3], w[2] / w[3]]));
         if (!moved) { moved = true; history.push(base); future = []; edits++; }
         model = next; V.redraw();
       },
-      up(ev) { if (moved) changed(); else clicked(ev); },
-      cancel() { if (moved) changed(); },
+      up(ev) { done(); if (moved) changed(); else clicked(ev); V.redraw(); },
+      cancel() { done(); if (moved) changed(); V.redraw(); },
     };
   }
   if (e.button === 2) {
@@ -397,7 +418,7 @@ export function frame(ids, marginUm = 10) {
   const lo = toWorld({ x: Math.min(...ps.map((p) => p.x)) - um, y: Math.max(...ps.map((p) => p.y)) + um, z: 0 });
   const hi = toWorld({ x: Math.max(...ps.map((p) => p.x)) + um, y: Math.min(...ps.map((p) => p.y)) - um, z: 0 });
   const h = Math.max(hi[0] - lo[0], hi[1] - lo[1]) / 2;
-  Object.assign(V.S, { yaw: 0, pitch: 0, clip: [lo[0], lo[1], hi[0], hi[1]], pan: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2], dist: Math.max(.15, h * 5) });
+  Object.assign(V.S, { yaw: 0, pitch: 0, clip: [lo[0], lo[1], hi[0], hi[1]], pivot: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, 0], dist: Math.max(.15, h * 5) });
   if (mode === 'side') setMode('overlay');
   V.redraw();
 }
@@ -424,7 +445,7 @@ function refreshMask(now) {
   const key = [model, showCandidates, reach, V.S.zs];
   if (maskKey && key.every((v, k) => v === maskKey.key[k])) return V.setMask(maskKey.mask, review);
   maskTimer = setTimeout(() => {
-    const mask = coverage(model, V.meta.shape, { zStepUm: V.S.zs, marginUm: reach, which: visible });
+    const mask = coverage(model, V.meta.shape, { zStepUm: V.S.zs, reachOfWidth: reach, which: visible });
     maskKey = { key, mask }; V.setMask(mask, review);
   }, now ? 0 : 150);
 }
@@ -470,9 +491,6 @@ function setMode(m) {
   $('tag-stack').hidden = !side;
   if (m === 'overlay') $('stage').append(cv); else $('stage-model').prepend(cv);
   cv.hidden = m === 'off' || !model;
-  $('stage-hint').textContent = m === 'overlay' && model
-    ? 'drag a point: move it · click a dashed vessel: approve or decline · right-click: delete or split · right-drag between pieces: connect · drag elsewhere: rotate'
-    : 'drag: rotate · shift-drag or two fingers: pan · wheel or pinch: zoom';
   V.redraw();
 }
 
@@ -578,8 +596,8 @@ export function init() {
   $('model-draft').onclick = loadDraft;
   $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; refreshMask(); V.redraw(); };
   $('review-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setReview(b.dataset.v); });
-  const reachOut = () => { $('reach-o').value = `${reach.toFixed(1)} µm`; };
-  $('reach').addEventListener('input', (e) => { reach = +e.target.value; reachOut(); refreshMask(); });
+  const reachOut = () => { $('reach-o').value = `${Math.round(reach * 100)}% of its width`; };
+  $('reach').addEventListener('input', (e) => { reach = e.target.value / 100; reachOut(); refreshMask(); });
   reachOut();
   $('zs').addEventListener('input', () => refreshMask());
   $('m-draw').onclick = () => setDrawing(!drawing);

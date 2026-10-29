@@ -161,6 +161,16 @@ its straightest pair of branches, so two vessels that only cross sit apart in de
 aid, not a detector: closer than the 4 to 6 slices a vessel spans, two vessels touch from every
 angle. Any of the view buttons shows the whole stack again.
 
+**Moving around the view (owner, 2026-10-29).** Dragging turns the view about the centre of the
+screen, wherever panning has put it, and the stack's three axes are drawn there, a fixed size, as the
+one thing that stays put while the view turns. A wheel or pinch zooms, a sideways scroll pans left and
+right, and shift-drag or right-drag pans. The stage carries no instructions of its own. The model's
+points, the handles that are dragged to correct it, appear only once the view is zoomed in to twice
+the whole-stack view, so the opening picture is the vessels alone; until then a point cannot be
+picked, and segments still can. While a point is dragged, every other handle is hidden and the stack
+and the model away from it fade, leaving clear what lies within reach of the point (its farthest
+neighbour, and at least 60 px).
+
 The **Items** tab takes the model apart into its units of work, the way NOR Finder reviews each
 candidate on its own: a card for every junction (three or more live branches, so one that waits on
 a candidate's review is listed and marked) and every vessel (an edge from a junction or tip to the
@@ -181,8 +191,9 @@ and measure them, and one keeping only the rest, to find what was missed. Once a
 **Review** box offers **Everything**, **Detected** (only the signal within reach of a shown vessel)
 and **Missed** (only the signal away from every shown vessel; whatever bright line is left is a
 vessel the model does not have). Within reach means inside a tube along each curve of the vessel's
-own radius `r` plus **Reach beyond the vessel wall** (default 2 µm), reaching as far in depth at the
-slice spacing the view draws; a point without a radius takes the model's median. Hidden candidates
+own radius `r` plus **Reach beyond the vessel wall**, a share of that vessel's own width from 0% to
+200% (default 50%), so a narrow vessel allows fewer pixels of error than a thick one (owner,
+2026-10-29; it was a fixed 2 µm before), reaching as far in depth at the slice spacing the view draws; a point without a radius takes the model's median. Hidden candidates
 and declined vessels cover nothing. Both renders, both flattened pictures and the depth picking
 below honour the review. Hovering a vessel shows its width (⌀ = 2 r) there.
 **Draw a missed vessel** places a new vessel a click at a time: a click on an existing point or

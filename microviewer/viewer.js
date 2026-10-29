@@ -119,8 +119,13 @@ void main(){
 const LOOK = { lo: .63, hi: 1, iso: .35 };
 const CHANNEL_KEY = 'mv-channel';
 
+// The camera turns about `pivot`, the world point at the centre of the screen, and stands `dist` from
+// it; FIT_DIST shows the whole stack.
+export const FIT_DIST = 4.4;
+// `spot`, while one piece of the picture is being worked on, is where it sits on the screen (x and y as
+// fractions of the width and height, r of the height): the stack away from it is dimmed.
 export const S = { mode: 0, chan: 0, overlay: 0, depth: 1, ...LOOK, z0: 0, z1: 0, zs: 1, slice: 0,
-            yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], clip: null, dragging: false };
+            yaw: 0, pitch: 0, dist: FIT_DIST, pivot: [0, 0, 0], clip: null, dragging: false, spot: null };
 export let meta = null, half = [1, 1, .1];
 let vols = [], gl, U = {}, tex = [], dirty = true, bound = false, mask = null, keepSide = 0;
 const drawers = [];
@@ -190,14 +195,21 @@ function geometry() {
 }
 
 const TAN_HALF_FOV = Math.tan(15 * Math.PI / 180);
+// the screen's right and up directions in the world
+const screenAxes = () => ({ right: [Math.cos(S.yaw), 0, -Math.sin(S.yaw)],
+  up: [-Math.sin(S.pitch) * Math.sin(S.yaw), Math.cos(S.pitch), -Math.sin(S.pitch) * Math.cos(S.yaw)] });
 export function camera(asp) {
   const cp = Math.cos(S.pitch), e = [S.dist * cp * Math.sin(S.yaw), S.dist * Math.sin(S.pitch), S.dist * cp * Math.cos(S.yaw)];
-  const right = [Math.cos(S.yaw), 0, -Math.sin(S.yaw)];
-  const up = [-Math.sin(S.pitch) * Math.sin(S.yaw), Math.cos(S.pitch), -Math.sin(S.pitch) * Math.cos(S.yaw)];
-  const tgt = [S.pan[0] * right[0] + S.pan[1] * up[0], S.pan[0] * right[1] + S.pan[1] * up[1], S.pan[0] * right[2] + S.pan[1] * up[2]];
-  const eye = e.map((v, i) => v + tgt[i]);
-  return M.mul(M.persp(2 * Math.atan(TAN_HALF_FOV), asp, 0.05, 50), M.look(eye, tgt, up));
+  const eye = e.map((v, i) => v + S.pivot[i]);
+  return M.mul(M.persp(2 * Math.atan(TAN_HALF_FOV), asp, 0.05, 50), M.look(eye, S.pivot, screenAxes().up));
 }
+// Slides the pivot across the screen by (dx, dy) world units at its own depth, right and up.
+function pan(dx, dy) {
+  const { right, up } = screenAxes();
+  S.pivot = S.pivot.map((v, i) => v + dx * right[i] + dy * up[i]);
+}
+// world units per screen pixel at the pivot's depth, on a canvas `h` pixels high
+const perPx = (h) => 2 * TAN_HALF_FOV * S.dist / h;
 
 function render() {
   dirty = false;
@@ -233,17 +245,47 @@ function hud(vp) {
   const edges = [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
   c.strokeStyle = 'rgba(79,209,217,.45)'; c.lineWidth = 1;
   const pc = corners.map(P);
-  if (pc.some(p => p[2] <= 0)) return;
-  c.beginPath(); for (const [a, b] of edges) { c.moveTo(pc[a][0], pc[a][1]); c.lineTo(pc[b][0], pc[b][1]); } c.stroke();
-  c.font = '11px "IBM Plex Mono", monospace'; c.fillStyle = 'rgba(216,225,231,.85)';
-  const um = meta.um_per_px, X = meta.shape[2];
-  const mid = (a, b) => [(pc[a][0] + pc[b][0]) / 2, (pc[a][1] + pc[b][1]) / 2];
-  const [xm, ym] = mid(1, 5);
-  c.fillText(um ? `${Math.round(X * um)} µm` : `${X} px`, xm + 4, ym + 14);
-  const [zx, zy] = mid(4, 5);
-  const n = S.z1 - S.z0 + 1;
-  const zt = `${n} slices · ${(n * S.zs).toFixed(0)} µm${meta.z_step_um ? '' : ' (spacing guessed)'}`;
-  c.fillText(zt, Math.min(Math.max(zx + 6, 4), W - c.measureText(zt).width - 4), Math.min(Math.max(zy, 14), H - 24));
+  if (!pc.some(p => p[2] <= 0)) {
+    c.beginPath(); for (const [a, b] of edges) { c.moveTo(pc[a][0], pc[a][1]); c.lineTo(pc[b][0], pc[b][1]); } c.stroke();
+    c.font = '11px "IBM Plex Mono", monospace'; c.fillStyle = 'rgba(216,225,231,.85)';
+    const um = meta.um_per_px, X = meta.shape[2];
+    const mid = (a, b) => [(pc[a][0] + pc[b][0]) / 2, (pc[a][1] + pc[b][1]) / 2];
+    const [xm, ym] = mid(1, 5);
+    c.fillText(um ? `${Math.round(X * um)} µm` : `${X} px`, xm + 4, ym + 14);
+    const [zx, zy] = mid(4, 5);
+    const n = S.z1 - S.z0 + 1;
+    const zt = `${n} slices · ${(n * S.zs).toFixed(0)} µm${meta.z_step_um ? '' : ' (spacing guessed)'}`;
+    c.fillText(zt, Math.min(Math.max(zx + 6, 4), W - c.measureText(zt).width - 4), Math.min(Math.max(zy, 14), H - 24));
+  }
+  if (S.spot) {
+    const x = S.spot.x * W, y = S.spot.y * H, r = S.spot.r * H, g = c.createRadialGradient(x, y, r * .8, x, y, r * 1.5);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${SPOT_DIM})`);
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+  axes(c, vp, W, H);
+}
+// how dark the stack is away from the spot being worked on
+const SPOT_DIM = .7;
+
+// The stack's own three axes through the pivot, the one point that stays put while the view turns,
+// a fixed size on the screen: dark under light, so they read over any signal.
+const AXIS_PX = 34;
+export function axes(c, vp, W, H) {
+  const P = (p) => { const v = M.xf(vp, p); return v[3] > 0 ? [(v[0] / v[3] + 1) / 2 * W, (1 - v[1] / v[3]) / 2 * H] : null; };
+  const L = AXIS_PX * perPx(H), o = S.pivot;
+  // image x runs to the right, image y down the picture and slices deeper, the way the file numbers them
+  const ends = [['x', [L, 0, 0]], ['y', [0, -L, 0]], ['z', [0, 0, -L]]]
+    .map(([t, d]) => [t, P(o.map((v, i) => v - d[i])), P(o.map((v, i) => v + d[i]))]);
+  if (ends.some(([, a, b]) => !a || !b)) return;
+  c.save(); c.lineCap = 'round';
+  for (const [w, s] of [[3, 'rgba(0,0,0,.55)'], [1.2, 'rgba(225,232,238,.8)']]) {
+    c.lineWidth = w; c.strokeStyle = s; c.beginPath();
+    for (const [, a, b] of ends) { c.moveTo(...a); c.lineTo(...b); }
+    c.stroke();
+  }
+  c.font = '10px "IBM Plex Mono", monospace'; c.fillStyle = 'rgba(225,232,238,.8)';
+  for (const [t, , b] of ends) c.fillText(t, b[0] + 3, b[1] - 3);
+  c.restore();
 }
 
 export function lut2d(v, z, v2) {
@@ -335,7 +377,7 @@ function bind() {
   $('z1').addEventListener('input', (e) => { S.z1 = Math.max(+e.target.value, S.z0); e.target.value = S.z1; onFlat(); });
   $('zs').addEventListener('input', (e) => { S.zs = +e.target.value; sync(); });
   $('sl').addEventListener('input', (e) => { S.slice = +e.target.value; flat(); });
-  const view = (yaw, pitch) => () => { Object.assign(S, { yaw, pitch, pan: [0, 0], clip: null, dist: Math.max(S.dist, 2) }); dirty = true; };
+  const view = (yaw, pitch) => () => { Object.assign(S, { yaw, pitch, pivot: [0, 0, 0], clip: null, dist: Math.max(S.dist, 2) }); dirty = true; };
   $('v-top').onclick = view(0, 0); $('v-tilt').onclick = view(-.5, -.6);
   $('v-side').onclick = view(Math.PI / 2, 0); $('v-front').onclick = view(0, Math.PI / 2 - .001);
 
@@ -344,11 +386,11 @@ function bind() {
   requestAnimationFrame(loop);
 }
 
-// Drag to rotate, shift-drag or right-drag to pan, wheel or pinch to zoom, on any canvas that shows
-// the stack's camera. grab(e), when given, sees each press first and may take that pointer over by
-// returning {move(e), up(e), cancel()}.
+// Drag to turn about the centre of the screen, shift-drag or right-drag to pan, wheel or pinch to zoom,
+// sideways scroll to pan sideways, on any canvas that shows the stack's camera. grab(e), when given,
+// sees each press first and may take that pointer over by returning {move(e), up(e), cancel()}.
 // grab(e) may take a pointer over for its own drag; click(e) hears a left press that let go where it began.
-const CLICK_PX = 4, MIN_DIST = .15;
+const CLICK_PX = 4, MIN_DIST = .15, WHEEL_LINE_PX = 16;
 export function controls(cv, grab, click) {
   const pts = new Map(), own = new Map(), down = new Map();
   let last = null;
@@ -376,13 +418,19 @@ export function controls(cv, grab, click) {
     if (pts.size === 2) {
       const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
       if (last) zoomAt(cv, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, S.dist * last / d);
-      last = d; S.pan[0] -= dx * k * S.dist / 6; S.pan[1] += dy * k * S.dist / 6;
-    } else if (e.shiftKey || e.buttons === 2) { S.pan[0] -= dx * k * S.dist / 3; S.pan[1] += dy * k * S.dist / 3; }
+      last = d; pan(-dx * k * S.dist / 6, dy * k * S.dist / 6);
+    } else if (e.shiftKey || e.buttons === 2) pan(-dx * k * S.dist / 3, dy * k * S.dist / 3);
     else { S.yaw -= dx * .008; S.pitch = Math.min(Math.max(S.pitch + dy * .008, -Math.PI / 2 + .001), Math.PI / 2 - .001); }
     dirty = true;
   });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
-  cv.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(cv, e.clientX, e.clientY, S.dist * Math.exp(e.deltaY * .001)); dirty = true; }, { passive: false });
+  cv.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const line = e.deltaMode === 1 ? WHEEL_LINE_PX : 1;
+    if (e.deltaY) zoomAt(cv, e.clientX, e.clientY, S.dist * Math.exp(e.deltaY * line * .001));
+    if (e.deltaX) pan(e.deltaX * line * perPx(cv.clientHeight), 0);
+    dirty = true;
+  }, { passive: false });
   new ResizeObserver(() => { dirty = true; }).observe(cv);
 }
 
@@ -391,8 +439,7 @@ export function controls(cv, grab, click) {
 function zoomAt(cv, x, y, to) {
   to = Math.min(Math.max(to, MIN_DIST), 12);
   const r = cv.getBoundingClientRect(), k = TAN_HALF_FOV * (S.dist - to);
-  S.pan[0] += ((x - r.left) / r.width * 2 - 1) * (r.width / r.height) * k;
-  S.pan[1] += (1 - (y - r.top) / r.height * 2) * k;
+  pan(((x - r.left) / r.width * 2 - 1) * (r.width / r.height) * k, (1 - (y - r.top) / r.height * 2) * k);
   S.dist = to;
 }
 
@@ -404,9 +451,8 @@ export function focus(at, halfWidth, along) {
   let p = along + Math.PI / 2;   // look across the vessel, from whichever side keeps the pitch level
   p = Math.atan2(Math.sin(p), Math.cos(p)); if (p > Math.PI / 2) p -= Math.PI; if (p < -Math.PI / 2) p += Math.PI;
   p = Math.min(Math.max(p, -Math.PI / 2 + .001), Math.PI / 2 - .001);
-  const up = [-Math.sin(p), Math.cos(p)];
   Object.assign(S, { yaw: Math.PI / 2, pitch: p, clip: [at[0] - h, at[1] - h, at[0] + h, at[1] + h],
-    pan: [-at[2], up[0] * at[0] + up[1] * at[1]], dist: Math.max(MIN_DIST, h * 5) });
+    pivot: [...at], dist: Math.max(MIN_DIST, h * 5) });
   dirty = true;
 }
 // The brightest shown voxel on the line of sight through a point of a canvas (ndc -1..1) of aspect
@@ -445,7 +491,7 @@ export function show(name, m, v) {
   initGL();
   meta = m; vols = v;
   const [Z, Y, X] = meta.shape;
-  Object.assign(S, { z0: 0, z1: Z - 1, yaw: 0, pitch: 0, dist: 4.4, pan: [0, 0], clip: null });
+  Object.assign(S, { z0: 0, z1: Z - 1, yaw: 0, pitch: 0, dist: FIT_DIST, pivot: [0, 0, 0], clip: null });
   let saved = null;
   try { saved = localStorage.getItem(CHANNEL_KEY); } catch { /* no storage */ }
   S.chan = saved != null && +saved < vols.length ? +saved : 0;
