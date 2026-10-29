@@ -11,4 +11,7 @@ __pycache__/
 *.pyc
 
 # raw confocal data, fetched from Drive (python3 analysis/fetch_data.py), never committed
-/data/raw/
+/data/raw
+
+# extraction lab runs (regenerate with: python3 analysis/extraction/lab.py cmp)
+/analysis/extraction/runs/
