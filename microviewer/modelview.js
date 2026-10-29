@@ -1,7 +1,8 @@
 // The vessel model beside or over the stack, in the stack's own camera, and the owner's corrections to
 // it: drag a point to move it, right-click a segment or a point to delete it or split a junction,
 // right-drag from one piece to another to connect them, click a faded low-confidence vessel to
-// approve or decline it. The corrected model downloads as JSON.
+// approve or decline it, lasso an area of damaged sample to leave it out of the analysis. The corrected
+// model downloads as JSON.
 //
 // The review narrows the stack to what the model accounts for: Detected keeps only the signal around
 // the model's vessels, to check and measure them; Missed keeps only the signal away from them, to find
@@ -19,6 +20,8 @@ const PICK_POINT_PX = 9, PICK_SEGMENT_PX = 6, DRAG_PX = 5;
 const OVERLAY = '#ff4fd8';
 // knots of junctions the extractor marked as probably traced wrong, in amber: none of the other colours
 const DENSE = '#ffb020';
+// areas left out of the analysis are hatched in grey: damage has no colour of its own to compete with
+const EXCLUDED = '#b8b8b8';
 // Beside the stack, depth is the stack's to show: the model is white, a low-confidence vessel a
 // paler blue and fainter, and the vessel under the pointer cyan.
 const SURE = '#ffffff', SURE_ALPHA = .8, UNSURE = '#9db8ff', UNSURE_ALPHA = .4, LIT = '#4fd1d9';
@@ -33,7 +36,7 @@ const SPOT_REACH = 1.25, SPOT_MIN_PX = 60, FADED = .15;
 
 let model = null, loaded = null, history = [], future = [], edits = 0, savedKey = null;
 let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true, showWidths = true;
-let review = 'all', reach = .5, maskKey = null, maskTimer = null, drawing = null, moving = null;
+let review = 'all', reach = .5, maskKey = null, maskTimer = null, drawing = null, moving = null, lasso = null;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage: edits live until the page closes */ } },
@@ -75,7 +78,8 @@ function project() {
   });
   const boxes = (model.dense_regions || []).map((b) => [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]]
     .map(([x, y]) => at({ x, y, z: (model.slices - 1) / 2 }))).filter((c) => c.every(Boolean));
-  return { vp, W, H, pts, curves, widths, boxes };
+  const areas = (model.excluded_regions || []).map((r) => r.polygon.map(([x, y]) => at({ x, y, z: (model.slices - 1) / 2 }))).filter((c) => c.every(Boolean));
+  return { vp, W, H, pts, curves, widths, boxes, areas };
 }
 const SAMPLES = 8, sampled = new WeakMap();
 function samples(i) {
@@ -88,6 +92,16 @@ const inSlab = (n) => n.z >= V.S.z0 - .5 && n.z <= V.S.z1 + .5 && V.inClip(toWor
 const visible = (s) => Mo.live(s) && (showCandidates || s.state !== 'candidate');
 const shown = (s) => visible(s) && (inSlab(model.nodes.get(s.a)) || inSlab(model.nodes.get(s.b)));
 const isCandidate = (h) => h?.segment != null && model.segments[h.segment]?.state === 'candidate';
+// a vessel lying mostly in a damaged area is out of the analysis, and fades
+const damageFade = (segs) => (2 * segs.filter((i) => Mo.excluded(model, samples(i)[SAMPLES >> 1])).length > segs.length ? .3 : 1);
+let hatch = null;
+function hatching(c) {
+  if (hatch) return c.createPattern(hatch, 'repeat');
+  hatch = document.createElement('canvas'); hatch.width = hatch.height = 8;
+  const h = hatch.getContext('2d'); h.strokeStyle = EXCLUDED; h.globalAlpha = .55; h.lineWidth = 1;
+  h.beginPath(); h.moveTo(0, 8); h.lineTo(8, 0); h.stroke();
+  return c.createPattern(hatch, 'repeat');
+}
 const handles = () => V.S.dist <= V.FIT_DIST / HANDLES_ZOOM;
 // how clearly a line is drawn while a point is dragged: whole near the point, faded away from it
 function nearness(line) {
@@ -175,7 +189,7 @@ function draw() {
     for (const [which, tint, alpha] of [[true, UNSURE, UNSURE_ALPHA], [false, SURE, SURE_ALPHA]]) {
       const layer = document.createElement('canvas'); layer.width = cv.width; layer.height = cv.height;
       const l = layer.getContext('2d'); l.scale(dpr, dpr); l.lineCap = 'round'; l.lineJoin = 'round';
-      for (const run of rs) if (unsure(run.segs[0]) === which && !lit(run)) { l.globalAlpha = nearness(run.line); vessel(l, run, tint); }
+      for (const run of rs) if (unsure(run.segs[0]) === which && !lit(run)) { l.globalAlpha = nearness(run.line) * damageFade(run.segs); vessel(l, run, tint); }
       c.globalAlpha = alpha; c.drawImage(layer, 0, 0, cv.clientWidth, cv.clientHeight);
     }
     c.globalAlpha = 1;
@@ -187,7 +201,7 @@ function draw() {
       c.strokeStyle = lit ? '#fff' : OVERLAY;
       // over the stack the lines stay thin and let the signal under them show through, a low-confidence
       // one fainter still
-      c.globalAlpha = (lit ? 1 : unsure(i) ? .35 : .7) * nearness(line);
+      c.globalAlpha = (lit ? 1 : (unsure(i) ? .35 : .7) * damageFade([i])) * nearness(line);
       c.lineWidth = lit ? 3 : 1.1;
       c.beginPath(); c.moveTo(line[0][0], line[0][1]); for (const q of line) c.lineTo(q[0], q[1]); c.stroke();
       const r = showWidths && view.widths.get(i);
@@ -204,7 +218,11 @@ function draw() {
   }
   c.globalAlpha = V.S.spot ? FADED : 1; c.setLineDash([6, 4]); c.strokeStyle = DENSE; c.lineWidth = 1.5;
   for (const b of view.boxes) { c.beginPath(); b.forEach((q, k) => (k ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); c.stroke(); }
-  c.setLineDash([]); c.globalAlpha = 1;
+  c.setLineDash([]);
+  const outline = (q) => { c.beginPath(); q.forEach((p, k) => (k ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); };
+  for (const a of view.areas) { outline(a); c.fillStyle = hatching(c); c.fill(); c.strokeStyle = EXCLUDED; c.lineWidth = 1.2; c.stroke(); }
+  if (lasso?.pts.length > 1) { c.setLineDash([5, 4]); c.strokeStyle = '#fff'; c.lineWidth = 1.5; outline(lasso.pts); c.stroke(); c.setLineDash([]); }
+  c.globalAlpha = 1;
   // the handles: none in the opening view, and only the one being dragged while it moves
   for (const n of model.nodes.values()) {
     if (moving != null ? n.id !== moving : !handles()) continue;
@@ -302,6 +320,21 @@ function redo() { if (!future.length) return; history.push(model); model = futur
 function grab(e) {
   if (!model || mode === 'off') return null;
   closeMenu();
+  if (lasso && e.button === 0) {
+    const r = cv.getBoundingClientRect(), add = (ev) => { lasso.pts.push([ev.clientX - r.left, ev.clientY - r.top]); V.redraw(); };
+    lasso.pts = []; add(e);
+    return {
+      move: add,
+      up(ev) {
+        const poly = lasso.pts.map((q) => ground(q)).filter(Boolean).map((p) => [round(p.x), round(p.y)]);
+        lasso.pts = [];
+        const next = Mo.markExcluded(model, poly);
+        if (next === model) { V.redraw(); return msg('That outline encloses no area: draw around the damage, ending where you began.'); }
+        setLasso(false); apply(next); askReason(model.excluded_regions.length - 1, ev.clientX, ev.clientY);
+      },
+      cancel() { lasso.pts = []; V.redraw(); },
+    };
+  }
   const h = pick(e);
   if (e.button === 0 && !e.shiftKey && h?.node != null && !drawing) {
     const base = model, id = h.node, ndcZ = view.pts.get(id)[3];
@@ -353,7 +386,23 @@ function clicked(e) {
   if (!model || mode === 'off') return;
   if (drawing) return drawClick(e);
   const h = pick(e, true);
-  if (isCandidate(h)) openMenu(h, e.clientX, e.clientY);
+  if (isCandidate(h)) return openMenu(h, e.clientX, e.clientY);
+  const r = cv.getBoundingClientRect(), p = ground([e.clientX - r.left, e.clientY - r.top]);
+  const k = p ? (model.excluded_regions || []).findIndex((a) => Mo.excluded({ excluded_regions: [a] }, p)) : -1;
+  if (k >= 0) askReason(k, e.clientX, e.clientY);
+}
+
+// A menu of buttons at the pointer: items are [label, fn returning the next model] or [note, null].
+function showMenu(items, x, y) {
+  const m = $('ctx');
+  m.replaceChildren(...items.map(([label, fn]) => {
+    if (!fn) { const p = document.createElement('div'); p.className = 'note'; p.textContent = label; return p; }
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'item'; b.textContent = label;
+    b.onclick = () => { closeMenu(); apply(fn()); V.redraw(); };
+    return b;
+  }));
+  m.hidden = false;
+  m.style.left = `${Math.min(x, innerWidth - m.offsetWidth - 8)}px`; m.style.top = `${Math.min(y, innerHeight - m.offsetHeight - 8)}px`;
 }
 
 function openMenu(h, x, y) {
@@ -377,16 +426,36 @@ function openMenu(h, x, y) {
     if (d === 2) items.push(['Remove this curve point (smoother curve)', () => Mo.removeBend(model, h.node)]);
     items.push([d === 1 ? 'Delete this tip and its segment' : 'Delete this point and its segments', () => Mo.deleteNode(model, h.node)]);
   }
-  const m = $('ctx');
-  m.replaceChildren(...items.map(([label, fn]) => {
-    if (!fn) { const p = document.createElement('div'); p.className = 'note'; p.textContent = label; return p; }
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'item'; b.textContent = label;
-    b.onclick = () => { closeMenu(); apply(fn()); V.redraw(); };
-    return b;
-  }));
-  m.hidden = false;
-  m.style.left = `${Math.min(x, innerWidth - m.offsetWidth - 8)}px`; m.style.top = `${Math.min(y, innerHeight - m.offsetHeight - 8)}px`;
+  showMenu(items, x, y);
   hover = h; V.redraw();
+}
+
+// ---------- damaged areas ----------
+// The point on the stack's middle depth under a screen point, in µm; null when the view looks along
+// that plane. From straight above this is exactly the spot under the pointer.
+function ground([x, y]) {
+  const iv = V.M.inv(view.vp), nx = x / view.W * 2 - 1, ny = 1 - y / view.H * 2;
+  const [a, b] = [-1, 1].map((d) => { const w = V.M.xf(iv, [nx, ny, d]); return w.slice(0, 3).map((v) => v / w[3]); });
+  const zc = toWorld({ x: 0, y: 0, z: (model.slices - 1) / 2 })[2], t = (zc - a[2]) / (b[2] - a[2]);
+  return Number.isFinite(t) && Math.abs(b[2] - a[2]) > 1e-9 ? fromWorld(a.map((v, k) => v + t * (b[k] - v))) : null;
+}
+const round = (v) => Math.round(v * 10) / 10;
+function setLasso(on) {
+  lasso = on ? { pts: [] } : null;
+  $('m-lasso').textContent = on ? 'Cancel marking' : 'Mark a damaged area';
+  $('m-lasso').setAttribute('aria-pressed', String(!!on));
+  cv.classList.toggle('connecting', !!on);
+  if (on) { if (drawing) setDrawing(false); if (mode !== 'overlay') setMode('overlay'); }
+  $('lasso-note').textContent = on ? 'Drag around the damaged area. It is left out of the analysis through every slice.' : '';
+  V.redraw();
+}
+// What the damage is, for an area just drawn or clicked, or taking the area back out.
+function askReason(k, x, y) {
+  const now = model.excluded_regions[k].reason;
+  const set = (reason) => () => ({ ...model, excluded_regions: model.excluded_regions.map((a, i) => (i === k ? { ...a, reason } : a)) });
+  showMenu([[now ? `Damaged area: ${now}` : 'What is wrong here?', null],
+    ...Mo.REASONS.filter((r) => r !== now).map((r) => [r[0].toUpperCase() + r.slice(1), set(r)]),
+    ['Unmark: analyse this area again', () => Mo.unmarkExcluded(model, k)]], x, y);
 }
 // The junction from the side, cut out of the stack: two vessels that only cross sit apart in depth.
 // The view looks across the straightest pair of branches through it, the vessel running on.
@@ -453,6 +522,7 @@ function setDrawing(on) {
   $('m-draw').setAttribute('aria-pressed', String(!!on));
   cv.classList.toggle('connecting', !!on);
   if (on && mode !== 'overlay') setMode('overlay');
+  if (on && lasso) setLasso(false);
   $('draw-note').textContent = on ? 'Click along the vessel, a point at a time; each point goes to the brightest spot under the pointer. Click an existing vessel, press Enter or Escape to end. Ctrl-Z takes back a point.' : '';
   V.redraw();
 }
@@ -496,6 +566,9 @@ function facts() {
       `${s.pendingJunctions ? ` (they would add up to ${s.pendingJunctions} junctions)` : ''}, ${v.accepted} approved, ${v.rejected} declined. ` : '') +
     (model.dense_regions?.length ? `${model.dense_regions.length} area${model.dense_regions.length === 1 ? '' : 's'} with far more junctions ` +
       'than the rest of the stack, likely traced wrong, outlined in amber. ' : '') +
+    (model.excluded_regions?.length ? `${model.excluded_regions.length} damaged area${model.excluded_regions.length === 1 ? '' : 's'} ` +
+      `(${(100 * Mo.excludedFraction(model)).toFixed(1)}% of the field, hatched) left out of the analysis, with the ${v.excluded} ` +
+      `vessel edge${v.excluded === 1 ? '' : 's'} in ${model.excluded_regions.length === 1 ? 'it' : 'them'}. ` : '') +
     (edits ? `${edits} edit${edits === 1 ? '' : 's'} so far, kept in this browser until you download.` : 'No edits yet.');
   $('m-undo').disabled = !history.length; $('m-redo').disabled = !future.length; $('m-reset').disabled = !edits;
 }
@@ -550,6 +623,7 @@ export function stackOpened(name) {
   model = null; loaded = null; history = []; future = []; edits = 0; savedKey = null;
   $('model-on').hidden = true; $('review-box').hidden = true; msg(''); setMode(mode);
   if (drawing) setDrawing(false);
+  if (lasso) setLasso(false);
   maskKey = null; refreshMask(true);
   tell();
   $('model-draft').hidden = !draftFor(name);
@@ -590,6 +664,7 @@ export function init() {
   reachOut();
   $('zs').addEventListener('input', () => refreshMask());
   $('m-draw').onclick = () => setDrawing(!drawing);
+  $('m-lasso').onclick = () => setLasso(!lasso);
   $('m-widths').onchange = (e) => { showWidths = e.target.checked; V.redraw(); };
   $('m-undo').onclick = undo; $('m-redo').onclick = redo;
   $('m-reset').onclick = () => { if (!edits || !confirm(`Discard all ${edits} edits and go back to the model as loaded?`)) return;
@@ -597,7 +672,7 @@ export function init() {
   $('m-save').onclick = download;
   document.addEventListener('keydown', (e) => {
     if (!model || e.target.closest('input, textarea')) return;
-    if (e.key === 'Escape') closeMenu();
+    if (e.key === 'Escape') { closeMenu(); if (lasso) setLasso(false); }
     if (drawing && (e.key === 'Escape' || e.key === 'Enter')) { setDrawing(false); return; }
     const k0 = e.key.toLowerCase();
     if (!(e.ctrlKey || e.metaKey || e.altKey) && (k0 === 'a' || k0 === 'd') && isCandidate(hover)) {

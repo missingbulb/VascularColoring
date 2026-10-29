@@ -63,6 +63,11 @@ export function parse(j) {
       }
     }
   }
+  if (j.excluded_regions != null) {
+    if (!Array.isArray(j.excluded_regions)) throw new ModelError('its "excluded_regions" is not a list');
+    for (const r of j.excluded_regions) if (!Array.isArray(r?.polygon) || r.polygon.length < 3 || !r.polygon.every((q) => q?.length === 2 && q.every(Number.isFinite)))
+      throw new ModelError('an excluded area has no outline of at least three points');
+  }
   prune(m);
   return m;
 }
@@ -336,17 +341,60 @@ export function review(m, i, verdict) {
   return o;
 }
 
-// How many vessels (junction to junction, not segments between curve points) are in each state.
+// How many vessels (junction to junction, not segments between curve points) are in each state, and
+// how many of the live ones lie mostly in an area marked as damaged, counted there instead.
 export function pieceCounts(m) {
-  const n = Object.fromEntries(STATES.map((s) => [s, 0])), seen = new Set();
-  m.segments.forEach((s, i) => { if (seen.has(i)) return; for (const k of piece(m, i)) seen.add(k); n[s.state]++; });
+  const n = { ...Object.fromEntries(STATES.map((s) => [s, 0])), excluded: 0 }, seen = new Set();
+  m.segments.forEach((s, i) => {
+    if (seen.has(i)) return;
+    const p = piece(m, i);
+    for (const k of p) seen.add(k);
+    n[live(s) && 2 * p.filter((k) => excluded(m, curvePoint(m, k, .5))).length > p.length ? 'excluded' : s.state]++;
+  });
   return n;
 }
 
+// Counts over the confirmed vessels, leaving out whatever lies in an area marked as damaged.
 export function stats(m) {
-  const d = degrees(m), all = degrees(m, live);
-  let junctions = 0, tips = 0, pending = 0;
-  for (const v of d.values()) { if (v >= 3) junctions++; else if (v === 1) tips++; }
-  for (const [id, v] of all) if (v >= 3 && !((d.get(id) || 0) >= 3)) pending++;
-  return { points: m.nodes.size, segments: m.segments.filter(confirmed).length, junctions, tips, pendingJunctions: pending };
+  const d = degrees(m), all = degrees(m, live), out = (id) => excluded(m, m.nodes.get(id));
+  let junctions = 0, tips = 0, pending = 0, segments = 0, excludedSegments = 0;
+  for (const [id, v] of d) { if (out(id)) continue; if (v >= 3) junctions++; else if (v === 1) tips++; }
+  for (const [id, v] of all) if (v >= 3 && !((d.get(id) || 0) >= 3) && !out(id)) pending++;
+  m.segments.forEach((s, i) => { if (confirmed(s)) { if (excluded(m, curvePoint(m, i, .5))) excludedSegments++; else segments++; } });
+  return { points: m.nodes.size, segments, excludedSegments, junctions, tips, pendingJunctions: pending };
+}
+
+// ---------- areas excluded from analysis ----------
+// Areas the owner marked as damaged sample (a fold, a tear, a bubble, debris, out of focus), each an
+// outline of x, y points in µm drawn from above. An area runs through every slice: the stacks are thin
+// and damage cuts through them. Analysis leaves out what lies inside, and measures density over the
+// rest of the field.
+export const REASONS = ['fold', 'tear', 'bubble', 'debris', 'out of focus', 'other'];
+
+function inPolygon(poly, x, y) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+export const excluded = (m, p) => (m.excluded_regions || []).some((r) => inPolygon(r.polygon, p.x, p.y));
+const area = (poly) => Math.abs(poly.reduce((a, [x, y], i) => { const [u, v] = poly[(i + 1) % poly.length]; return a + x * v - u * y; }, 0)) / 2;
+
+// A new area from an outline; an outline enclosing nothing leaves the model as it was.
+export function markExcluded(m, polygon, reason) {
+  if (polygon.length < 3 || !(area(polygon) > 0)) return m;
+  return { ...m, excluded_regions: [...(m.excluded_regions || []), { polygon: polygon.map(([x, y]) => [x, y]), ...(reason && { reason }) }] };
+}
+export const unmarkExcluded = (m, k) => ({ ...m, excluded_regions: (m.excluded_regions || []).filter((_, i) => i !== k) });
+
+// The share of the field the areas cover, overlaps counted once, sampled on a fine grid.
+export function excludedFraction(m, n = 500) {
+  const rs = m.excluded_regions || [];
+  if (!rs.length) return 0;
+  const W = m.size_px[0] * m.um_per_px, H = m.size_px[1] * m.um_per_px;
+  let hit = 0;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (excluded(m, { x: (i + .5) * W / n, y: (j + .5) * H / n })) hit++;
+  return hit / (n * n);
 }
