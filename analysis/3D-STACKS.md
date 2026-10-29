@@ -196,8 +196,9 @@ and measure them, and one keeping only the rest, to find what was missed. Once a
 **Review** box offers **Everything**, **Detected** (only the signal within reach of a shown vessel)
 and **Missed** (only the signal away from every shown vessel; whatever bright line is left is a
 vessel the model does not have). Within reach means inside a tube along each curve of the vessel's
-own radius `r` plus **Reach beyond the vessel wall** (default 2 µm), reaching as far in depth at the
-slice spacing the view draws; a point without a radius takes the model's median. Hidden candidates
+own radius `r` plus **Reach beyond the vessel wall**, a share of that vessel's own width from 0% to
+200% (default 50%), so a narrow vessel allows fewer pixels of error than a thick one (owner,
+2026-10-29; it was a fixed 2 µm before), reaching as far in depth at the slice spacing the view draws; a point without a radius takes the model's median. Hidden candidates
 and declined vessels cover nothing. Both renders, both flattened pictures and the depth picking
 below honour the review. Hovering a vessel shows its width (⌀ = 2 r) there.
 **Draw a missed vessel** places a new vessel a click at a time: a click on an existing point or

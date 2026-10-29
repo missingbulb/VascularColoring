@@ -33,7 +33,7 @@ const SPOT_REACH = 1.25, SPOT_MIN_PX = 60, FADED = .15;
 
 let model = null, loaded = null, history = [], future = [], edits = 0, savedKey = null;
 let mode = 'side', hover = null, rubber = null, drafts = [], stackName = null, showCandidates = true, showWidths = true;
-let review = 'all', reach = 2, maskKey = null, maskTimer = null, drawing = null, moving = null;
+let review = 'all', reach = .5, maskKey = null, maskTimer = null, drawing = null, moving = null;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage: edits live until the page closes */ } },
@@ -439,7 +439,7 @@ function refreshMask(now) {
   const key = [model, showCandidates, reach, V.S.zs];
   if (maskKey && key.every((v, k) => v === maskKey.key[k])) return V.setMask(maskKey.mask, review);
   maskTimer = setTimeout(() => {
-    const mask = coverage(model, V.meta.shape, { zStepUm: V.S.zs, marginUm: reach, which: visible });
+    const mask = coverage(model, V.meta.shape, { zStepUm: V.S.zs, reachOfWidth: reach, which: visible });
     maskKey = { key, mask }; V.setMask(mask, review);
   }, now ? 0 : 150);
 }
@@ -585,8 +585,8 @@ export function init() {
   $('model-draft').onclick = loadDraft;
   $('m-candidates').onchange = (e) => { showCandidates = e.target.checked; if (!showCandidates && isCandidate(hover)) closeMenu(); hover = null; refreshMask(); V.redraw(); };
   $('review-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setReview(b.dataset.v); });
-  const reachOut = () => { $('reach-o').value = `${reach.toFixed(1)} µm`; };
-  $('reach').addEventListener('input', (e) => { reach = +e.target.value; reachOut(); refreshMask(); });
+  const reachOut = () => { $('reach-o').value = `${Math.round(reach * 100)}% of its width`; };
+  $('reach').addEventListener('input', (e) => { reach = e.target.value / 100; reachOut(); refreshMask(); });
   reachOut();
   $('zs').addEventListener('input', () => refreshMask());
   $('m-draw').onclick = () => setDrawing(!drawing);
