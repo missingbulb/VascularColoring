@@ -7,16 +7,16 @@ cd "$(dirname "$0")/../.." || exit 1
 npx --yes --prefer-offline @claudinite/setup@1.0.1 >/dev/null || echo 'cn env: the engine was not pre-warmed; SessionStart fetches it' >&2
 failed=0
 
-echo '=== Node dependencies (npm ci) (pack node) ==='
+echo '=== Node dependencies (npm) (pack node) ==='
 if ! (
-( cd "." && npm ci ) || true
+( cd "." && if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then npm ci; else npm install --no-package-lock --no-audit --no-fund; fi ) || true
 ); then
-  echo 'cn env: Node dependencies (npm ci) (pack node): setup failed' >&2
+  echo 'cn env: Node dependencies (npm) (pack node): setup failed' >&2
   failed=1
 elif ! (
-[ -d "./node_modules" ]
+[ -d "./node_modules" ] || ( cd "." && node -e "const p=require('./package.json');process.exit(['dependencies','devDependencies','optionalDependencies'].some(k=>Object.keys(p[k]||0).length)?1:0)" )
 ); then
-  echo 'cn env: Node dependencies (npm ci) (pack node): setup ran, but its probe still fails' >&2
+  echo 'cn env: Node dependencies (npm) (pack node): setup ran, but its probe still fails' >&2
   failed=1
 fi
 
