@@ -71,7 +71,9 @@ DAPI here is excited at 405 nm — not the 340–360 nm the lab quoted, which is
 - Pixel size, as stored: **0.55 µm/px** (`XResolution` 1.818181 px/µm, unit micron) = 11 µm ÷ 20,
   matching the 20× in the names. Read it from each file, per the WORKING-GUIDE's calibration rule,
   rather than from this note.
-- **No z-step is stored**, and no channel names or wavelengths.
+- **No z-step is stored**, and no channel names or wavelengths. The owner gave the z-step on
+  2026-10-29: **1 µm** between slices, recorded in `sources.json` (`z_step_um`) and read from there
+  when a file carries none.
 
 ## Handling these stacks
 
@@ -88,7 +90,6 @@ DAPI here is excited at 405 nm — not the 340–360 nm the lab quoted, which is
   vessel segmenter must not count.
 - **Viewing one in 3D:** `analysis/export_stack_view.py`, which still reads the two-channel originals (see [`analysis/3D-STACKS.md`](../analysis/3D-STACKS.md)).
 - **A z-stack changes "length".** Centerline length on a max projection under-counts vessels
-  running through z, and 3D length needs the missing z-step — ask the lab for it (it is in the
-  `.sld`) before measuring in 3D.
+  running through z; 3D length uses the 1 µm z-step the owner gave (`sources.json`).
 - **The raw `.sld` holds more than these exports** (z-step, channel names, wavelengths). Reading
   `.sld`/`.sldy` needs Bio-Formats (Java) or 3i's tools — use only if a missing piece blocks work.

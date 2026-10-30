@@ -35,6 +35,8 @@ from scipy.stats import poisson
 from skimage.filters import apply_hysteresis_threshold
 from skimage.morphology import skeletonize, remove_small_objects
 
+import fetch_data
+
 # Every constant is in noise units, µm read off the file, or multiples of the vessel's own width.
 BACKGROUND_UM = 11.0   # haze varies over tens of µm; capillaries are ~2-6 µm wide (Stefanitsch digest)
 SMOOTH_UM = 0.55       # about the lateral resolution of a 20x objective
@@ -99,7 +101,7 @@ def read_cd31(path, channel):
     um = xres.value[1] / xres.value[0] if xres and ij.get('unit') in ('micron', 'um', 'µm') else None
     if not um:
         raise SystemExit('the file records no pixel size in µm')
-    return a.astype(np.float32), um, ij.get('spacing')
+    return a.astype(np.float32), um, ij.get('spacing') or fetch_data.z_step_um(path)
 
 
 def noise_units(vol, um):

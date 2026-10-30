@@ -34,6 +34,7 @@ module whose `go.mod` carries the stanza `cn check sdk --out <dir>` writes.
 | `per-paper-rollup` | prose |
 | `paper-finished-pdf-redundant` | prose (+ the `paper-intake` skill) |
 | `trustworthy-numbers` | prose |
+| `ask-before-unknown` | prose |
 
 ## Skills
 

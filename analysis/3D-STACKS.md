@@ -327,8 +327,8 @@ remain.
 
 ## Open questions for the owner
 
-1. **The z-step** (µm between slices). It is in the `.sld`, not the TIFF exports. Until it is
-   known, depth is drawn at a guessed spacing, and no 3D length or z-shape is quantitative.
+1. ~~**The z-step**~~ — answered by the owner on 2026-10-29: **1 µm**, recorded in
+   `data/sources.json` and read from there by every script when a file stores none.
 2. **Ground truth.** Nothing measures width or length until the owner has marked the draft graph:
    which edges are vessels, which junctions are real, and which vessels the draft missed.
 

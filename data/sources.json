@@ -4,6 +4,8 @@
       "name": "owner-stacks",
       "drive_id": "1AH4EVGT-ECPZvhHiHMwUzrMLLtljs1Pd",
       "kind": "folder",
+      "z_step_um": 1.0,
+      "z_step_source": "the owner, in the project thread on 2026-10-29; the TIFF exports do not store it",
       "skip": [
         "*.zip",
         "4.2.26.sld*"
@@ -35,6 +37,8 @@
       "name": "owner-stacks-originals",
       "drive_id": "1AH4EVGT-ECPZvhHiHMwUzrMLLtljs1Pd",
       "kind": "folder",
+      "z_step_um": 1.0,
+      "z_step_source": "the owner, in the project thread on 2026-10-29; the TIFF exports do not store it",
       "skip": [
         "*.zip",
         "cd31_*"
