@@ -18,8 +18,13 @@ Cross-paper decisions: [`references/METHODS-SYNTHESIS.md`](../../../../../../ref
 
 ### 1. Place the paper
 
+**Check the licence first.** This repository is public: a copyrighted paper (Elsevier, Springer…)
+is digested text-only, with no PDF and no figure files committed, and its figure descriptions say
+so; only an open licence such as CC BY lets the PDF and figures in. Record the licence in the
+digest's citation block either way.
+
 Slug is `<first-author>-<year>-<short-topic>`. Create `references/<slug>/` and `git mv` the PDF in
-as `<slug>.pdf` — the original file keeps its content but not its unwieldy download name.
+as `<slug>.pdf` (open licence only) — the original file keeps its content but not its unwieldy download name.
 
 ### 2. Extract text and images
 
