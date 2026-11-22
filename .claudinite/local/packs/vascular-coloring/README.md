@@ -20,6 +20,7 @@ anti-overfitting stance are `research-project`'s, so reach for that pack for tho
 | `render-outputs-gitignored` | render directories stay ignored | blocking |
 | `paper-folder-indexed` | each paper digested and indexed | blocking |
 | `paper-digest-shape` | digest keeps its required sections | blocking |
+| `paper-slug-shape` | paper folder is `<author>-<year>-<topic>`, PDF named after it | blocking |
 
 The checks are Go, in [`checks/`](checks/). Fixtures: the `*_test.go` files beside them — each
 check shown firing on a violating input and quiet on a clean one, run with `go test` in a scratch
